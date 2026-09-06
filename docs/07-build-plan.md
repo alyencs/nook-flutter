@@ -11,7 +11,8 @@ screen needed a field the proposal's tables did not have, the conflict is listed
 in §1 with the decision that resolved it. Everything else traces back to a line
 in one of the three PDFs.
 
-**Status:** planning complete, not yet built.
+**Status:** built. Every screen below exists and runs; §13 records what changed
+between this plan and the finished app.
 
 ---
 
@@ -473,3 +474,67 @@ Not code, but part of what is submitted.
    worker files are missing. De-risked by putting it in Phase 0.
 4. **Mockup fidelity drift** — 24 frames is a lot to match by memory. Phase 9 is
    an explicit frame-by-frame comparison pass, not a general "polish".
+
+
+---
+
+## 13. As built — what changed, and what broke
+
+The plan above survived contact with the code largely intact. Six things were
+different in practice, and they are worth recording because each was a real
+decision rather than a typo.
+
+### Changes to the plan
+
+1. **Search moved inside the Home tab.** The plan had it as its own route. Built
+   that way it was a dead end: no back button, because the mockup does not draw
+   one. The mockup names those frames "Home: Search" and "Home: Search Results"
+   and draws the tab bar on both, so search became a state of the Home tab and
+   the Home tab is how you leave it.
+2. **`trips.item_count` is computed, not stored** — flagged in §5 as a planned
+   deviation, and it stayed that way.
+3. **Foreign keys needed explicit SQL.** Drift's `references(Trips, #id)`
+   generated no `REFERENCES` clause at all — the schema came out with the
+   relationship missing, silently. Switched to `customConstraint` plus
+   `PRAGMA foreign_keys = ON`, and added a test asserting a post cannot point at
+   a trip that does not exist. That relationship is the stated reason Drift beat
+   Hive, so it had to be real.
+4. **CanvasKit is served from the app's own folder.** Flutter's default loads it
+   from a Google CDN, which white-screens with no error behind a proxy or
+   offline. A custom `web/flutter_bootstrap.js` points at the copy the build
+   already produces.
+5. **The deploy workflow gained one step** — `cp .env.example .env` — because
+   `flutter_dotenv` reads `.env` through the asset bundle, and the runner has
+   none. It copies the keyless example, so the deployed build has no key by
+   construction rather than by omission. This is the only change to a file the
+   starter provided.
+6. **A `NOOK_DEVICE_PREVIEW` build flag** was added so screenshots can be taken
+   at phone size without the `device_preview` frame. The frame stays on by
+   default, including in the deployed build.
+
+### Bugs found and fixed during the build
+
+- **Recent searches came back in the wrong order.** Two searches in the same
+  millisecond tie on the timestamp, and SQLite broke the tie by row id, putting
+  the *older* one first. Fixed with an explicit second sort key.
+- **A chip could overflow its card.** "Accommodation" is wider than a Recent
+  Saves card allows. Fixed in `MetadataChip` so it cannot happen anywhere.
+- **Two rows of non-flexible text** could clip — the "Saved on <date>" line and
+  the Travel Details label rows. The browser hid it; the widget tests, which use
+  a wider fallback font, did not.
+
+### Tests
+
+28, all passing:
+
+| File | Covers |
+| --- | --- |
+| `test/dao_test.dart` | Seeding, persistence across a reopen, search across every field, recently-viewed ordering, moving posts between trips, deleting a trip without destroying its posts, note edits, search-history de-duplication, and foreign-key enforcement |
+| `test/extractor_test.dart` | Platform detection, the category vocabulary and its fallback, and the sample extractor's determinism, keyword matching, slug-derived titles and error handling |
+| `test/widget_test.dart` | Home renders its sections, search opens in-tab and filters, the no-results state, post and travel details, the empty state, the splash-to-onboarding step, and that no Material default colours or fonts leak into the theme |
+
+### Still outstanding
+
+- The 40-link extraction test (10 real links per platform), which is the
+  proposal's own mitigation for its biggest risk.
+- The demo video, showing real Gemini extraction locally.

@@ -1,0 +1,123 @@
+import 'package:flutter/material.dart';
+
+import '../ai/platform_from_url.dart';
+import '../data/database.dart';
+import '../theme/nook_colors.dart';
+import '../theme/nook_spacing.dart';
+import '../theme/nook_typography.dart';
+import 'metadata_chip.dart';
+import 'nook_card.dart';
+import 'thumb_placeholder.dart';
+
+/// The Recent Saves carousel card: thumbnail on top, then title, creator and
+/// the platform chip.
+class SavedPostGridCard extends StatelessWidget {
+  const SavedPostGridCard({super.key, required this.post, this.onTap});
+
+  static const cardWidth = 150.0;
+
+  final SavedPost post;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: cardWidth,
+      child: NookCard(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const ThumbPlaceholder(aspectRatio: 1.25),
+            const SizedBox(height: NookSpacing.tight),
+            Text(
+              post.title,
+              style: NookType.bodyStrong,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              post.creator ?? '—',
+              style: NookType.caption.copyWith(fontSize: 13),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: NookSpacing.tight),
+            MetadataChip(NookPlatform.label(post.platform)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The list row used by Recently Viewed, Search and Trip Details.
+///
+/// [showDestination] swaps the creator line for the detected destination, which
+/// is what the Search Results screen draws.
+class SavedPostRowCard extends StatelessWidget {
+  const SavedPostRowCard({
+    super.key,
+    required this.post,
+    this.onTap,
+    this.showDestination = false,
+    this.showCategory = false,
+  });
+
+  final SavedPost post;
+  final VoidCallback? onTap;
+  final bool showDestination;
+  final bool showCategory;
+
+  @override
+  Widget build(BuildContext context) {
+    final caption = showDestination
+        ? (post.aiDestination ?? '—')
+        : (post.creator ?? '—');
+
+    return NookCard(
+      onTap: onTap,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const ThumbPlaceholder(width: 64, height: 56, showGlyph: false),
+          const SizedBox(width: NookSpacing.section),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  post.title,
+                  style: NookType.bodyStrong,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: NookSpacing.tight,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      caption,
+                      style: NookType.caption.copyWith(fontSize: 13),
+                    ),
+                    const Text(
+                      '•',
+                      style: TextStyle(color: NookColors.textMuted, fontSize: 13),
+                    ),
+                    MetadataChip(NookPlatform.label(post.platform)),
+                    if (showCategory && post.aiCategory != null)
+                      MetadataChip(post.aiCategory!),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

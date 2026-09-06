@@ -1,11 +1,11 @@
 {
-  "name": "My Final Project",
-  "short_name": "Final Project",
-  "start_url": ".",
-  "display": "standalone",
-  "background_color": "#FFFFFF",
-  "theme_color": "#6750A4",
-  "description": "My 6ADET final project.",
-  "orientation": "portrait-primary",
-  "prefer_related_applications": false
+    "name": "Nook",
+    "short_name": "Nook",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#FAFAF8",
+    "theme_color": "#DD700B",
+    "description": "Never lose your next favourite find. Save travel posts from TikTok, Instagram, Facebook and YouTube, group them by trip, and search across all of them.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false
 }

@@ -1,38 +1,51 @@
 # Demo video
 
-**File:** `demo.mp4` in this folder, or the hosted link (see below)
-**Length:** aim for 3 to 5 minutes
-**Recorded on:** the device you used
+**File:** `docs/demo.mp4` *(record and add; then link it from the README)*
 
-## What it shows
+## What it has to show
 
-A short list, in order, so a viewer can skip to what they need:
+The live link cannot demonstrate everything, and one thing in particular has to
+be shown here instead: **real Gemini extraction**. The published build ships
+without an API key on purpose, so extraction there is the sample fallback. The
+video is where the real thing gets demonstrated, running locally with a
+`GEMINI_API_KEY` in `.env`.
 
-- 0:00 what the app is and who it is for
-- 0:20 ...
-- 1:10 ...
+## Suggested run, about three minutes
 
-Cover, in this order: the main user journey end to end, anything that only works
-on a real device (camera, GPS, sensors), and the thing you are proudest of.
+1. **Cold start.** Launch with no profile: splash, the four onboarding pages,
+   Get Started, Set Up Profile. Type a name and email, continue to Home.
+2. **Home.** The greeting, Recent Saves, Your Trips, Recently Viewed. Say that
+   the library is seeded demo data and entirely fictional.
+3. **Save something real — with the key present.** Add → Paste Link → paste a
+   real travel URL → Analyze. Show the loading state, then the detected
+   destination and category. **Point out that there is no sample-data notice
+   here, and that there is one in the deployed build** — that difference is the
+   secrets decision made visible.
+4. **Correct the extraction.** Type over the destination, or pick a different
+   category chip. This is the answer to the proposal's biggest risk.
+5. **Finish the save.** Choose a trip (create one to show that path), add a
+   note, then Review & Save. Show the new post on Home.
+6. **The signature screen.** Open the post → Travel Details. Location, Country,
+   the map placeholder, Best Time to Visit, Budget. Mention that the map is a
+   stretch goal and labelled as one.
+7. **Search.** Search a destination and show results matching on destination
+   rather than title.
+8. **Persistence.** Reload the browser and show the saved post still there —
+   this is the storage decision working.
+9. **Failure, honestly.** Paste something that is not a link, or an opaque URL,
+   and show the error state with Retry and Enter manually.
 
-## Getting it into the repo
+## What to say about the AI
 
-GitHub **blocks any file over 100 MB** and warns over 50 MB, so compress before
-you commit:
+Say plainly that extraction reads the link — its host, its slug, its handle —
+because a browser cannot fetch a TikTok or Instagram page directly. A URL that
+names its subject extracts well; an opaque one may come back without a
+destination. That is why every field is optional and the destination is
+editable.
 
-```bash
-ffmpeg -i raw.mp4 -vcodec libx264 -crf 28 -preset slow \
-       -vf scale=-2:720 -acodec aac -b:a 96k demo.mp4
-```
+## Before recording
 
-Raise `-crf` (28 to 32) or drop to `-2:480` if it is still too large. If it still
-does not fit, attach it to a **GitHub Release** or upload it unlisted and link it
-here. Never commit the raw capture: git keeps it forever even after you delete
-it.
-
-## Before you record
-
-- Real data off the screen: no classmates' names, numbers, faces or messages.
-- Notifications off.
-- Sensible sample data, not "asdf".
-- One unbroken take per feature. Say what you are doing while you do it.
+- [ ] A `GEMINI_API_KEY` is in `.env` so extraction is real
+- [ ] Nothing personal is on screen: no real bookmarks, tabs, notifications or names
+- [ ] The seeded demo library is intact (Settings → Reset Demo Data)
+- [ ] Recorded at phone proportions, or with the `device_preview` frame visible

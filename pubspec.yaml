@@ -1,8 +1,6 @@
-# Every Flutter project has one of these. It names your app, sets the Dart
-# version it needs, and lists the packages you depend on.
-# Add a package with: flutter pub add <name>
-name: final_project
-description: My 6ADET final project.
+# Nook — save, organise and rediscover travel content.
+name: nook
+description: Never lose your next favourite find. Save travel posts from TikTok, Instagram, Facebook and YouTube, group them by trip, and search across all of them.
 publish_to: "none"
 version: 1.0.0+1
 
@@ -13,17 +11,46 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.9
-  # Lets you preview the app inside a phone frame while you develop in a
-  # browser. It is switched off automatically in a release build.
+  # Phone frame around the app in the browser. Left on in the deployed build:
+  # the live link is opened on a desktop, and a phone layout at desktop width
+  # looks broken unframed.
   device_preview: ^1.3.1
+  # Storage. On-device SQL, works on web. The proposal's choice.
+  drift: ^2.20.0
+  drift_flutter: ^0.2.0
+  path_provider: ^2.1.4
+  # AI destination and category detection.
+  google_generative_ai: ^0.4.6
+  # Loads GEMINI_API_KEY from a git-ignored .env. Never shipped to the web build.
+  flutter_dotenv: ^5.1.0
+  # Profile picture on Set Up Profile and Account.
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  build_runner: ^2.4.13
+  drift_dev: ^2.20.0
 
 flutter:
   uses-material-design: true
-  # Put images, fonts and sounds in assets/ and list them here, for example:
-  # assets:
-  #   - assets/images/
+
+  assets:
+    # flutter_dotenv reads .env through the asset bundle, so it must be listed.
+    # It is git-ignored; the deploy workflow creates one from .env.example,
+    # which carries no key, so the deployed build runs the sample extractor.
+    - .env
+    - .env.example
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
