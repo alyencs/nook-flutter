@@ -150,7 +150,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: NookSpacing.screenEdge),
+                  const SizedBox(height: NookSpacing.block),
                   const OverlineLabel('Move to another trip'),
                   const SizedBox(height: NookSpacing.tight),
                   for (final summary in others) ...[
@@ -158,7 +158,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                       onTap: () => setState(() => _selected = summary.trip.id),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          vertical: NookSpacing.section,
+                          vertical: NookSpacing.tight,
                         ),
                         child: Row(
                           children: [

@@ -34,7 +34,7 @@ class ProfileScreen extends StatelessWidget {
             children: [
               const SizedBox(height: NookSpacing.section),
               Text('Profile', style: NookType.title),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               Center(child: ProfileAvatar(picture: user?.profilePicture)),
               const SizedBox(height: NookSpacing.section),
               Center(
@@ -50,7 +50,7 @@ class ProfileScreen extends StatelessWidget {
                   style: NookType.body.copyWith(color: NookColors.textMuted),
                 ),
               ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               Row(
                 children: [
                   Expanded(
@@ -69,7 +69,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               _ProfileRow(
                 label: 'Account',
                 onTap: () => _open(context, const AccountScreen()),
@@ -111,7 +111,7 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: NookSpacing.screenEdge),
+      padding: const EdgeInsets.symmetric(vertical: NookSpacing.section),
       decoration: BoxDecoration(
         color: NookColors.surface,
         borderRadius: BorderRadius.circular(NookRadius.md),
@@ -147,7 +147,7 @@ class _ProfileRow extends StatelessWidget {
         InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 18),
+            padding: const EdgeInsets.symmetric(vertical: NookSpacing.row),
             child: Row(
               children: [
                 Expanded(

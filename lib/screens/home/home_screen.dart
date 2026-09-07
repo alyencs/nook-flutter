@@ -82,7 +82,7 @@ class HomeScreen extends StatelessWidget {
                   else if (empty)
                     const _HomeEmpty()
                   else ...[
-                    const SizedBox(height: NookSpacing.screenEdge),
+                    const SizedBox(height: NookSpacing.block),
                     if (recent.isNotEmpty) _RecentSaves(posts: recent),
                     if (trips.isNotEmpty) _YourTrips(trips: trips),
                     const _RecentlyViewed(),
@@ -180,7 +180,7 @@ class _RecentSaves extends StatelessWidget {
         ),
         const SizedBox(height: NookSpacing.section),
         SizedBox(
-          height: 260,
+          height: 226,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
@@ -192,7 +192,7 @@ class _RecentSaves extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: NookSpacing.screenEdge),
+        const SizedBox(height: NookSpacing.block),
       ],
     );
   }
@@ -241,7 +241,7 @@ class _YourTrips extends StatelessWidget {
             );
           },
         ),
-        const SizedBox(height: NookSpacing.screenEdge),
+        const SizedBox(height: NookSpacing.block),
       ],
     );
   }

@@ -23,7 +23,7 @@ class AboutScreen extends StatelessWidget {
       child: ListView(
         children: [
           const NookAppBar(title: 'About Nook'),
-          const SizedBox(height: NookSpacing.screenEdge),
+          const SizedBox(height: NookSpacing.block),
           const Center(child: NookMark(size: 88)),
           const SizedBox(height: NookSpacing.section),
           Center(child: Text('Nook', style: NookType.heading)),
@@ -60,7 +60,7 @@ class AboutScreen extends StatelessWidget {
             ),
           ),
           NookLinkRow(label: 'Rate Nook', onTap: () => _rate(context)),
-          const SizedBox(height: NookSpacing.screenEdge),
+          const SizedBox(height: NookSpacing.block),
           Center(
             child: Text(
               'Made with care for content lovers.',

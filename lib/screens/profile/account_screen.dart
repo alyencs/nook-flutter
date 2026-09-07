@@ -110,7 +110,7 @@ class _AccountScreenState extends State<AccountScreen> {
           child: ListView(
             children: [
               const NookAppBar(title: 'Account'),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               Row(
                 children: [
                   ProfileAvatar(picture: user.profilePicture, size: 72),
@@ -127,7 +127,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               Focus(
                 onFocusChange: (hasFocus) {
                   if (!hasFocus) _saveField();

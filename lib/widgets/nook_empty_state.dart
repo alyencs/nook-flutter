@@ -38,7 +38,7 @@ class NookEmptyState extends StatelessWidget {
             ),
             child: Icon(icon, size: 40, color: NookColors.primary),
           ),
-          const SizedBox(height: NookSpacing.screenEdge),
+          const SizedBox(height: NookSpacing.block),
           Text(title, style: NookType.heading, textAlign: TextAlign.center),
           const SizedBox(height: NookSpacing.tight),
           Text(
@@ -47,7 +47,7 @@ class NookEmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             NookPrimaryButton(label: actionLabel!, onPressed: onAction),
           ],
         ],

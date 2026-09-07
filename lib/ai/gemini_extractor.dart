@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -30,7 +31,17 @@ class GeminiExtractor implements AiExtractor {
           ),
         );
 
-  static const defaultModel = 'gemini-2.5-flash';
+  /// Chosen for latency. `gemini-2.5-flash` runs a thinking phase before it
+  /// answers, and this package's `GenerationConfig` has no way to switch that
+  /// off, so a single extraction could take tens of seconds. The 2.0 flash
+  /// model answers immediately and handles the JSON schema just as well.
+  /// Override with `GEMINI_MODEL` in `.env` to use another.
+  static const defaultModel = 'gemini-2.0-flash';
+
+  /// Past this, something is wrong: a hung connection, a proxy swallowing the
+  /// request, a model that never returns. Better a clear error with Retry than
+  /// a spinner that never stops.
+  static const timeout = Duration(seconds: 30);
 
   final GenerativeModel _model;
 
@@ -98,12 +109,26 @@ Return JSON only, matching the schema.
 ''';
 
   @override
-  Future<ExtractionResult> extract(String url) async {
+  Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) async {
+    onStage?.call('Reading the link');
+
+    // Started before the model call and awaited after it. The thumbnail lookup
+    // can reach out to a platform that never answers, and it has nothing to do
+    // with the model, so it must not be one more thing waited for in series.
+    final thumbnail = PostThumbnails.resolve(url);
+
+    onStage?.call('Asking Gemini');
+
     late final GenerateContentResponse response;
     try {
       response = await _model.generateContent([
         Content.text('$_instructions\n\nURL: $url'),
-      ]);
+      ]).timeout(timeout);
+    } on TimeoutException {
+      throw ExtractionException(
+        'Gemini did not answer within ${timeout.inSeconds} seconds. Try again, '
+        'or enter the details yourself.',
+      );
     } on GenerativeAIException catch (e) {
       throw ExtractionException(_friendly(e.message));
     } catch (_) {
@@ -111,6 +136,8 @@ Return JSON only, matching the schema.
         "Couldn't reach the extraction service. Check your connection.",
       );
     }
+
+    onStage?.call('Reading the reply');
 
     final text = response.text;
     if (text == null || text.trim().isEmpty) {
@@ -162,7 +189,8 @@ Return JSON only, matching the schema.
       longitude: placeable ? longitude : null,
       // Worked out from the link itself rather than asked of the model: a
       // language model cannot know a thumbnail URL, and would invent one.
-      thumbnailUrl: await PostThumbnails.resolve(url),
+      // Already in flight since before the model call.
+      thumbnailUrl: await thumbnail,
     );
   }
 

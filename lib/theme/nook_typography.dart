@@ -19,7 +19,7 @@ abstract final class NookType {
   /// Screen-owning headings: "Set Up Profile", "Review & Save".
   static const display = TextStyle(
     fontFamily: _family,
-    fontSize: 28,
+    fontSize: 25,
     height: 1.15,
     fontWeight: FontWeight.w700,
     color: NookColors.textPrimary,
@@ -29,7 +29,7 @@ abstract final class NookType {
   /// Screen titles, section headers, trip names.
   static const heading = TextStyle(
     fontFamily: _family,
-    fontSize: 22,
+    fontSize: 20,
     height: 1.2,
     fontWeight: FontWeight.w700,
     color: NookColors.textPrimary,
@@ -39,7 +39,7 @@ abstract final class NookType {
   /// App bar titles, card titles.
   static const title = TextStyle(
     fontFamily: _family,
-    fontSize: 18,
+    fontSize: 16.5,
     height: 1.25,
     fontWeight: FontWeight.w600,
     color: NookColors.textPrimary,
@@ -49,7 +49,7 @@ abstract final class NookType {
   /// Saved post titles in lists and cards.
   static const bodyStrong = TextStyle(
     fontFamily: _family,
-    fontSize: 15,
+    fontSize: 14,
     height: 1.35,
     fontWeight: FontWeight.w600,
     color: NookColors.textPrimary,
@@ -58,7 +58,7 @@ abstract final class NookType {
   /// Saved posts, notes, descriptions.
   static const body = TextStyle(
     fontFamily: _family,
-    fontSize: 15,
+    fontSize: 14,
     height: 1.45,
     fontWeight: FontWeight.w400,
     color: NookColors.textPrimary,
@@ -67,7 +67,7 @@ abstract final class NookType {
   /// Creator names, platform labels, dates, hints.
   static const caption = TextStyle(
     fontFamily: _family,
-    fontSize: 12,
+    fontSize: 11,
     height: 1.35,
     fontWeight: FontWeight.w400,
     color: NookColors.textMuted,
@@ -76,17 +76,17 @@ abstract final class NookType {
   /// Section labels above a field: "DETECTED DESTINATION".
   static const overline = TextStyle(
     fontFamily: _family,
-    fontSize: 11,
+    fontSize: 10,
     height: 1.3,
     fontWeight: FontWeight.w600,
     color: NookColors.textMuted,
-    letterSpacing: 0.88, // 0.08em at 11sp
+    letterSpacing: 0.8, // 0.08em at 10sp
   );
 
   /// Button labels.
   static const button = TextStyle(
     fontFamily: _family,
-    fontSize: 15,
+    fontSize: 14.5,
     height: 1.2,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.1,

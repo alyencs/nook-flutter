@@ -64,7 +64,7 @@ class _SearchBodyState extends State<SearchBody> {
             setState(() => _term = '');
           },
         ),
-        const SizedBox(height: NookSpacing.screenEdge),
+        const SizedBox(height: NookSpacing.block),
         Expanded(
           child: searching ? _Results(term: _term) : _Browse(onPickTerm: _run),
         ),
@@ -102,7 +102,7 @@ class _Browse extends StatelessWidget {
                     onTap: () => onPickTerm(search.query),
                     onDelete: () => scope.searches.delete(search.id),
                   ),
-                const SizedBox(height: NookSpacing.screenEdge),
+                const SizedBox(height: NookSpacing.block),
               ],
             );
           },
@@ -131,7 +131,7 @@ class _Browse extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: NookSpacing.screenEdge),
+                const SizedBox(height: NookSpacing.block),
               ],
             );
           },

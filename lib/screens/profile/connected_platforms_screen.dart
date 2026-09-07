@@ -55,7 +55,7 @@ class ConnectedPlatformsScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: NookSpacing.screenEdge),
+          const SizedBox(height: NookSpacing.block),
           for (final platform in NookPlatform.supported) ...[
             _PlatformRow(platform: platform),
             const Divider(),
@@ -79,7 +79,7 @@ class _PlatformRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: NookSpacing.section),
+      padding: const EdgeInsets.symmetric(vertical: NookSpacing.tight),
       child: Row(
         children: [
           PlatformAvatar(platform: platform, size: 44),

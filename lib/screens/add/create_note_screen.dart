@@ -61,7 +61,7 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
             const NookAppBar(title: 'Create Note'),
             const SizedBox(height: NookSpacing.section),
             Text('Write a note', style: NookType.display),
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             NookTextField(
               controller: _title,
               hint: 'What is this about?',

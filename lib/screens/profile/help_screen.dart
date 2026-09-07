@@ -53,7 +53,7 @@ class _HelpScreenState extends State<HelpScreen> {
             controller: _query,
             onChanged: (value) => setState(() => _term = value),
           ),
-          const SizedBox(height: NookSpacing.screenEdge),
+          const SizedBox(height: NookSpacing.block),
           Text('Popular Topics', style: NookType.title),
           const SizedBox(height: NookSpacing.tight),
           if (topics.isEmpty)
@@ -77,7 +77,7 @@ class _HelpScreenState extends State<HelpScreen> {
                   ),
                 ),
               ),
-          const SizedBox(height: NookSpacing.screenEdge),
+          const SizedBox(height: NookSpacing.block),
           Text('Contact', style: NookType.title),
           const SizedBox(height: NookSpacing.section),
           NookSecondaryButton(
@@ -130,7 +130,7 @@ class _HelpScreenState extends State<HelpScreen> {
               ),
               const SizedBox(height: NookSpacing.section),
               SelectableText(_repository, style: NookType.bodyStrong),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               NookPrimaryButton(
                 label: 'Copy link',
                 onPressed: () async {
@@ -215,7 +215,7 @@ class _HelpSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
+      height: 44,
       decoration: BoxDecoration(
         color: NookColors.placeholder,
         borderRadius: BorderRadius.circular(NookRadius.md),

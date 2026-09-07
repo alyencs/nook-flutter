@@ -61,7 +61,7 @@ class _PersonalNoteScreenState extends State<PersonalNoteScreen> {
             const NookAppBar(title: 'Personal Note'),
             const SizedBox(height: NookSpacing.section),
             Text('Add a Note (Optional)', style: NookType.display),
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             NookNoteField(
               controller: _note,
               hint: 'Write your thoughts about this post...',

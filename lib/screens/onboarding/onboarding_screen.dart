@@ -95,7 +95,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        height: 320,
+                        height: 250,
                         width: double.infinity,
                         decoration: BoxDecoration(
                           color: NookColors.placeholder,
@@ -107,7 +107,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           color: NookColors.primary,
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 28),
                       Text(
                         page.title,
                         style: NookType.display,

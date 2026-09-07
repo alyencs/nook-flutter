@@ -67,7 +67,7 @@ class TravelDetailsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               const Divider(),
               _MetaRow(
                 icon: Icons.place_outlined,
@@ -80,7 +80,7 @@ class TravelDetailsScreen extends StatelessWidget {
                 label: 'Country',
                 value: post.aiCountry ?? _countryOf(post.aiDestination),
               ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               const OverlineLabel('Map location'),
               const SizedBox(height: NookSpacing.tight),
               if (post.aiLatitude != null && post.aiLongitude != null)
@@ -98,7 +98,7 @@ class TravelDetailsScreen extends StatelessWidget {
                           'nothing to pin yet. Add one from the post to place it.'
                       : '"${post.aiDestination}" is too broad to place on a map.',
                 ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               const Divider(),
               _MetaRow(
                 icon: Icons.calendar_today_outlined,
@@ -145,7 +145,7 @@ class _MetaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
           Icon(icon, size: 22, color: NookColors.textPrimary),

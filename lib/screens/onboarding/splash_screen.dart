@@ -25,7 +25,7 @@ class SplashScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const NookMark(size: 96),
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             Text('Nook', style: NookType.display),
             const SizedBox(height: NookSpacing.tight),
             Text(

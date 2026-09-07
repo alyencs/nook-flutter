@@ -43,7 +43,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(),
               ],
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               Text('Data', style: NookType.title),
               const SizedBox(height: NookSpacing.tight),
               _DataRow(label: 'Export Data', onTap: () => _export(context)),
@@ -123,7 +123,7 @@ class _SwitchRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
           Expanded(child: Text(label, style: NookType.body)),
@@ -155,7 +155,7 @@ class _DataRow extends StatelessWidget {
         InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: NookSpacing.row),
             child: Row(
               children: [
                 Expanded(child: Text(label, style: NookType.body)),

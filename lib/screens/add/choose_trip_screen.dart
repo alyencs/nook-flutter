@@ -138,7 +138,7 @@ class _TripRow extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(NookRadius.sm),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: NookSpacing.tight),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             children: [
               const TripFolderTile(),

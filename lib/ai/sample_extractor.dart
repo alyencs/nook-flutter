@@ -16,10 +16,8 @@ class SampleExtractor implements AiExtractor {
   bool get isLive => false;
 
   @override
-  Future<ExtractionResult> extract(String url) async {
-    // The real call takes a moment, so the loading state is worth showing here
-    // too rather than snapping instantly to a result.
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+  Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) async {
+    onStage?.call('Reading the link');
 
     final trimmed = url.trim();
     if (trimmed.isEmpty || Uri.tryParse(trimmed)?.host.isEmpty != false) {
@@ -30,6 +28,7 @@ class SampleExtractor implements AiExtractor {
 
     // Prefer a fixture whose subject the link actually mentions, so pasting a
     // Kyoto link gets the Kyoto result rather than an arbitrary one.
+    onStage?.call('Preparing sample details');
     final thumbnailUrl = await PostThumbnails.resolve(trimmed);
 
     final haystack = trimmed.toLowerCase();

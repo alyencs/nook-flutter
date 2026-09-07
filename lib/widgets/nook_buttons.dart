@@ -29,42 +29,62 @@ class NookPrimaryButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       label: label,
-      child: Material(
-        color: enabled ? NookColors.primary : NookColors.border,
-        borderRadius: BorderRadius.circular(NookRadius.md),
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(NookRadius.md),
-          child: SizedBox(
-            height: 56,
-            width: double.infinity,
-            child: Center(
-              child: busy
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation(Colors.white),
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(icon, size: 20, color: Colors.white),
-                          const SizedBox(width: NookSpacing.tight),
-                        ],
-                        Text(
-                          label,
-                          style: NookType.button.copyWith(
-                            color: enabled
-                                ? Colors.white
-                                : NookColors.textMuted,
-                          ),
+      child: DecoratedBox(
+        // Gradient and glow measured off the mockup: a horizontal sweep left to
+        // right, over a warm halo. A disabled button drops both — a glowing
+        // button that does nothing reads as broken rather than unavailable.
+        decoration: BoxDecoration(
+          gradient: enabled ? NookColors.buttonGradient : null,
+          color: enabled ? null : NookColors.border,
+          borderRadius: BorderRadius.circular(NookRadius.button),
+          boxShadow: enabled
+              ? const [
+                  BoxShadow(
+                    color: NookColors.buttonGlow,
+                    blurRadius: 18,
+                    spreadRadius: -4,
+                    offset: Offset(0, 7),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(NookRadius.button),
+          child: InkWell(
+            onTap: enabled ? onPressed : null,
+            borderRadius: BorderRadius.circular(NookRadius.button),
+            child: SizedBox(
+              height: NookMetrics.buttonHeight,
+              width: double.infinity,
+              child: Center(
+                child: busy
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
-                      ],
-                    ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (icon != null) ...[
+                            Icon(icon, size: 18, color: Colors.white),
+                            const SizedBox(width: NookSpacing.tight),
+                          ],
+                          Text(
+                            label,
+                            style: NookType.button.copyWith(
+                              color: enabled
+                                  ? Colors.white
+                                  : NookColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
@@ -99,15 +119,15 @@ class NookSecondaryButton extends StatelessWidget {
       label: label,
       child: Material(
         color: NookColors.surface,
-        borderRadius: BorderRadius.circular(NookRadius.md),
+        borderRadius: BorderRadius.circular(NookRadius.button),
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(NookRadius.md),
+          borderRadius: BorderRadius.circular(NookRadius.button),
           child: Container(
-            height: 56,
+            height: NookMetrics.buttonHeight,
             width: double.infinity,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(NookRadius.md),
+              borderRadius: BorderRadius.circular(NookRadius.button),
               border: Border.all(
                 color: destructive ? NookColors.error : NookColors.border,
               ),
@@ -116,7 +136,7 @@ class NookSecondaryButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 20, color: colour),
+                  Icon(icon, size: 18, color: colour),
                   const SizedBox(width: NookSpacing.tight),
                 ],
                 Text(label, style: NookType.button.copyWith(color: colour)),

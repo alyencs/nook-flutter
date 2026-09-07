@@ -35,7 +35,7 @@ Future<bool> showNookDialog(
               message,
               style: NookType.body.copyWith(color: NookColors.textMuted),
             ),
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             if (destructive)
               NookSecondaryButton(
                 label: confirmLabel,
@@ -105,7 +105,7 @@ Future<String?> showCreateTripDialog(BuildContext context) async {
                 ),
               ),
             ),
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             NookPrimaryButton(
               label: 'Create Trip',
               onPressed: () {

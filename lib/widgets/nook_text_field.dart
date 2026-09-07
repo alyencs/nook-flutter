@@ -63,7 +63,7 @@ class NookTextField extends StatelessWidget {
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: NookSpacing.section,
-                vertical: 18,
+                vertical: 14,
               ),
             ),
           ),
@@ -113,7 +113,7 @@ class NookNoteField extends StatelessWidget {
         borderRadius: BorderRadius.circular(NookRadius.md),
         border: Border.all(color: NookColors.border),
       ),
-      padding: const EdgeInsets.all(NookSpacing.section),
+      padding: const EdgeInsets.all(12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -179,7 +179,7 @@ class NookSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
+      height: 50,
       decoration: BoxDecoration(
         color: NookColors.surface,
         borderRadius: BorderRadius.circular(NookRadius.pill),

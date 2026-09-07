@@ -103,9 +103,9 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: NookSpacing.screenEdge),
+                const SizedBox(height: NookSpacing.block),
                 const Divider(),
-                const SizedBox(height: NookSpacing.screenEdge),
+                const SizedBox(height: NookSpacing.block),
                 Text('Edit notes'.toUpperCase(), style: NookType.overline),
                 const SizedBox(height: NookSpacing.tight),
                 NookNoteField(

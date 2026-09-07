@@ -86,7 +86,7 @@ class _DetectedScreenState extends State<DetectedScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: NookSpacing.screenEdge),
+                    const SizedBox(height: NookSpacing.block),
                     const OverlineLabel('Or choose another:'),
                     const SizedBox(height: NookSpacing.section),
                     Wrap(

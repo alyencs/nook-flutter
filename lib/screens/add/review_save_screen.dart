@@ -105,7 +105,7 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
             const NookAppBar(title: 'Review'),
             const SizedBox(height: NookSpacing.section),
             Text('Review & Save', style: NookType.display),
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             Container(
               padding: const EdgeInsets.all(NookSpacing.section),
               decoration: BoxDecoration(
@@ -137,7 +137,7 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: NookSpacing.screenEdge),
+                  const SizedBox(height: NookSpacing.block),
                   if (!draft.isNote) ...[
                     _Row(
                       label: 'Creator',

@@ -19,10 +19,7 @@ class NookAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(
-        top: NookSpacing.section,
-        bottom: NookSpacing.tight,
-      ),
+      padding: const EdgeInsets.only(top: 10, bottom: 6),
       child: Row(
         children: [
           _SquareButton(
@@ -77,14 +74,14 @@ class _SquareButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(NookRadius.sm),
         child: Container(
-          width: 44,
-          height: 44,
+          width: NookMetrics.appBarButton,
+          height: NookMetrics.appBarButton,
           decoration: BoxDecoration(
             color: NookColors.surface,
             borderRadius: BorderRadius.circular(NookRadius.sm),
             border: Border.all(color: NookColors.textPrimary, width: 1.5),
           ),
-          child: Icon(icon, size: 24, color: NookColors.textPrimary),
+          child: Icon(icon, size: 22, color: NookColors.textPrimary),
         ),
       ),
     );

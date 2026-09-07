@@ -743,3 +743,111 @@ pushed routes and a tab tap has to reach the shell underneath.
 
 42, all passing. New: the full paste-to-save flow asserting no framework
 exception, and settings persistence with the drawn default states.
+
+## 17. Fourth pass — the migration, the toggles, and the gradients
+
+### 1. `no such table: app_settings`
+
+Export Data failed with `SqliteException(1): no such table: app_settings`.
+
+The cause was not in the export code. `app_settings` and the two coordinate
+columns on `saved_posts` were added to the schema in the second and third
+passes, but `schemaVersion` stayed at `1` and the database had no
+`MigrationStrategy` beyond a `beforeOpen`. Drift only runs `createAll` when it
+opens a file that does not exist yet, so every install that predated those
+additions kept its old shape forever. A fresh install worked, which is why the
+tests and every browser run had missed it.
+
+The fix is a real migration: `schemaVersion` is now `2`, and `onUpgrade`
+creates `app_settings` and adds `ai_latitude` / `ai_longitude`. Each step
+checks `sqlite_master` / `PRAGMA table_info` before it acts, because "version
+1" describes two different shapes on disk — installs from before the additions
+and installs from after them, both still stamped 1 — and blindly re-creating a
+table that already exists would throw.
+
+`test/migration_test.dart` builds a genuine v1 database with raw `package:
+sqlite3` (drift cannot express the old shape any more), opens it through
+`NookDatabase`, and asserts the upgrade. Three cases: a true v1 file gains the
+table and the columns; a v1 file that already has them is left alone; a fresh
+file is created complete and seeded.
+
+### 2. The Settings toggles
+
+Same root cause. Writing a switch threw on the missing table, the write was
+lost, and the row snapped back. With the migration in place all four persist
+and all four drive behaviour — none is decoration:
+
+| Switch | Where it is read |
+| --- | --- |
+| Auto-categorize saves | `paste_link_screen.dart:118` — off skips extraction |
+| Show category suggestions | `detected_screen.dart:83`, `search_screen.dart:114` |
+| Paste detection | `paste_link_screen.dart:55` — fills from the clipboard |
+| Save confirmation | `review_save_screen.dart:48` — asks before writing |
+
+Verified in Chromium: each of the four flips, survives leaving Settings and
+coming back, and appears with its new value in the exported JSON.
+
+### 3. Slow link analysis
+
+Three separate causes, all fixed:
+
+- **No timeout.** `generateContent` could hang indefinitely. It now has a
+  30-second timeout and raises an `ExtractionException` that names the limit.
+- **The thumbnail lookup ran after the model call, in series.** It now starts
+  before the call and is awaited after it, and its own timeout dropped from 6s
+  to 2.5s.
+- **`gemini-2.5-flash` thinks before it answers**, and `google_generative_ai`
+  0.4.7 has no `GenerationConfig` field to switch that off. The default model
+  is now `gemini-2.0-flash`.
+
+Paste Link reports progress while it waits — the stage it is on, a running
+second count, and a Cancel button — so there is no silent wait and no
+unbounded one. Failure is reported as failure: the "Sample data" notice on the
+detected screen is still shown whenever the result did not come from a live
+model.
+
+Measured end to end in Chromium after the fix: 1.8 s.
+
+### 4. Gradient and glow on the orange buttons
+
+Sampling the mockup across a primary button gives roughly (219,111,9) at its
+left edge and (196,94,1) at its right — a horizontal gradient, not a flat fill
+— with a warm glow below it. `NookColors.buttonGradient` (`#DD700B` to
+`#C35D01`) and `NookColors.buttonGlow` carry those values and
+`NookPrimaryButton` draws them, at the measured 52pt height and 14pt radius.
+Disabled buttons stay flat, as the mockup draws them.
+
+The bottom tab bar turned out to carry the same gradient: the mockup reads
+(220,110,13) at its left edge and (195,95,1) at its right, the button's own two
+stops. It was a flat fill and is now the gradient. Rendered and re-measured:
+(220,112,11) → (195,93,1).
+
+### 5 and 6. Density and type
+
+A second reduction: display 28→25, heading 22→20, title 18→16.5, body 15→14,
+caption 12→11, overline 11→10, button 15→14.5. The hierarchy is unchanged —
+every size moved, none crossed another.
+
+Twenty padding edits, all vertical: card padding 12→10, text-field vertical
+18→14, the search bar 56→50, list rows onto a single `NookSpacing.row` of 11,
+the home carousel 260→226, the onboarding illustration 320→250. Horizontal
+screen padding stayed at 24, which is what the mockup measures.
+
+### 7. The whole-screen review
+
+`test/layout_test.dart` draws all 22 screens and all 4 tabs at exactly
+390x844 — a real iPhone 14 viewport, not the 390x1600 the rest of the suite
+uses so that lazily built content exists for its finders. That extra height is
+exactly what hides vertical overflow, and this pass changed how much of each
+screen fits. A `RenderFlex` that overflows in either direction throws, and the
+test fails on it. Screens that carry the longest strings the sample library can
+produce are pumped with those. All 26 pass.
+
+Two of those screens never reach a quiet frame — the map tile layer keeps an
+animation running and a network thumbnail keeps retrying — so the helper pumps
+a bounded four frames rather than calling `pumpAndSettle`, which would wait ten
+minutes for a frame that is not coming.
+
+### Tests
+
+71, all passing: 42 from the third pass, 3 migration tests, 26 layout tests.

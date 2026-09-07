@@ -100,7 +100,7 @@ class PostDetailsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               Text(post.title, style: NookType.heading),
               if (post.creator != null) ...[
                 const SizedBox(height: NookSpacing.section),
@@ -139,16 +139,16 @@ class PostDetailsScreen extends StatelessWidget {
                 ],
               ),
               if (post.aiSummary != null) ...[
-                const SizedBox(height: NookSpacing.screenEdge),
+                const SizedBox(height: NookSpacing.block),
                 const OverlineLabel('AI summary'),
                 const SizedBox(height: NookSpacing.tight),
                 Text(post.aiSummary!, style: NookType.body),
               ],
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               const OverlineLabel('Trip'),
               const SizedBox(height: NookSpacing.tight),
               _TripTile(tripId: post.tripId),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               const OverlineLabel('Personal notes'),
               const SizedBox(height: NookSpacing.tight),
               InkWell(
@@ -169,7 +169,7 @@ class PostDetailsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: NookSpacing.screenEdge),
+              const SizedBox(height: NookSpacing.block),
               // One rich string rather than two Texts in a Row: the date can
               // be long, and a Row would clip it rather than wrap.
               Text.rich(

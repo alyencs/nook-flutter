@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -30,6 +32,15 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   bool _busy = false;
   String? _error;
 
+  /// What extraction is doing right now, and for how long, so a slow call is
+  /// visibly working rather than indistinguishable from a frozen screen.
+  String? _stage;
+  Timer? _ticker;
+  int _elapsed = 0;
+
+  /// Bumped on cancel so a late result from an abandoned run is ignored.
+  int _attempt = 0;
+
   @override
   void initState() {
     super.initState();
@@ -58,17 +69,45 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _url.dispose();
     super.dispose();
+  }
+
+  void _startProgress() {
+    _elapsed = 0;
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _elapsed++);
+    });
+  }
+
+  void _stopProgress() {
+    _ticker?.cancel();
+    _ticker = null;
+    _stage = null;
+  }
+
+  /// Abandons the current run. The request itself cannot be recalled, but its
+  /// result is discarded and the screen becomes usable again immediately.
+  void _cancel() {
+    setState(() {
+      _attempt++;
+      _busy = false;
+      _stopProgress();
+    });
   }
 
   Future<void> _analyze() async {
     final url = _url.text.trim();
     if (url.isEmpty) return;
 
+    final attempt = ++_attempt;
     setState(() {
       _busy = true;
       _error = null;
+      _stage = 'Starting';
+      _startProgress();
     });
 
     final scope = AppScope.of(context);
@@ -84,9 +123,17 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
     }
 
     try {
-      final result = await extractor.extract(url);
-      if (!mounted) return;
-      setState(() => _busy = false);
+      final result = await extractor.extract(
+        url,
+        onStage: (message) {
+          if (mounted && attempt == _attempt) setState(() => _stage = message);
+        },
+      );
+      if (!mounted || attempt != _attempt) return;
+      setState(() {
+        _busy = false;
+        _stopProgress();
+      });
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => DetectedScreen(
@@ -95,17 +142,20 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
         ),
       );
     } on ExtractionException catch (e) {
-      // The guard matters: extraction takes seconds, and the user can leave.
-      if (!mounted) return;
+      // The guards matter: extraction takes seconds, and in that time the user
+      // can leave the screen or cancel the run.
+      if (!mounted || attempt != _attempt) return;
       setState(() {
         _busy = false;
+        _stopProgress();
         _error = e.message;
       });
-    } catch (_) {
-      if (!mounted) return;
+    } catch (e) {
+      if (!mounted || attempt != _attempt) return;
       setState(() {
         _busy = false;
-        _error = 'Something went wrong reading that link.';
+        _stopProgress();
+        _error = 'Something went wrong reading that link: $e';
       });
     }
   }
@@ -156,6 +206,14 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
               autofocus: true,
               onSubmitted: (_) => _analyze(),
             ),
+            if (_busy) ...[
+              const SizedBox(height: NookSpacing.section),
+              _AnalysisProgress(
+                stage: _stage ?? 'Working',
+                seconds: _elapsed,
+                onCancel: _cancel,
+              ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: NookSpacing.section),
               _ExtractionError(
@@ -168,7 +226,7 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
               const SizedBox(height: NookSpacing.section),
               const _SampleModeNote(),
             ],
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
             const OverlineLabel('Supported platforms'),
             const SizedBox(height: NookSpacing.section),
             Row(
@@ -187,6 +245,76 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// What extraction is doing, and for how long.
+///
+/// A bare spinner cannot be told apart from a frozen screen, and neither can be
+/// escaped. This names the step, counts the seconds, and offers a way out.
+class _AnalysisProgress extends StatelessWidget {
+  const _AnalysisProgress({
+    required this.stage,
+    required this.seconds,
+    required this.onCancel,
+  });
+
+  final String stage;
+  final int seconds;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(NookSpacing.section),
+      decoration: BoxDecoration(
+        color: NookColors.surface,
+        borderRadius: BorderRadius.circular(NookRadius.md),
+        border: Border.all(color: NookColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation(NookColors.primary),
+                ),
+              ),
+              const SizedBox(width: NookSpacing.tight),
+              Expanded(
+                child: Text('$stage…', style: NookType.bodyStrong),
+              ),
+              Text('${seconds}s', style: NookType.caption),
+            ],
+          ),
+          const SizedBox(height: NookSpacing.tight),
+          const ClipRRect(
+            borderRadius: BorderRadius.all(Radius.circular(2)),
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: NookColors.placeholder,
+              valueColor: AlwaysStoppedAnimation(NookColors.primary),
+            ),
+          ),
+          const SizedBox(height: NookSpacing.tight),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onCancel,
+              child: Text(
+                'Cancel',
+                style: NookType.body.copyWith(color: NookColors.primary),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

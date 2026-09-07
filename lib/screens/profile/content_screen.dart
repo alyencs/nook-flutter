@@ -38,7 +38,7 @@ class ContentScreen extends StatelessWidget {
               body,
               style: NookType.body.copyWith(color: NookColors.textMuted),
             ),
-            const SizedBox(height: NookSpacing.screenEdge),
+            const SizedBox(height: NookSpacing.block),
           ],
         ],
       ),
@@ -60,7 +60,7 @@ class NookLinkRow extends StatelessWidget {
         InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: NookSpacing.row),
             child: Row(
               children: [
                 Expanded(child: Text(label, style: NookType.body)),

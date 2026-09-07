@@ -40,6 +40,17 @@ abstract final class NookColors {
   /// The single shadow in the app: 6% charcoal.
   static const shadowColor = Color(0x0F2E2E2E);
 
+  /// Primary buttons, measured off the mockup: a horizontal sweep from the
+  /// palette's Burnt Orange into a deeper shade, left to right.
+  static const buttonGradient = LinearGradient(
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+    colors: [Color(0xFFDD700B), Color(0xFFC35D01)],
+  );
+
+  /// The warm halo the mockup casts under a primary button.
+  static const buttonGlow = Color(0x59DD700B);
+
   /// Behind every screen, top to bottom.
   static const screenGradient = LinearGradient(
     begin: Alignment.topCenter,

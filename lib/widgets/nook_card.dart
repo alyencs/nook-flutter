@@ -12,7 +12,7 @@ class NookCard extends StatelessWidget {
     super.key,
     required this.child,
     this.onTap,
-    this.padding = const EdgeInsets.all(12),
+    this.padding = const EdgeInsets.all(10),
     this.radius = NookRadius.md,
     this.border,
   });

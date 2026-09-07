@@ -20,6 +20,11 @@ import 'platform_from_url.dart';
 /// token and review. Those posts keep the drawn placeholder rather than a
 /// broken image.
 abstract final class PostThumbnails {
+  /// Short on purpose. A thumbnail is a nicety; waiting on one is not worth
+  /// making the user watch a spinner, and a browser blocked by CORS may never
+  /// answer at all.
+  static const lookupTimeout = Duration(milliseconds: 2500);
+
   /// The part that needs no network. Safe to call anywhere.
   static String? fromUrl(String url) {
     final id = youTubeVideoId(url);
@@ -36,7 +41,7 @@ abstract final class PostThumbnails {
     try {
       final response = await http
           .get(Uri.parse('https://www.tiktok.com/oembed?url=$url'))
-          .timeout(const Duration(seconds: 6));
+          .timeout(lookupTimeout);
       if (response.statusCode != 200) return null;
       final json = jsonDecode(response.body);
       if (json is! Map<String, dynamic>) return null;

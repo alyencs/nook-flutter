@@ -13,19 +13,64 @@ class NookDatabase extends _$NookDatabase {
   /// For tests: an in-memory database with no seed data.
   NookDatabase.forTesting(super.executor);
 
+  /// Bumped to 2 when `app_settings` and the coordinate columns were added.
+  ///
+  /// They were added at version 1 without bumping this, which is the bug behind
+  /// "no such table: app_settings": drift creates the whole schema only for a
+  /// database it creates itself, so every database that already existed stayed
+  /// on the old shape and no migration ever ran.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
-  /// SQLite does not enforce foreign keys unless asked to. Without this, a
-  /// post could keep pointing at a deleted trip, which is exactly the
-  /// relationship the storage decision was made for.
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          await m.createAll();
+          await seedDatabase(this);
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) await _upgradeToV2(m);
+        },
         beforeOpen: (details) async {
+          // SQLite does not enforce foreign keys unless asked to. Without
+          // this, a post could keep pointing at a deleted trip, which is
+          // exactly the relationship the storage decision was made for.
           await customStatement('PRAGMA foreign_keys = ON');
-          if (details.wasCreated) await seedDatabase(this);
         },
       );
+
+  /// Adds what version 2 introduced, skipping anything already there.
+  ///
+  /// The checks are not defensive programming for its own sake. Because the
+  /// version was not bumped when these were added, "version 1" describes two
+  /// different shapes in the wild: databases created before the additions,
+  /// which lack them, and databases created after, which have them and are
+  /// still stamped 1. Both arrive here, so each piece is added only if it is
+  /// actually missing.
+  Future<void> _upgradeToV2(Migrator m) async {
+    if (!await _hasTable('app_settings')) {
+      await m.createTable(appSettings);
+    }
+    if (!await _hasColumn('saved_posts', 'ai_latitude')) {
+      await m.addColumn(savedPosts, savedPosts.aiLatitude);
+    }
+    if (!await _hasColumn('saved_posts', 'ai_longitude')) {
+      await m.addColumn(savedPosts, savedPosts.aiLongitude);
+    }
+  }
+
+  Future<bool> _hasTable(String name) async {
+    final rows = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      variables: [Variable<String>(name)],
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  Future<bool> _hasColumn(String table, String column) async {
+    final rows = await customSelect('PRAGMA table_info($table)').get();
+    return rows.any((row) => row.read<String>('name') == column);
+  }
 
   /// Inserts the demo library if the database somehow came up empty.
   ///

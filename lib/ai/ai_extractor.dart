@@ -43,11 +43,15 @@ class ExtractionResult {
   final bool isSample;
 }
 
+/// Called as extraction moves through its steps, so the screen can say what is
+/// happening instead of showing an unexplained spinner.
+typedef ExtractionStage = void Function(String message);
+
 /// One interface, two implementations, chosen at startup by whether a Gemini
 /// key is present. This is the proposal's own "one interface, two
 /// implementations" fallback pattern, applied to the key problem.
 abstract interface class AiExtractor {
-  Future<ExtractionResult> extract(String url);
+  Future<ExtractionResult> extract(String url, {ExtractionStage? onStage});
 
   /// Whether this extractor is the real thing.
   bool get isLive;
