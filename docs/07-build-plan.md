@@ -645,3 +645,101 @@ fetched directly from `tile.openstreetmap.org`, which the sandbox this was built
 in blocks, so **the tile imagery is the one thing not verified here** — the map
 widget, its pin, its attribution and the placeholder logic all are. It should
 render normally on any machine with ordinary internet access.
+
+
+---
+
+## 16. Third pass — the save assertion, typography, and the profile screens
+
+### 1. `_dependents.isEmpty is not true`
+
+The save flow read `ScaffoldMessenger.of(context)` **after** `popUntil` had
+already removed the route. `.of(context)` registers an inherited dependency, and
+registering one from an element that is being deactivated leaves a dependency
+that can never be cleaned up — which is what the framework asserts on when it
+unmounts the inherited element.
+
+Four places did it: Review & Save, Manage Post (move and delete) and Personal
+Notes. All of them now capture `ScaffoldMessenger.of` and `Navigator.of` at the
+top of the method, before any `await` and before any pop, and use the captured
+objects afterwards. `use_build_context_synchronously` is the lint that catches
+this class of bug, and it is now clean across the project.
+
+Two further problems surfaced while writing a regression test that drives the
+whole paste-to-save flow:
+
+- **A duplicate hero tag.** A SnackBar raised in the same frame as a pop is
+  briefly parented by both the leaving and the arriving Scaffold, and Flutter
+  asserts on the repeated hero tag. Confirmations now wait for the transition.
+- **A Row overflow** on Paste Link: the four platform badges sized to their
+  labels rather than sharing the row.
+
+### 2. Type scale
+
+Every size was ~10% too large, and a dozen screens had drifted from the scale
+with one-off `copyWith(fontSize:)` overrides — which is what made the type look
+inconsistent as well as big. The scale came down (Display 32→28, Heading 24→22,
+Title 20→18, Body 16→15, Overline 12→11) and **all** the ad-hoc overrides were
+removed, so one file governs the type again. Three deliberate exceptions remain
+and are commented: the tab bar label, the map attribution and the results count.
+
+### 3. Platform logos
+
+`lib/widgets/platform_badge.dart` is now the single source of platform branding:
+the mark, the colour, the chip and the circle. Everything that shows a platform
+reads from it, so a post's own platform decides its logo. Marks are Font
+Awesome's brand icons (CC BY 4.0), rendered with `FaIcon` — brand glyphs are not
+square, and `Icon` clips them.
+
+### 4. Settings
+
+Rebuilt to the supplied screenshot: four switches with dividers, then a Data
+section with Export Data, Clear Search History and Clear Cache.
+
+The switches are **real and persisted** in a new `app_settings` table:
+
+| Switch | What it does |
+| --- | --- |
+| Auto-categorize saves | Off: a pasted link skips extraction entirely and goes straight to the fields |
+| Show category suggestions | Off: hides the alternative chips on Destination & Category and on Search |
+| Paste detection | On: fills the link field from the clipboard when Paste Link opens |
+| Save confirmation | On: asks before writing a post |
+
+**Export Data** writes everything Nook holds — profile, trips, posts with their
+extracted metadata and notes, search history, settings — as one JSON file. On
+the web the browser downloads it; on a device it goes to the app's documents
+directory. Verified: an 11.6 KB file with all eight top-level keys.
+
+**Clear Cache** empties Flutter's image cache, which is the only cache Nook
+has. It says so, and says saved posts are untouched.
+
+### 5. The profile photo
+
+No bug found. The photo picked at LO1 is stored in the `users` table and read
+from that same row everywhere — verified end to end by uploading a real file
+through the picker and seeing it on Profile after navigating away and back.
+
+The Settings screen supplied as the source of truth has no avatar in it, so
+none was added there. The photo appears on Profile (P1) and Account (P2).
+
+### 6 and 7. About Nook and Help & Support
+
+Rebuilt to the screenshots. Every row leads somewhere real rather than being
+decoration:
+
+- **Terms of Service** and **Privacy Policy** open written content screens. The
+  privacy text says plainly what leaves the device and when.
+- **Open Source Licenses** opens Flutter's own license page.
+- **Rate Nook** says there is no store listing rather than opening nothing.
+- **Help topics** open their answers, and the search field filters them.
+- **Send Feedback / Report a Bug** offer the repository's issues URL and copy
+  it to the clipboard.
+
+All of P2-P6 now carry the tab bar, as the screenshots draw them. That needed
+the selected tab to become shared state in `AppScope`, since those screens are
+pushed routes and a tab tap has to reach the shell underneath.
+
+### Tests
+
+42, all passing. New: the full paste-to-save flow asserting no framework
+exception, and settings persistence with the drawn default states.

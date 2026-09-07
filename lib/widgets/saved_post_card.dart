@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../ai/platform_from_url.dart';
 import '../data/database.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
 import 'metadata_chip.dart';
+import 'platform_badge.dart';
 import 'nook_card.dart';
 import 'post_thumbnail.dart';
 
@@ -41,12 +41,12 @@ class SavedPostGridCard extends StatelessWidget {
               // A note has no creator; its destination, or nothing, reads
               // better there than a stray em dash.
               post.creator ?? post.aiDestination ?? '',
-              style: NookType.caption.copyWith(fontSize: 13),
+              style: NookType.caption,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: NookSpacing.tight),
-            MetadataChip(NookPlatform.label(post.platform)),
+            PlatformChip(post.platform),
           ],
         ),
       ),
@@ -117,7 +117,7 @@ class SavedPostRowCard extends StatelessWidget {
                           caption,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: NookType.caption.copyWith(fontSize: 13),
+                          style: NookType.caption,
                         ),
                       ),
                       const Padding(
@@ -128,12 +128,11 @@ class SavedPostRowCard extends StatelessWidget {
                           '•',
                           style: TextStyle(
                             color: NookColors.textMuted,
-                            fontSize: 13,
-                          ),
+                            ),
                         ),
                       ),
                     ],
-                    MetadataChip(NookPlatform.label(post.platform)),
+                    PlatformChip(post.platform),
                     if (showCategory && post.aiCategory != null) ...[
                       const SizedBox(width: NookSpacing.tight),
                       MetadataChip(post.aiCategory!),

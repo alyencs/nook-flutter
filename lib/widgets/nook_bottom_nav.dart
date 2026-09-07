@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_typography.dart';
 
+/// The tab indices, named so no screen has to remember that Add is 2.
+abstract final class NookTabs {
+  static const home = 0;
+  static const trips = 1;
+  static const add = 2;
+  static const profile = 3;
+}
+
 /// The four tabs, on a solid Burnt Orange bar.
 ///
 /// The design system describes a white bar with orange active icons; the mockup
@@ -82,8 +90,8 @@ class _NavItem extends StatelessWidget {
             Text(
               item.label,
               style: NookType.caption.copyWith(
+                fontSize: 11,
                 color: colour,
-                fontSize: 13,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
               ),
             ),

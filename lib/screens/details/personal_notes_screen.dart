@@ -8,6 +8,7 @@ import '../../theme/nook_typography.dart';
 import '../../util/nook_date.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_text_field.dart';
 import '../../widgets/post_thumbnail.dart';
@@ -34,14 +35,15 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
   }
 
   Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     setState(() => _saving = true);
     await AppScope.of(context).posts.updateNote(widget.postId, _note.text.trim());
     if (!mounted) return;
     setState(() => _saving = false);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Note saved')),
-    );
+    navigator.pop();
+    await showSnackBarAfterPop(messenger, 'Note saved');
   }
 
   @override
@@ -87,7 +89,7 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
                         children: [
                           Text(
                             post.title,
-                            style: NookType.bodyStrong.copyWith(fontSize: 18),
+                            style: NookType.bodyStrong,
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -115,7 +117,7 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
                   const SizedBox(height: NookSpacing.section),
                   Text(
                     'Last edited ${formatLongDate(post.noteEditedAt!)}',
-                    style: NookType.caption.copyWith(fontSize: 14),
+                    style: NookType.caption,
                   ),
                 ],
               ],

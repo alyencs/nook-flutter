@@ -2,14 +2,16 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
-import '../../ai/platform_from_url.dart';
+import '../../data/daos/settings_dao.dart';
 import '../../data/database.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/metadata_chip.dart';
+import '../../widgets/platform_badge.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/post_thumbnail.dart';
 import 'post_draft.dart';
@@ -31,10 +33,33 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
   bool _saving = false;
 
   Future<void> _save() async {
-    setState(() => _saving = true);
     final draft = widget.draft;
+    final scope = AppScope.of(context);
 
-    await AppScope.of(context).posts.insertPost(
+    // Captured before any await and before popping. Reading an inherited
+    // widget (ScaffoldMessenger, Navigator, AppScope) through a context whose
+    // element is being deactivated registers a dependency that can never be
+    // cleaned up, which is what trips
+    // "_dependents.isEmpty is not true" in the framework.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    // "Save confirmation" in Settings, off by default.
+    if (await scope.settings.isEnabled(NookSettings.saveConfirmation)) {
+      if (!mounted) return;
+      final confirmed = await showNookDialog(
+        context,
+        title: 'Save this post?',
+        message: '"${draft.title}" will be added to '
+            '${draft.tripName ?? 'your library'}.',
+        confirmLabel: 'Save Post',
+      );
+      if (!confirmed || !mounted) return;
+    }
+
+    setState(() => _saving = true);
+
+    await scope.posts.insertPost(
           SavedPostsCompanion.insert(
             title: draft.title,
             creator: Value(draft.creator),
@@ -59,10 +84,8 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
     if (!mounted) return;
     // Back to whichever tab the flow started from. Home is watching the same
     // stream, so the new post is already there.
-    Navigator.of(context).popUntil((route) => route.isFirst);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Saved "${draft.title}"')),
-    );
+    navigator.popUntil((route) => route.isFirst);
+    await showSnackBarAfterPop(messenger, 'Saved "${draft.title}"');
   }
 
   @override
@@ -122,7 +145,7 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
                     ),
                     _Row(
                       label: 'Platform',
-                      child: MetadataChip(NookPlatform.label(draft.platform)),
+                      child: PlatformChip(draft.platform),
                     ),
                     _Row(
                       label: 'Destination',

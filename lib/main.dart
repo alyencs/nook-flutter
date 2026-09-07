@@ -15,6 +15,8 @@ Future<void> main() async {
   await NookAi.load();
 
   final db = NookDatabase();
+  // Held here so it survives DevicePreview rebuilding its child.
+  final tab = ValueNotifier<int>(0);
   // Belt and braces: the seed normally runs when the database is created.
   await db.seedIfEmpty();
 
@@ -33,6 +35,7 @@ Future<void> main() async {
       ),
       builder: (context) => AppScope(
         db: db,
+        tab: tab,
         extractor: NookAi.createExtractor(),
         child: const NookApp(),
       ),

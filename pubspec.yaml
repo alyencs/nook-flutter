@@ -31,6 +31,8 @@ dependencies:
   latlong2: ^0.10.1
   # oEmbed lookups for post thumbnails.
   http: ^1.6.0
+  font_awesome_flutter: ^11.0.0
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

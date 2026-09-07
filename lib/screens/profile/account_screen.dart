@@ -11,6 +11,7 @@ import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/sub_screen_nav.dart';
 import '../../widgets/nook_text_field.dart';
 import '../onboarding/profile_setup_screen.dart';
 
@@ -105,6 +106,7 @@ class _AccountScreenState extends State<AccountScreen> {
         }
 
         return NookScaffold(
+          bottomNav: const SubScreenNav(),
           child: ListView(
             children: [
               const NookAppBar(title: 'Account'),
@@ -118,7 +120,6 @@ class _AccountScreenState extends State<AccountScreen> {
                     child: Text(
                       'Change Photo',
                       style: NookType.body.copyWith(
-                        fontSize: 18,
                         fontWeight: FontWeight.w600,
                         decoration: TextDecoration.underline,
                       ),
@@ -157,7 +158,6 @@ class _AccountScreenState extends State<AccountScreen> {
                 child: Text(
                   'Delete my account',
                   style: NookType.body.copyWith(
-                    fontSize: 18,
                     color: NookColors.error,
                     decoration: TextDecoration.underline,
                     decorationColor: NookColors.error,

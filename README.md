@@ -57,6 +57,7 @@ Saved folders group content by trip or search across platforms. Nook does both.
 | Storage | [Drift](https://drift.simonbinder.eu) — on-device SQL, five tables, works on web |
 | AI | `google_generative_ai` (Gemini), behind an interface with a keyless fallback |
 | Maps | `flutter_map` with OpenStreetMap tiles — no key, no billing account |
+| Icons | Material Icons, plus Font Awesome brand marks for the platform logos |
 | Other packages | `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `device_preview` (phone frame on the live link) |
 | Type | Inter, bundled as a local asset |
 
@@ -184,6 +185,8 @@ links from each platform is the next thing on the list.
 - Packages: see `pubspec.yaml`
 - Typeface: [Inter](https://rsms.me/inter/) by Rasmus Andersson, SIL Open Font License 1.1
 - Icons: Material Icons, Apache License 2.0
+- Platform logos: [Font Awesome Free](https://fontawesome.com) brand icons, CC BY 4.0
+- Map tiles: © OpenStreetMap contributors, ODbL
 
 ## AI use
 

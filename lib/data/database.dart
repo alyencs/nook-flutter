@@ -6,7 +6,7 @@ import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Users, Trips, SavedPosts, RecentSearches])
+@DriftDatabase(tables: [Users, Trips, SavedPosts, RecentSearches, AppSettings])
 class NookDatabase extends _$NookDatabase {
   NookDatabase() : super(_open());
 

@@ -40,7 +40,7 @@ class ProfileScreen extends StatelessWidget {
               Center(
                 child: Text(
                   user?.name ?? '',
-                  style: NookType.display.copyWith(fontSize: 28),
+                  style: NookType.display,
                 ),
               ),
               const SizedBox(height: 4),
@@ -123,7 +123,7 @@ class _StatTile extends StatelessWidget {
             stream: stream,
             builder: (context, snapshot) => Text(
               '${snapshot.data ?? 0}',
-              style: NookType.display.copyWith(fontSize: 30),
+              style: NookType.display,
             ),
           ),
           const SizedBox(height: 4),
@@ -151,7 +151,7 @@ class _ProfileRow extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(label, style: NookType.body.copyWith(fontSize: 18)),
+                  child: Text(label, style: NookType.body),
                 ),
                 const Icon(
                   Icons.chevron_right_rounded,

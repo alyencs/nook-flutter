@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../ai/categories.dart';
+import '../../app_scope.dart';
+import '../../data/daos/settings_dao.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
@@ -74,20 +76,34 @@ class _DetectedScreenState extends State<DetectedScreen> {
               const SizedBox(height: NookSpacing.section),
               const _SampleNotice(),
             ],
-            const SizedBox(height: NookSpacing.screenEdge),
-            const OverlineLabel('Or choose another:'),
-            const SizedBox(height: NookSpacing.section),
-            Wrap(
-              spacing: NookSpacing.tight,
-              runSpacing: NookSpacing.tight,
-              children: [
-                for (final category in others)
-                  SelectableChip(
-                    label: category,
-                    selected: false,
-                    onTap: () => setState(() => _category = category),
-                  ),
-              ],
+            StreamBuilder<Map<String, bool>>(
+              stream: AppScope.of(context).settings.watchAll(),
+              builder: (context, snapshot) {
+                final show = (snapshot.data ??
+                    NookSettings.defaults)[NookSettings.categorySuggestions]!;
+                if (!show) return const SizedBox.shrink();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: NookSpacing.screenEdge),
+                    const OverlineLabel('Or choose another:'),
+                    const SizedBox(height: NookSpacing.section),
+                    Wrap(
+                      spacing: NookSpacing.tight,
+                      runSpacing: NookSpacing.tight,
+                      children: [
+                        for (final category in others)
+                          SelectableChip(
+                            label: category,
+                            selected: false,
+                            onTap: () => setState(() => _category = category),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -115,7 +131,7 @@ class _DestinationField extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
-              style: NookType.bodyStrong.copyWith(fontSize: 18),
+              style: NookType.bodyStrong,
               cursorColor: NookColors.primary,
               decoration: InputDecoration(
                 hintText: 'No destination detected — add one',
@@ -173,7 +189,6 @@ class _SampleNotice extends StatelessWidget {
               'details above are illustrative. Running Nook locally with a '
               'Gemini key extracts them for real.',
               style: NookType.caption.copyWith(
-                fontSize: 13,
                 color: NookColors.textPrimary,
               ),
             ),

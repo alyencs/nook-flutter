@@ -78,7 +78,7 @@ class TripDetailsScreen extends StatelessWidget {
                               Text(
                                 '${posts.length} '
                                 '${posts.length == 1 ? 'saved post' : 'saved posts'}',
-                                style: NookType.caption.copyWith(fontSize: 14),
+                                style: NookType.caption,
                               ),
                             ],
                           );
@@ -102,6 +102,7 @@ class TripDetailsScreen extends StatelessWidget {
 
   Future<void> _showOptions(BuildContext context, Trip trip) async {
     final scope = AppScope.of(context);
+    final navigator = Navigator.of(context);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -140,9 +141,9 @@ class TripDetailsScreen extends StatelessWidget {
                   confirmLabel: 'Delete Trip',
                   destructive: true,
                 );
-                if (!confirmed || !context.mounted) return;
+                if (!confirmed) return;
                 await scope.trips.deleteTrip(trip.id);
-                if (context.mounted) Navigator.of(context).pop();
+                navigator.pop();
               },
             ),
           ],

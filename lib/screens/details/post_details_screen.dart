@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../ai/platform_from_url.dart';
 import '../../app_scope.dart';
 import '../../data/database.dart';
 import '../../theme/nook_colors.dart';
@@ -8,6 +7,7 @@ import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../util/nook_date.dart';
 import '../../widgets/metadata_chip.dart';
+import '../../widgets/platform_badge.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
@@ -118,7 +118,7 @@ class PostDetailsScreen extends StatelessWidget {
                     const SizedBox(width: NookSpacing.tight),
                     Text(
                       post.creator!,
-                      style: NookType.body.copyWith(fontSize: 17),
+                      style: NookType.body,
                     ),
                   ],
                 ),
@@ -133,10 +133,7 @@ class PostDetailsScreen extends StatelessWidget {
                 spacing: NookSpacing.tight,
                 runSpacing: NookSpacing.tight,
                 children: [
-                  MetadataChip(
-                    NookPlatform.label(post.platform),
-                    icon: Icons.web_asset_rounded,
-                  ),
+                  PlatformChip(post.platform),
                   if (post.aiCategory != null)
                     MetadataChip(post.aiCategory!, icon: Icons.sell_outlined),
                 ],
@@ -226,7 +223,7 @@ class _TripTile extends StatelessWidget {
               stream: scope.trips.watchTrip(tripId!),
               builder: (context, snapshot) => Text(
                 snapshot.data?.name ?? '—',
-                style: NookType.bodyStrong.copyWith(fontSize: 17),
+                style: NookType.bodyStrong,
               ),
             ),
         ],

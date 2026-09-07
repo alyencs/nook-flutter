@@ -5,10 +5,12 @@ import 'package:nook/ai/sample_extractor.dart';
 import 'package:nook/app_scope.dart';
 import 'package:nook/app.dart';
 import 'package:nook/data/daos/posts_dao.dart';
+import 'package:nook/data/daos/settings_dao.dart';
 import 'package:nook/data/daos/users_dao.dart';
 import 'package:nook/data/database.dart';
 import 'package:nook/screens/add/create_note_screen.dart';
 import 'package:nook/screens/details/travel_details_screen.dart';
+import 'package:nook/screens/profile/settings_screen.dart';
 import 'package:nook/widgets/post_map.dart';
 import 'package:nook/screens/onboarding/splash_screen.dart';
 import 'package:nook/screens/root_shell.dart';
@@ -19,6 +21,7 @@ import 'package:nook/theme/nook_theme.dart';
 Widget host(NookDatabase db, Widget child) {
   return AppScope(
     db: db,
+    tab: ValueNotifier(0),
     extractor: const SampleExtractor(),
     child: MaterialApp(theme: NookTheme.theme, home: child),
   );
@@ -43,7 +46,12 @@ Future<void> pumpFullApp(WidgetTester tester, NookDatabase db) async {
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    AppScope(db: db, extractor: const SampleExtractor(), child: const NookApp()),
+    AppScope(
+      db: db,
+      tab: ValueNotifier(0),
+      extractor: const SampleExtractor(),
+      child: const NookApp(),
+    ),
   );
   await tester.pumpAndSettle();
 }
@@ -306,6 +314,79 @@ void main() {
     expect(find.byType(PostMapPlaceholder), findsOneWidget);
     expect(find.byType(PostMap), findsNothing);
     expect(find.textContaining('too broad to place'), findsOneWidget);
+
+    await unmount(tester);
+  });
+
+  testWidgets('saving a pasted link completes without a framework assertion',
+      (tester) async {
+    // Regression guard for "_dependents.isEmpty is not true": the save flow
+    // used to read ScaffoldMessenger through a context whose element had just
+    // been deactivated by popUntil, registering an inherited dependency that
+    // could never be cleaned up.
+    await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+    await pumpApp(tester, db, const RootShell());
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Paste Link'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextField).first,
+      'https://www.tiktok.com/@wanderwithmia/video/ramen-bars-in-osaka',
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Analyze'));
+    // The extractor takes a beat on purpose, so the loading state is real.
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('Destination & Category'), findsOneWidget);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Japan 2027'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));   // skip the note
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review & Save'), findsOneWidget);
+    await tester.tap(find.text('Save Post'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    // Back on Home, with the post saved. Any assertion above would already
+    // have failed the test.
+    expect(tester.takeException(), isNull);
+    final saved = await tester.runAsync(
+      () => PostsDao(db).search('Ramen Bars in Osaka').first,
+    );
+    expect(saved, hasLength(1));
+    expect(saved!.single.tripId, isNotNull);
+
+    await unmount(tester);
+  });
+
+  testWidgets('settings switches persist and drive behaviour', (tester) async {
+    await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+    await pumpApp(tester, db, const SettingsScreen());
+
+    expect(find.text('Export Data'), findsOneWidget);
+    expect(find.text('Clear Search History'), findsOneWidget);
+    expect(find.text('Clear Cache'), findsOneWidget);
+
+    // Drawn state: the first three on, the last off.
+    final switches = tester.widgetList<Switch>(find.byType(Switch)).toList();
+    expect(switches.map((s) => s.value).toList(), [true, true, true, false]);
+
+    await tester.tap(find.byType(Switch).last);
+    await tester.pumpAndSettle();
+
+    final stored = await tester.runAsync(() => SettingsDao(db).current());
+    expect(stored![NookSettings.saveConfirmation], isTrue);
 
     await unmount(tester);
   });

@@ -33,7 +33,7 @@ class TripsScreen extends StatelessWidget {
           const SizedBox(height: NookSpacing.section),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: NookSpacing.tight),
-            child: Text('Your Trips', style: NookType.display.copyWith(fontSize: 34)),
+            child: Text('Your Trips', style: NookType.display),
           ),
           const Expanded(child: TripsBody()),
         ],

@@ -1,162 +1,111 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../app_scope.dart';
+import '../../data/daos/settings_dao.dart';
+import '../../data/export_service.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/sub_screen_nav.dart';
 
 /// P3.
 ///
-/// The four switches are drawn as the mockup draws them and do not change
-/// behaviour — they describe features this build does not have. The Data
-/// section underneath is real: clearing search history and resetting the demo
-/// library both act on the database.
-class SettingsScreen extends StatefulWidget {
+/// The four switches are real and persisted — each one changes how saving
+/// behaves — and the Data section acts on the database rather than describing
+/// it.
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  final _switches = <String, bool>{
-    'Auto-categorize saves': true,
-    'Show category suggestions': true,
-    'Paste detection': true,
-    'Save confirmation': false,
-  };
 
   @override
   Widget build(BuildContext context) {
     final scope = AppScope.of(context);
 
     return NookScaffold(
-      child: ListView(
-        children: [
-          const NookAppBar(title: 'Settings'),
-          const SizedBox(height: NookSpacing.section),
-          const _AiStatusCard(),
-          const SizedBox(height: NookSpacing.screenEdge),
-          for (final entry in _switches.entries) ...[
-            _SwitchRow(
-              label: entry.key,
-              value: entry.value,
-              onChanged: (value) =>
-                  setState(() => _switches[entry.key] = value),
-            ),
-            const Divider(),
-          ],
-          const SizedBox(height: NookSpacing.screenEdge),
-          Text('Data', style: NookType.title),
-          const SizedBox(height: NookSpacing.tight),
-          _DataRow(
-            label: 'Clear Search History',
-            onTap: () async {
-              await scope.searches.clear();
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Search history cleared')),
-              );
-            },
-          ),
-          _DataRow(
-            label: 'Reset Demo Data',
-            onTap: () async {
-              final confirmed = await showNookDialog(
-                context,
-                title: 'Reset to the demo library?',
-                message: 'Everything you have saved on this device is replaced '
-                    'with the sample trips and posts Nook ships with.',
-                confirmLabel: 'Reset',
-                destructive: true,
-              );
-              if (!confirmed || !context.mounted) return;
-              await scope.db.resetToSeed();
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Demo data restored')),
-              );
-            },
-          ),
-          _DataRow(
-            label: 'Clear All Data',
-            onTap: () async {
-              final confirmed = await showNookDialog(
-                context,
-                title: 'Clear everything?',
-                message: 'Your profile, posts and trips are erased from this '
-                    'device. Nothing is stored anywhere else.',
-                confirmLabel: 'Clear everything',
-                destructive: true,
-              );
-              if (!confirmed || !context.mounted) return;
-              await scope.db.clearAll();
-            },
-          ),
-        ],
+      bottomNav: const SubScreenNav(),
+      child: StreamBuilder<Map<String, bool>>(
+        stream: scope.settings.watchAll(),
+        builder: (context, snapshot) {
+          final values = snapshot.data ?? NookSettings.defaults;
+
+          return ListView(
+            children: [
+              const NookAppBar(title: 'Settings'),
+              const SizedBox(height: NookSpacing.tight),
+              for (final entry in NookSettings.labels.entries) ...[
+                _SwitchRow(
+                  label: entry.value,
+                  value: values[entry.key] ?? false,
+                  onChanged: (enabled) => scope.settings.set(entry.key, enabled),
+                ),
+                const Divider(),
+              ],
+              const SizedBox(height: NookSpacing.screenEdge),
+              Text('Data', style: NookType.title),
+              const SizedBox(height: NookSpacing.tight),
+              _DataRow(label: 'Export Data', onTap: () => _export(context)),
+              _DataRow(
+                label: 'Clear Search History',
+                onTap: () => _clearSearches(context),
+              ),
+              _DataRow(label: 'Clear Cache', onTap: () => _clearCache(context)),
+              const SizedBox(height: NookSpacing.section),
+            ],
+          );
+        },
       ),
     );
   }
-}
 
-/// Whether destination detection is running on Gemini or on sample data.
-///
-/// Worth a place on screen rather than only in the README: the difference is
-/// invisible until you save something, and "why is it giving me Kyoto for an
-/// Osaka link" has exactly one answer.
-class _AiStatusCard extends StatelessWidget {
-  const _AiStatusCard();
+  /// Writes every row Nook holds to a JSON file. On the web the browser
+  /// downloads it; on a device it lands in the app's documents directory.
+  static Future<void> _export(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final db = AppScope.of(context).db;
 
-  @override
-  Widget build(BuildContext context) {
-    final live = AppScope.of(context).extractor.isLive;
-
-    return Container(
-      padding: const EdgeInsets.all(NookSpacing.section),
-      decoration: BoxDecoration(
-        color: live ? NookColors.surface : NookColors.secondary,
-        borderRadius: BorderRadius.circular(NookRadius.md),
-        border: Border.all(color: live ? NookColors.border : NookColors.primary),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                live ? Icons.auto_awesome : Icons.science_outlined,
-                size: 20,
-                color: NookColors.primary,
-              ),
-              const SizedBox(width: NookSpacing.tight),
-              Expanded(
-                child: Text(
-                  live ? 'Detection: Gemini' : 'Detection: sample data',
-                  style: NookType.bodyStrong.copyWith(fontSize: 17),
-                ),
-              ),
-            ],
+    try {
+      final destination = await NookExport.run(db);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            kIsWeb ? 'Exported $destination' : 'Exported to $destination',
           ),
-          const SizedBox(height: 6),
-          Text(
-            live
-                ? 'Saved links are read by Gemini using the key in your .env '
-                    'file. Destinations, categories, summaries and coordinates '
-                    'come back from the model.'
-                : 'No GEMINI_API_KEY was found, so saved links get illustrative '
-                    'details instead. To use the real thing, put your key in a '
-                    '.env file at the root of the project and restart the app.',
-            style: NookType.body.copyWith(
-              fontSize: 14,
-              color: NookColors.textMuted,
-            ),
-          ),
-        ],
-      ),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
+  }
+
+  static Future<void> _clearSearches(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await AppScope.of(context).searches.clear();
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Search history cleared')),
     );
+  }
+
+  /// Thumbnails are fetched from each platform and held in Flutter's image
+  /// cache. Emptying it is what "Clear Cache" can honestly mean here: your
+  /// saved posts are not touched.
+  static Future<void> _clearCache(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showNookDialog(
+      context,
+      title: 'Clear cached images?',
+      message: 'Thumbnails will be fetched again next time they are shown. '
+          'Your saved posts, trips and notes are not affected.',
+      confirmLabel: 'Clear Cache',
+    );
+    if (!confirmed) return;
+
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
+    messenger.showSnackBar(const SnackBar(content: Text('Cache cleared')));
   }
 }
 
@@ -174,12 +123,10 @@ class _SwitchRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: NookSpacing.tight),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(
-            child: Text(label, style: NookType.body.copyWith(fontSize: 18)),
-          ),
+          Expanded(child: Text(label, style: NookType.body)),
           Switch(
             value: value,
             onChanged: onChanged,
@@ -208,14 +155,13 @@ class _DataRow extends StatelessWidget {
         InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 18),
+            padding: const EdgeInsets.symmetric(vertical: 16),
             child: Row(
               children: [
-                Expanded(
-                  child: Text(label, style: NookType.body.copyWith(fontSize: 18)),
-                ),
+                Expanded(child: Text(label, style: NookType.body)),
                 const Icon(
                   Icons.chevron_right_rounded,
+                  size: 22,
                   color: NookColors.textMuted,
                 ),
               ],

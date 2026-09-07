@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_scope.dart';
 import '../widgets/nook_bottom_nav.dart';
 import 'add/add_method_screen.dart';
 import 'home/home_screen.dart';
@@ -17,13 +18,13 @@ class RootShell extends StatefulWidget {
 }
 
 class _RootShellState extends State<RootShell> {
-  int _tab = 0;
   bool _homeSearching = false;
 
-  static const _addIndex = 2;
+  ValueNotifier<int> get _tabs => AppScope.of(context).tab;
+  int get _tab => _tabs.value;
 
   void _onSelect(int index) {
-    if (index == _addIndex) {
+    if (index == NookTabs.add) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const AddMethodScreen()),
       );
@@ -32,24 +33,29 @@ class _RootShellState extends State<RootShell> {
     setState(() {
       // Tapping Home leaves search, which is how you get back out of it: the
       // search frames are drawn with the tab bar and no back button.
-      if (index == 0 && _tab == 0) _homeSearching = false;
-      _tab = index;
+      if (index == NookTabs.home && _tab == NookTabs.home) {
+        _homeSearching = false;
+      }
+      _tabs.value = index;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return IndexedStack(
-      index: switch (_tab) { 0 => 0, 1 => 1, _ => 2 },
-      children: [
-        HomeScreen(
-          nav: _nav,
-          searching: _homeSearching,
-          onStartSearch: () => setState(() => _homeSearching = true),
-        ),
-        TripsScreen(nav: _nav),
-        ProfileScreen(nav: _nav),
-      ],
+    return ValueListenableBuilder<int>(
+      valueListenable: _tabs,
+      builder: (context, tab, _) => IndexedStack(
+        index: switch (tab) { NookTabs.home => 0, NookTabs.trips => 1, _ => 2 },
+        children: [
+          HomeScreen(
+            nav: _nav,
+            searching: _homeSearching,
+            onStartSearch: () => setState(() => _homeSearching = true),
+          ),
+          TripsScreen(nav: _nav),
+          ProfileScreen(nav: _nav),
+        ],
+      ),
     );
   }
 

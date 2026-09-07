@@ -110,7 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       const SizedBox(height: 40),
                       Text(
                         page.title,
-                        style: NookType.display.copyWith(fontSize: 30),
+                        style: NookType.display,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: NookSpacing.section),
@@ -118,8 +118,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         page.body,
                         style: NookType.body.copyWith(
                           color: NookColors.textMuted,
-                          fontSize: 17,
-                        ),
+                          ),
                         textAlign: TextAlign.center,
                       ),
                     ],

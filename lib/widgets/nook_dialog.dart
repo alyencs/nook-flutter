@@ -126,3 +126,16 @@ Future<String?> showCreateTripDialog(BuildContext context) async {
   controller.dispose();
   return name;
 }
+
+/// Shows a confirmation once the current route transition has finished.
+///
+/// A SnackBar raised in the same frame as a pop is briefly parented by both the
+/// leaving and the arriving Scaffold, and Flutter asserts on the duplicate hero
+/// tag that creates. The messenger is app-level, so waiting costs nothing.
+Future<void> showSnackBarAfterPop(
+  ScaffoldMessengerState messenger,
+  String message,
+) async {
+  await Future<void>.delayed(const Duration(milliseconds: 350));
+  messenger.showSnackBar(SnackBar(content: Text(message)));
+}

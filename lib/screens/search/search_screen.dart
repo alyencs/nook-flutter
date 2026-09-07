@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../ai/categories.dart';
 import '../../app_scope.dart';
+import '../../data/daos/settings_dao.dart';
 import '../../data/database.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
@@ -106,21 +107,35 @@ class _Browse extends StatelessWidget {
             );
           },
         ),
-        Text('Suggested Categories', style: NookType.overline),
-        const SizedBox(height: NookSpacing.section),
-        Wrap(
-          spacing: NookSpacing.tight,
-          runSpacing: NookSpacing.tight,
-          children: [
-            for (final category in NookCategories.all)
-              InkWell(
-                onTap: () => onPickTerm(category),
-                borderRadius: BorderRadius.circular(NookRadius.pill),
-                child: MetadataChip.outlined(category),
-              ),
-          ],
+        StreamBuilder<Map<String, bool>>(
+          stream: scope.settings.watchAll(),
+          builder: (context, snapshot) {
+            final show = (snapshot.data ??
+                NookSettings.defaults)[NookSettings.categorySuggestions]!;
+            if (!show) return const SizedBox.shrink();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Suggested Categories', style: NookType.overline),
+                const SizedBox(height: NookSpacing.section),
+                Wrap(
+                  spacing: NookSpacing.tight,
+                  runSpacing: NookSpacing.tight,
+                  children: [
+                    for (final category in NookCategories.all)
+                      InkWell(
+                        onTap: () => onPickTerm(category),
+                        borderRadius: BorderRadius.circular(NookRadius.pill),
+                        child: MetadataChip.outlined(category),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: NookSpacing.screenEdge),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: NookSpacing.screenEdge),
         Text('All Saved Posts', style: NookType.overline),
         const SizedBox(height: NookSpacing.section),
         StreamBuilder<List<SavedPost>>(
@@ -195,7 +210,7 @@ class _Results extends StatelessWidget {
             if (index == 0) {
               return Text(
                 '${results.length} ${results.length == 1 ? 'result' : 'results'}',
-                style: NookType.overline.copyWith(fontSize: 15),
+                style: NookType.overline.copyWith(fontSize: 13),
               );
             }
             final post = results[index - 1];

@@ -83,3 +83,15 @@ class RecentSearches extends Table {
   TextColumn get query => text()();
   DateTimeColumn get searchedAt => dateTime()();
 }
+
+/// The switches on the Settings screen.
+///
+/// A key/value table rather than columns, so adding a setting does not mean a
+/// schema migration. Anything absent falls back to [NookSettings.defaults].
+class AppSettings extends Table {
+  TextColumn get name => text()();
+  BoolColumn get enabled => boolean()();
+
+  @override
+  Set<Column> get primaryKey => {name};
+}

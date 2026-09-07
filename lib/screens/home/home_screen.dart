@@ -118,14 +118,13 @@ class _Greeting extends StatelessWidget {
             Text(
               'Good $part,',
               style: NookType.body.copyWith(
-                fontSize: 17,
                 color: NookColors.textMuted,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               snapshot.data?.name ?? '',
-              style: NookType.display.copyWith(fontSize: 34),
+              style: NookType.display,
             ),
           ],
         );

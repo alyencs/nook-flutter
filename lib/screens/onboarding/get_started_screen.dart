@@ -30,7 +30,7 @@ class GetStartedScreen extends StatelessWidget {
           const SizedBox(height: 80),
           Text(
             'Welcome to Nook',
-            style: NookType.display.copyWith(fontSize: 34),
+            style: NookType.display,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: NookSpacing.tight),
@@ -38,8 +38,7 @@ class GetStartedScreen extends StatelessWidget {
             'Your travel content, saved in one place',
             style: NookType.body.copyWith(
               color: NookColors.textMuted,
-              fontSize: 17,
-            ),
+              ),
             textAlign: TextAlign.center,
           ),
         ],

@@ -36,7 +36,6 @@ class NookTextField extends StatelessWidget {
           Text(
             label!,
             style: NookType.caption.copyWith(
-              fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -73,7 +72,7 @@ class NookTextField extends StatelessWidget {
           const SizedBox(height: NookSpacing.tight),
           Text(
             errorText!,
-            style: NookType.caption.copyWith(color: NookColors.error, fontSize: 13),
+            style: NookType.caption.copyWith(color: NookColors.error),
           ),
         ],
       ],
@@ -145,7 +144,7 @@ class NookNoteField extends StatelessWidget {
             valueListenable: controller,
             builder: (context, value, _) => Text(
               '${value.text.characters.length}/$maxLength',
-              style: NookType.caption.copyWith(fontSize: 13),
+              style: NookType.caption,
             ),
           ),
         ],

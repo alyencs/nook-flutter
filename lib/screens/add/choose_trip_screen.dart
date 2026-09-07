@@ -149,13 +149,13 @@ class _TripRow extends StatelessWidget {
                   children: [
                     Text(
                       summary.trip.name,
-                      style: NookType.bodyStrong.copyWith(fontSize: 18),
+                      style: NookType.bodyStrong,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${summary.itemCount} '
                       '${summary.itemCount == 1 ? 'item' : 'items'}',
-                      style: NookType.caption.copyWith(fontSize: 14),
+                      style: NookType.caption,
                     ),
                   ],
                 ),

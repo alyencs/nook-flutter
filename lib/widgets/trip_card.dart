@@ -36,7 +36,7 @@ class TripCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${summary.itemCount} ${summary.itemCount == 1 ? 'item' : 'items'}',
-                  style: NookType.caption.copyWith(fontSize: 13),
+                  style: NookType.caption,
                 ),
               ],
             ),

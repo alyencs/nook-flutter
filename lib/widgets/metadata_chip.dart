@@ -45,8 +45,7 @@ class MetadataChip extends StatelessWidget {
               style: NookType.caption.copyWith(
                 color: NookColors.primary,
                 fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+                ),
             ),
           ),
         ],

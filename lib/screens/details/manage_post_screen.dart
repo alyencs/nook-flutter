@@ -28,15 +28,20 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
   bool _loaded = false;
 
   Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     await AppScope.of(context).posts.moveToTrip(widget.postId, _selected);
     if (!mounted) return;
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Post moved')),
-    );
+    navigator.pop();
+    await showSnackBarAfterPop(messenger, 'Post moved');
   }
 
   Future<void> _delete() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final posts = AppScope.of(context).posts;
+
     final confirmed = await showNookDialog(
       context,
       title: 'Delete this post?',
@@ -47,15 +52,13 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
     );
     if (!confirmed || !mounted) return;
 
-    await AppScope.of(context).posts.deletePost(widget.postId);
+    await posts.deletePost(widget.postId);
     if (!mounted) return;
     // Back past the detail screen too: the post it was showing is gone.
-    Navigator.of(context)
+    navigator
       ..pop()
       ..pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Post deleted')),
-    );
+    await showSnackBarAfterPop(messenger, 'Post deleted');
   }
 
   @override
@@ -139,7 +142,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                         Expanded(
                           child: Text(
                             current?.trip.name ?? 'No trip',
-                            style: NookType.bodyStrong.copyWith(fontSize: 18),
+                            style: NookType.bodyStrong,
                           ),
                         ),
                         if (current != null)
@@ -164,7 +167,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                             Expanded(
                               child: Text(
                                 summary.trip.name,
-                                style: NookType.body.copyWith(fontSize: 18),
+                                style: NookType.body,
                               ),
                             ),
                             const Icon(

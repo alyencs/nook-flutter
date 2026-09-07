@@ -7,6 +7,8 @@ import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/sub_screen_nav.dart';
+import '../../widgets/platform_badge.dart';
 
 /// P4.
 ///
@@ -20,6 +22,7 @@ class ConnectedPlatformsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return NookScaffold(
+      bottomNav: const SubScreenNav(),
       child: ListView(
         children: [
           const NookAppBar(title: 'Connected Platforms'),
@@ -45,7 +48,6 @@ class ConnectedPlatformsScreen extends StatelessWidget {
                     'needs each platform\'s API, which is out of scope for the '
                     'MVP. Paste a link instead.',
                     style: NookType.caption.copyWith(
-                      fontSize: 13,
                       color: NookColors.textPrimary,
                     ),
                   ),
@@ -55,7 +57,7 @@ class ConnectedPlatformsScreen extends StatelessWidget {
           ),
           const SizedBox(height: NookSpacing.screenEdge),
           for (final platform in NookPlatform.supported) ...[
-            _PlatformRow(label: NookPlatform.label(platform)),
+            _PlatformRow(platform: platform),
             const Divider(),
           ],
           const SizedBox(height: NookSpacing.section),
@@ -70,9 +72,9 @@ class ConnectedPlatformsScreen extends StatelessWidget {
 }
 
 class _PlatformRow extends StatelessWidget {
-  const _PlatformRow({required this.label});
+  const _PlatformRow({required this.platform});
 
-  final String label;
+  final String platform;
 
   @override
   Widget build(BuildContext context) {
@@ -80,24 +82,17 @@ class _PlatformRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: NookSpacing.section),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: NookColors.placeholder,
-              shape: BoxShape.circle,
-            ),
-          ),
+          PlatformAvatar(platform: platform, size: 44),
           const SizedBox(width: NookSpacing.section),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: NookType.bodyStrong.copyWith(fontSize: 18)),
+                Text(NookPlatform.label(platform), style: NookType.bodyStrong),
                 const SizedBox(height: 2),
                 Text(
                   'Not connected',
-                  style: NookType.caption.copyWith(fontSize: 14),
+                  style: NookType.caption,
                 ),
               ],
             ),

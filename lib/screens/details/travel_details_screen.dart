@@ -53,7 +53,7 @@ class TravelDetailsScreen extends StatelessWidget {
                       children: [
                         Text(
                           post.title,
-                          style: NookType.bodyStrong.copyWith(fontSize: 18),
+                          style: NookType.bodyStrong,
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -163,7 +163,7 @@ class _MetaRow extends StatelessWidget {
               label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: NookType.body.copyWith(fontSize: 17),
+              style: NookType.body,
             ),
           ),
           const SizedBox(width: NookSpacing.tight),
@@ -173,7 +173,6 @@ class _MetaRow extends StatelessWidget {
               value ?? '—',
               textAlign: TextAlign.right,
               style: NookType.bodyStrong.copyWith(
-                fontSize: 17,
                 color: value == null
                     ? NookColors.textMuted
                     : NookColors.textPrimary,
@@ -204,7 +203,7 @@ class _ExploreItineraryButton extends StatelessWidget {
         const SizedBox(height: NookSpacing.tight),
         Text(
           'Stretch goal — not in this build',
-          style: NookType.caption.copyWith(fontSize: 13),
+          style: NookType.caption,
         ),
       ],
     );

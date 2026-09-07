@@ -4,6 +4,11 @@ import 'nook_colors.dart';
 
 /// The type scale.
 ///
+/// Every size in the app comes from here. Screens must not reach for
+/// `copyWith(fontSize:)` — a dozen one-off overrides is what made the type look
+/// oversized and inconsistent in the first place, because each screen drifted
+/// from the scale independently.
+///
 /// Heading, Body and Caption are the design system's three. Display, Title and
 /// Overline are additions: the mockup draws all three (the big "Set Up Profile"
 /// heading, app-bar titles, and the uppercase "DETECTED DESTINATION" labels)
@@ -14,7 +19,7 @@ abstract final class NookType {
   /// Screen-owning headings: "Set Up Profile", "Review & Save".
   static const display = TextStyle(
     fontFamily: _family,
-    fontSize: 32,
+    fontSize: 28,
     height: 1.15,
     fontWeight: FontWeight.w700,
     color: NookColors.textPrimary,
@@ -24,7 +29,7 @@ abstract final class NookType {
   /// Screen titles, section headers, trip names.
   static const heading = TextStyle(
     fontFamily: _family,
-    fontSize: 24,
+    fontSize: 22,
     height: 1.2,
     fontWeight: FontWeight.w700,
     color: NookColors.textPrimary,
@@ -34,7 +39,7 @@ abstract final class NookType {
   /// App bar titles, card titles.
   static const title = TextStyle(
     fontFamily: _family,
-    fontSize: 20,
+    fontSize: 18,
     height: 1.25,
     fontWeight: FontWeight.w600,
     color: NookColors.textPrimary,
@@ -44,7 +49,7 @@ abstract final class NookType {
   /// Saved post titles in lists and cards.
   static const bodyStrong = TextStyle(
     fontFamily: _family,
-    fontSize: 16,
+    fontSize: 15,
     height: 1.35,
     fontWeight: FontWeight.w600,
     color: NookColors.textPrimary,
@@ -53,7 +58,7 @@ abstract final class NookType {
   /// Saved posts, notes, descriptions.
   static const body = TextStyle(
     fontFamily: _family,
-    fontSize: 16,
+    fontSize: 15,
     height: 1.45,
     fontWeight: FontWeight.w400,
     color: NookColors.textPrimary,
@@ -71,17 +76,17 @@ abstract final class NookType {
   /// Section labels above a field: "DETECTED DESTINATION".
   static const overline = TextStyle(
     fontFamily: _family,
-    fontSize: 12,
+    fontSize: 11,
     height: 1.3,
     fontWeight: FontWeight.w600,
     color: NookColors.textMuted,
-    letterSpacing: 0.96, // 0.08em at 12sp
+    letterSpacing: 0.88, // 0.08em at 11sp
   );
 
   /// Button labels.
   static const button = TextStyle(
     fontFamily: _family,
-    fontSize: 16,
+    fontSize: 15,
     height: 1.2,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.1,

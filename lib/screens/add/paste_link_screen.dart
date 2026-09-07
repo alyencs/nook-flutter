@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../ai/ai_extractor.dart';
 import '../../ai/platform_from_url.dart';
 import '../../app_scope.dart';
+import '../../data/daos/settings_dao.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
@@ -10,6 +12,7 @@ import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_text_field.dart';
+import '../../widgets/platform_badge.dart';
 import '../../widgets/section_header.dart';
 import 'detected_screen.dart';
 import 'post_draft.dart';
@@ -31,6 +34,26 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   void initState() {
     super.initState();
     _url.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillFromClipboard());
+  }
+
+  /// "Paste detection" in Settings: if the clipboard already holds a link,
+  /// put it in the field so the screen is one tap from analysing.
+  Future<void> _prefillFromClipboard() async {
+    final settings = AppScope.of(context).settings;
+    if (!await settings.isEnabled(NookSettings.pasteDetection)) return;
+
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      final uri = Uri.tryParse(text);
+      final isLink = uri != null && uri.hasScheme && uri.host.isNotEmpty;
+      if (!mounted || !isLink || _url.text.isNotEmpty) return;
+      _url.text = text;
+    } catch (_) {
+      // Browsers can refuse clipboard reads without a user gesture. Not being
+      // able to prefill is not an error worth showing.
+    }
   }
 
   @override
@@ -48,7 +71,17 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
       _error = null;
     });
 
-    final extractor = AppScope.of(context).extractor;
+    final scope = AppScope.of(context);
+    final extractor = scope.extractor;
+
+    // "Auto-categorize saves" off means no extraction at all: straight to the
+    // fields with nothing filled in, for anyone who would rather type it.
+    if (!await scope.settings.isEnabled(NookSettings.autoCategorize)) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _enterManually();
+      return;
+    }
 
     try {
       final result = await extractor.extract(url);
@@ -139,12 +172,16 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
             const OverlineLabel('Supported platforms'),
             const SizedBox(height: NookSpacing.section),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Equal shares rather than natural widths: the labels are
+                // wider than the circles, so a plain Row overflows on a narrow
+                // screen.
                 for (final platform in NookPlatform.supported)
-                  _PlatformBadge(
-                    label: NookPlatform.label(platform),
-                    active: NookPlatform.fromUrl(_url.text) == platform,
+                  Expanded(
+                    child: _PlatformBadge(
+                      platform: platform,
+                      active: NookPlatform.fromUrl(_url.text) == platform,
+                    ),
                   ),
               ],
             ),
@@ -174,7 +211,7 @@ class _SampleModeNote extends StatelessWidget {
           child: Text(
             'No API key found, so this will use sample details. Add '
             'GEMINI_API_KEY to .env for real extraction.',
-            style: NookType.caption.copyWith(fontSize: 13),
+            style: NookType.caption,
           ),
         ),
       ],
@@ -182,38 +219,27 @@ class _SampleModeNote extends StatelessWidget {
   }
 }
 
-/// The four circles under the field. The one matching what has been pasted
-/// lights up, so the app confirms it recognised the link before you commit.
+/// The four circles under the field, each with its platform's mark.
+///
+/// The one matching what has been pasted lights up, so the app confirms it
+/// recognised the link before you commit.
 class _PlatformBadge extends StatelessWidget {
-  const _PlatformBadge({required this.label, required this.active});
+  const _PlatformBadge({required this.platform, required this.active});
 
-  final String label;
+  final String platform;
   final bool active;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: active ? NookColors.secondary : NookColors.placeholder,
-            shape: BoxShape.circle,
-            border: active
-                ? Border.all(color: NookColors.primary, width: 2)
-                : null,
-          ),
-          child: active
-              ? const Icon(Icons.check_rounded, color: NookColors.primary)
-              : null,
-        ),
+        PlatformAvatar(platform: platform, active: active),
         const SizedBox(height: NookSpacing.tight),
         Text(
-          label,
+          NookPlatform.label(platform),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: NookType.caption.copyWith(
-            fontSize: 13,
             color: active ? NookColors.primary : NookColors.textMuted,
             fontWeight: active ? FontWeight.w600 : FontWeight.w400,
           ),
@@ -260,7 +286,7 @@ class _ExtractionError extends StatelessWidget {
               Expanded(
                 child: Text(
                   message,
-                  style: NookType.body.copyWith(fontSize: 15),
+                  style: NookType.body,
                 ),
               ),
             ],

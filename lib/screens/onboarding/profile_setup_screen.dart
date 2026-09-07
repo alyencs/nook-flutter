@@ -110,8 +110,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               'Create your local profile to get started.',
               style: NookType.body.copyWith(
                 color: NookColors.textMuted,
-                fontSize: 17,
-              ),
+                ),
             ),
             const SizedBox(height: 40),
             NookTextField(controller: _name, hint: 'Full Name'),
