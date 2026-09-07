@@ -55,7 +55,7 @@ Saved folders group content by trip or search across platforms. Nook does both.
 | Framework | Flutter 3.47 (Dart 3.13) |
 | State | `setState` plus Drift stream queries read through `StreamBuilder` — no state-management package |
 | Storage | [Drift](https://drift.simonbinder.eu) — on-device SQL, five tables, works on web |
-| AI | `google_generative_ai` (Gemini), behind an interface with a keyless fallback |
+| AI | Gemini's REST API over `http`, behind an interface with a keyless fallback |
 | Maps | `flutter_map` with OpenStreetMap tiles — no key, no billing account |
 | Icons | Material Icons, plus Font Awesome brand marks for the platform logos |
 | Other packages | `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `device_preview` (phone frame on the live link) |

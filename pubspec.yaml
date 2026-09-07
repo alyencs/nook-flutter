@@ -19,8 +19,6 @@ dependencies:
   drift: ^2.20.0
   drift_flutter: ^0.2.0
   path_provider: ^2.1.4
-  # AI destination and category detection.
-  google_generative_ai: ^0.4.6
   # Loads GEMINI_API_KEY from a git-ignored .env. Never shipped to the web build.
   flutter_dotenv: ^5.1.0
   # Profile picture on Set Up Profile and Account.
@@ -29,7 +27,9 @@ dependencies:
   # the reason the proposal gives: no key, no billing account, works on web.
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
-  # oEmbed lookups for post thumbnails.
+  # oEmbed lookups for post thumbnails, and the Gemini REST calls. The
+  # google_generative_ai package was dropped: it discards the HTTP status code,
+  # which is the one thing needed to tell a retryable 503 from a fatal 400.
   http: ^1.6.0
   font_awesome_flutter: ^11.0.0
   web: ^1.1.1

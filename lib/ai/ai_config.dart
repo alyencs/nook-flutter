@@ -20,10 +20,11 @@ abstract final class NookAi {
     if (key == null || key.isEmpty || key.startsWith('put_your')) {
       return const SampleExtractor();
     }
-    return GeminiExtractor(
-      apiKey: key,
-      model: _env('GEMINI_MODEL') ?? GeminiExtractor.defaultModel,
-    );
+    // No default model id is compiled in on purpose. Google retires them on a
+    // schedule — `gemini-2.0-flash` was shut down on 1 June 2026 and took this
+    // app's extraction with it — so the extractor asks the API which models the
+    // key can reach. GEMINI_MODEL pins one when you want a specific answer.
+    return GeminiExtractor(apiKey: key, model: _env('GEMINI_MODEL'));
   }
 
   /// Loads `.env` if it is there. A missing or empty file is a normal state,

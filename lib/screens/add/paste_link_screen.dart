@@ -89,7 +89,9 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   }
 
   /// Abandons the current run. The request itself cannot be recalled, but its
-  /// result is discarded and the screen becomes usable again immediately.
+  /// result is discarded and the screen becomes usable again immediately. A
+  /// fresh Analyze for the same link joins the request already in flight rather
+  /// than starting a second one — see `GeminiExtractor.extract`.
   void _cancel() {
     setState(() {
       _attempt++;
@@ -101,6 +103,10 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   Future<void> _analyze() async {
     final url = _url.text.trim();
     if (url.isEmpty) return;
+    // Enter in the field and the Analyze button both land here, and the error
+    // card adds a third way in. The button disables itself while busy; this
+    // covers the other two, so one link is never analysed twice at once.
+    if (_busy) return;
 
     final attempt = ++_attempt;
     setState(() {

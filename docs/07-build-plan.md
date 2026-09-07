@@ -302,9 +302,10 @@ abstract class AiExtractor {
 Two implementations, chosen once at startup — the proposal's own "one interface,
 two implementations" pattern from page 13:
 
-- **`GeminiExtractor`** — `google_generative_ai`, key read from a git-ignored
-  `.env` through `flutter_dotenv`. Used whenever a non-empty `GEMINI_API_KEY` is
-  present.
+- **`GeminiExtractor`** — the Gemini REST API called directly over `http`, key
+  read from a git-ignored `.env` through `flutter_dotenv`. Used whenever a
+  non-empty `GEMINI_API_KEY` is present. (The proposal named the
+  `google_generative_ai` package; §18 records why it was dropped.)
 - **`SampleExtractor`** — deterministic, keyed on the URL's host and a hash of
   the path, returning one of the seeded fixtures. Used when there is no key,
   which is always true of the GitHub Pages build.
@@ -361,7 +362,7 @@ Phase 5 task with a real date, not a line in a document.
 | Package | Why |
 | --- | --- |
 | `drift`, `drift_dev`, `sqlite3_flutter_libs`, `path_provider` | The storage decision, plus its web worker setup |
-| `google_generative_ai` | Gemini, named specifically in the proposal |
+| `http` | Gemini's REST API, and oEmbed thumbnail lookups. Replaced `google_generative_ai` — see §18 |
 | `flutter_dotenv` | Key from a git-ignored `.env`, page 7's exact pattern |
 | `image_picker` | Profile picture on LO1 and P2; works on web |
 | `intl` | "Saved on July 15, 2025" date formatting |
@@ -851,3 +852,128 @@ minutes for a frame that is not coming.
 ### Tests
 
 71, all passing: 42 from the third pass, 3 migration tests, 26 layout tests.
+
+
+## 18. Fifth pass — the extraction was calling a model that no longer exists
+
+Pasting a link failed, repeatedly, with:
+
+```
+Extraction failed: Server Error [503]:
+{"error":{"code":503,"message":"This model is currently experiencing high
+demand...","status":"UNAVAILABLE"}}
+```
+
+Three separate faults, each of which alone was enough to break it.
+
+### 1. The model had been shut down
+
+`gemini-2.0-flash` was the pinned default. Google **shut that id down on 1 June
+2026**; this was diagnosed on 7 September, so the app had been calling a retired
+model for three months. Its replacement, `gemini-2.5-flash`, is itself scheduled
+to shut down on 16 October 2026 — five weeks out — so replacing one hardcoded id
+with another would only move the outage.
+
+So no model id is compiled in as the default any more. On its first extraction
+of a session the app calls `GET /v1beta/models`, keeps the ones that support
+`generateContent`, and ranks them: flash-lite ahead of flash ahead of pro
+(this is a short structured-JSON call, so the cheapest tier that can follow a
+response schema is the right one), newest version first, preview and
+experimental and non-text families excluded. `GEMINI_MODEL` in `.env` still
+pins a specific id, and a pinned id is called straight away without a catalogue
+lookup — asking to confirm what you were just told is a round trip whose answer
+you would ignore. If listing fails, a static list of rolling aliases
+(`gemini-flash-lite-latest`, `gemini-flash-latest`) is used instead: with no
+live information, an id Google re-points on every release is a safer guess than
+one that can be retired out from under the app.
+
+### 2. There was no retry
+
+A 503 UNAVAILABLE is the API saying "not now", and the message says so out loud
+— "spikes in demand are usually temporary". The old code made one call and
+turned any failure into a permanent error, so every tap of Retry was one more
+immediate request. That is the pattern that gets a key throttled.
+
+Requests now go through a retry loop: four attempts, exponential backoff with
+equal jitter (~0.6s, ~1.2s, ~2.4s), an 8s cap on any single wait, a 20s cap on
+any single HTTP call, and a 45s cap on the whole sequence. A `Retry-After`
+header, when the server sends one, wins over the computed delay. A wait that
+would outrun the deadline is not taken — the failure is reported then and there
+rather than after a sleep the user has to sit through.
+
+Only "not now" is retried: 408, 425, 429, and the 5xx family, plus a request
+that never reached a server at all. A rejected key, a malformed request or a
+blocked prompt fails on the first attempt, because the second would fail
+identically. A 404 is different again — it means *this model* is gone, so the
+next candidate is tried immediately, with no backoff.
+
+### 3. `google_generative_ai` cannot tell you which failure you got
+
+This is why the package was dropped. Its client raises
+
+```dart
+if (response.statusCode >= 500) {
+  throw GenerativeAIException('Server Error [$statusCode]: ${response.body}');
+}
+```
+
+— the status survives only inside a string, and that string is exactly what the
+user was shown. A 429 does not even take that branch: it is decoded as a normal
+body and turned into a `ServerException` carrying nothing but a message.
+Deciding whether a failure is worth retrying is a decision about the status
+code, and through that package the only way to make it is to scrape prose.
+
+`lib/ai/gemini_api.dart` speaks to `generativelanguage.googleapis.com` over
+`http`, which was already a dependency for the oEmbed lookups. It costs about a
+hundred lines and returns the status, `error.status`, `error.details[].reason`
+and `Retry-After` — everything the classification needs. The dependency count
+went down by one.
+
+### 4. Duplicate requests
+
+`onSubmitted` on the URL field called `_analyze` with no busy guard, so pressing
+Enter during a run started a second billable call. That is guarded now, and more
+importantly the extractor itself de-duplicates: extractions are keyed by URL
+while in flight, and a second call for the same link joins the first future
+instead of opening a second request.
+
+### 5. Nothing is ever faked
+
+Every failure path throws. `SampleExtractor` is reached by having no key at all,
+never as a quiet substitute for a call that did not work, and the "Sample data"
+notice on Destination & Category is shown from `ExtractionResult.isSample`,
+which a live extraction never sets.
+
+### Verified
+
+`test/gemini_test.dart` — 37 tests against a scripted server (`MockClient`):
+one 503 then success, three 503s then success, four 503s then a real failure and
+**no fifth request**, growing gaps between tries, each of 408/429/500/502/503/504
+retried, `Retry-After` honoured, a rejected key failing on the first attempt, a
+rate limit that says "rate limit" and does not blame the key, a network failure,
+a 200 that is not JSON, a reply with no candidates, a blocked prompt, model text
+that is not JSON, a 404 falling through to the next model, ranking, the pinned
+model skipping discovery, three concurrent analyses of one link making one
+request, and two "it never hangs" cases.
+
+End to end in Chromium, with Gemini scripted at the network boundary
+(Playwright `page.route`) so the app's own HTTP layer, retry loop and parsing
+all run for real:
+
+| Scenario | Result |
+| --- | --- |
+| 503, 503, then a result | 3 requests, gaps 332ms and 1080ms, done in 2.2s; Osaka, Japan / Food shown, saved through to Home |
+| 503 forever | exactly 4 requests, gaps 448/671/1904ms, stops after 3.9s with the error card, Retry and Enter manually — no spinner left running |
+| First model returns 404 | moves to the next candidate in 17ms with no backoff, extracts, saves |
+
+The catalogue offered `gemini-2.0-flash` and `gemini-3.1-flash-lite`; the app
+picked `gemini-3.1-flash-lite` on its own. Saving once left 13 rows against a
+seed of 12 — one new post, not two. No page errors in any run.
+
+**Not verified here:** a call to the real Gemini service. This container has no
+API key, and one must never be committed. Everything up to the socket is
+exercised; running it against Google needs `GEMINI_API_KEY` in a local `.env`.
+
+### Tests
+
+108 passing: 71 from the fourth pass, plus 37 for the Gemini transport.
