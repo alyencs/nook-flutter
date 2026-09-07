@@ -27,7 +27,12 @@ class NookApp extends StatelessWidget {
 ///
 /// There is no sign-in to perform — the storage decision means there is no
 /// server to sign in to. The only question is whether this device has a local
-/// profile yet: if it does, straight to Home; if not, the onboarding run.
+/// profile yet: if it does, straight to Home; if not, the onboarding run
+/// (LA1-LA6) followed by Set Up Profile (LO1).
+///
+/// "Has a profile" means a row with a name in it. The seeded demo library needs
+/// a user row for its trips to point at, so a row exists from first launch; if
+/// its presence alone counted, onboarding would never be reachable.
 class _LaunchGate extends StatelessWidget {
   const _LaunchGate();
 
@@ -41,7 +46,9 @@ class _LaunchGate extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: SizedBox.shrink());
         }
-        return snapshot.data == null ? const SplashScreen() : const RootShell();
+        final user = snapshot.data;
+        final needsSetup = user == null || user.name.trim().isEmpty;
+        return needsSetup ? const SplashScreen() : const RootShell();
       },
     );
   }

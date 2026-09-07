@@ -750,6 +750,28 @@ class $SavedPostsTable extends SavedPosts
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _aiLatitudeMeta = const VerificationMeta(
+    'aiLatitude',
+  );
+  @override
+  late final GeneratedColumn<double> aiLatitude = GeneratedColumn<double>(
+    'ai_latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiLongitudeMeta = const VerificationMeta(
+    'aiLongitude',
+  );
+  @override
+  late final GeneratedColumn<double> aiLongitude = GeneratedColumn<double>(
+    'ai_longitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _tripIdMeta = const VerificationMeta('tripId');
   @override
   late final GeneratedColumn<int> tripId = GeneratedColumn<int>(
@@ -819,6 +841,8 @@ class $SavedPostsTable extends SavedPosts
     aiCountry,
     aiBestTime,
     aiBudgetNote,
+    aiLatitude,
+    aiLongitude,
     tripId,
     personalNote,
     dateSaved,
@@ -936,6 +960,21 @@ class $SavedPostsTable extends SavedPosts
         ),
       );
     }
+    if (data.containsKey('ai_latitude')) {
+      context.handle(
+        _aiLatitudeMeta,
+        aiLatitude.isAcceptableOrUnknown(data['ai_latitude']!, _aiLatitudeMeta),
+      );
+    }
+    if (data.containsKey('ai_longitude')) {
+      context.handle(
+        _aiLongitudeMeta,
+        aiLongitude.isAcceptableOrUnknown(
+          data['ai_longitude']!,
+          _aiLongitudeMeta,
+        ),
+      );
+    }
     if (data.containsKey('trip_id')) {
       context.handle(
         _tripIdMeta,
@@ -1038,6 +1077,14 @@ class $SavedPostsTable extends SavedPosts
         DriftSqlType.string,
         data['${effectivePrefix}ai_budget_note'],
       ),
+      aiLatitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}ai_latitude'],
+      ),
+      aiLongitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}ai_longitude'],
+      ),
       tripId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}trip_id'],
@@ -1088,6 +1135,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
   final String? aiCountry;
   final String? aiBestTime;
   final String? aiBudgetNote;
+
+  /// Where the destination is, so it can be pinned on a map. Null whenever the
+  /// destination is null or too vague to place — "Southeast Asia" has no single
+  /// point — in which case Travel Details shows the placeholder instead.
+  final double? aiLatitude;
+  final double? aiLongitude;
   final int? tripId;
   final String? personalNote;
   final DateTime dateSaved;
@@ -1111,6 +1164,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     this.aiCountry,
     this.aiBestTime,
     this.aiBudgetNote,
+    this.aiLatitude,
+    this.aiLongitude,
     this.tripId,
     this.personalNote,
     required this.dateSaved,
@@ -1150,6 +1205,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     }
     if (!nullToAbsent || aiBudgetNote != null) {
       map['ai_budget_note'] = Variable<String>(aiBudgetNote);
+    }
+    if (!nullToAbsent || aiLatitude != null) {
+      map['ai_latitude'] = Variable<double>(aiLatitude);
+    }
+    if (!nullToAbsent || aiLongitude != null) {
+      map['ai_longitude'] = Variable<double>(aiLongitude);
     }
     if (!nullToAbsent || tripId != null) {
       map['trip_id'] = Variable<int>(tripId);
@@ -1200,6 +1261,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       aiBudgetNote: aiBudgetNote == null && nullToAbsent
           ? const Value.absent()
           : Value(aiBudgetNote),
+      aiLatitude: aiLatitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiLatitude),
+      aiLongitude: aiLongitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiLongitude),
       tripId: tripId == null && nullToAbsent
           ? const Value.absent()
           : Value(tripId),
@@ -1235,6 +1302,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       aiCountry: serializer.fromJson<String?>(json['aiCountry']),
       aiBestTime: serializer.fromJson<String?>(json['aiBestTime']),
       aiBudgetNote: serializer.fromJson<String?>(json['aiBudgetNote']),
+      aiLatitude: serializer.fromJson<double?>(json['aiLatitude']),
+      aiLongitude: serializer.fromJson<double?>(json['aiLongitude']),
       tripId: serializer.fromJson<int?>(json['tripId']),
       personalNote: serializer.fromJson<String?>(json['personalNote']),
       dateSaved: serializer.fromJson<DateTime>(json['dateSaved']),
@@ -1259,6 +1328,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       'aiCountry': serializer.toJson<String?>(aiCountry),
       'aiBestTime': serializer.toJson<String?>(aiBestTime),
       'aiBudgetNote': serializer.toJson<String?>(aiBudgetNote),
+      'aiLatitude': serializer.toJson<double?>(aiLatitude),
+      'aiLongitude': serializer.toJson<double?>(aiLongitude),
       'tripId': serializer.toJson<int?>(tripId),
       'personalNote': serializer.toJson<String?>(personalNote),
       'dateSaved': serializer.toJson<DateTime>(dateSaved),
@@ -1281,6 +1352,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     Value<String?> aiCountry = const Value.absent(),
     Value<String?> aiBestTime = const Value.absent(),
     Value<String?> aiBudgetNote = const Value.absent(),
+    Value<double?> aiLatitude = const Value.absent(),
+    Value<double?> aiLongitude = const Value.absent(),
     Value<int?> tripId = const Value.absent(),
     Value<String?> personalNote = const Value.absent(),
     DateTime? dateSaved,
@@ -1302,6 +1375,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     aiCountry: aiCountry.present ? aiCountry.value : this.aiCountry,
     aiBestTime: aiBestTime.present ? aiBestTime.value : this.aiBestTime,
     aiBudgetNote: aiBudgetNote.present ? aiBudgetNote.value : this.aiBudgetNote,
+    aiLatitude: aiLatitude.present ? aiLatitude.value : this.aiLatitude,
+    aiLongitude: aiLongitude.present ? aiLongitude.value : this.aiLongitude,
     tripId: tripId.present ? tripId.value : this.tripId,
     personalNote: personalNote.present ? personalNote.value : this.personalNote,
     dateSaved: dateSaved ?? this.dateSaved,
@@ -1337,6 +1412,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       aiBudgetNote: data.aiBudgetNote.present
           ? data.aiBudgetNote.value
           : this.aiBudgetNote,
+      aiLatitude: data.aiLatitude.present
+          ? data.aiLatitude.value
+          : this.aiLatitude,
+      aiLongitude: data.aiLongitude.present
+          ? data.aiLongitude.value
+          : this.aiLongitude,
       tripId: data.tripId.present ? data.tripId.value : this.tripId,
       personalNote: data.personalNote.present
           ? data.personalNote.value
@@ -1367,6 +1448,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           ..write('aiCountry: $aiCountry, ')
           ..write('aiBestTime: $aiBestTime, ')
           ..write('aiBudgetNote: $aiBudgetNote, ')
+          ..write('aiLatitude: $aiLatitude, ')
+          ..write('aiLongitude: $aiLongitude, ')
           ..write('tripId: $tripId, ')
           ..write('personalNote: $personalNote, ')
           ..write('dateSaved: $dateSaved, ')
@@ -1391,6 +1474,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     aiCountry,
     aiBestTime,
     aiBudgetNote,
+    aiLatitude,
+    aiLongitude,
     tripId,
     personalNote,
     dateSaved,
@@ -1414,6 +1499,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           other.aiCountry == this.aiCountry &&
           other.aiBestTime == this.aiBestTime &&
           other.aiBudgetNote == this.aiBudgetNote &&
+          other.aiLatitude == this.aiLatitude &&
+          other.aiLongitude == this.aiLongitude &&
           other.tripId == this.tripId &&
           other.personalNote == this.personalNote &&
           other.dateSaved == this.dateSaved &&
@@ -1435,6 +1522,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
   final Value<String?> aiCountry;
   final Value<String?> aiBestTime;
   final Value<String?> aiBudgetNote;
+  final Value<double?> aiLatitude;
+  final Value<double?> aiLongitude;
   final Value<int?> tripId;
   final Value<String?> personalNote;
   final Value<DateTime> dateSaved;
@@ -1454,6 +1543,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.aiCountry = const Value.absent(),
     this.aiBestTime = const Value.absent(),
     this.aiBudgetNote = const Value.absent(),
+    this.aiLatitude = const Value.absent(),
+    this.aiLongitude = const Value.absent(),
     this.tripId = const Value.absent(),
     this.personalNote = const Value.absent(),
     this.dateSaved = const Value.absent(),
@@ -1474,6 +1565,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.aiCountry = const Value.absent(),
     this.aiBestTime = const Value.absent(),
     this.aiBudgetNote = const Value.absent(),
+    this.aiLatitude = const Value.absent(),
+    this.aiLongitude = const Value.absent(),
     this.tripId = const Value.absent(),
     this.personalNote = const Value.absent(),
     required DateTime dateSaved,
@@ -1497,6 +1590,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Expression<String>? aiCountry,
     Expression<String>? aiBestTime,
     Expression<String>? aiBudgetNote,
+    Expression<double>? aiLatitude,
+    Expression<double>? aiLongitude,
     Expression<int>? tripId,
     Expression<String>? personalNote,
     Expression<DateTime>? dateSaved,
@@ -1517,6 +1612,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       if (aiCountry != null) 'ai_country': aiCountry,
       if (aiBestTime != null) 'ai_best_time': aiBestTime,
       if (aiBudgetNote != null) 'ai_budget_note': aiBudgetNote,
+      if (aiLatitude != null) 'ai_latitude': aiLatitude,
+      if (aiLongitude != null) 'ai_longitude': aiLongitude,
       if (tripId != null) 'trip_id': tripId,
       if (personalNote != null) 'personal_note': personalNote,
       if (dateSaved != null) 'date_saved': dateSaved,
@@ -1539,6 +1636,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Value<String?>? aiCountry,
     Value<String?>? aiBestTime,
     Value<String?>? aiBudgetNote,
+    Value<double?>? aiLatitude,
+    Value<double?>? aiLongitude,
     Value<int?>? tripId,
     Value<String?>? personalNote,
     Value<DateTime>? dateSaved,
@@ -1559,6 +1658,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       aiCountry: aiCountry ?? this.aiCountry,
       aiBestTime: aiBestTime ?? this.aiBestTime,
       aiBudgetNote: aiBudgetNote ?? this.aiBudgetNote,
+      aiLatitude: aiLatitude ?? this.aiLatitude,
+      aiLongitude: aiLongitude ?? this.aiLongitude,
       tripId: tripId ?? this.tripId,
       personalNote: personalNote ?? this.personalNote,
       dateSaved: dateSaved ?? this.dateSaved,
@@ -1609,6 +1710,12 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     if (aiBudgetNote.present) {
       map['ai_budget_note'] = Variable<String>(aiBudgetNote.value);
     }
+    if (aiLatitude.present) {
+      map['ai_latitude'] = Variable<double>(aiLatitude.value);
+    }
+    if (aiLongitude.present) {
+      map['ai_longitude'] = Variable<double>(aiLongitude.value);
+    }
     if (tripId.present) {
       map['trip_id'] = Variable<int>(tripId.value);
     }
@@ -1643,6 +1750,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
           ..write('aiCountry: $aiCountry, ')
           ..write('aiBestTime: $aiBestTime, ')
           ..write('aiBudgetNote: $aiBudgetNote, ')
+          ..write('aiLatitude: $aiLatitude, ')
+          ..write('aiLongitude: $aiLongitude, ')
           ..write('tripId: $tripId, ')
           ..write('personalNote: $personalNote, ')
           ..write('dateSaved: $dateSaved, ')
@@ -2586,6 +2695,8 @@ typedef $$SavedPostsTableCreateCompanionBuilder =
       Value<String?> aiCountry,
       Value<String?> aiBestTime,
       Value<String?> aiBudgetNote,
+      Value<double?> aiLatitude,
+      Value<double?> aiLongitude,
       Value<int?> tripId,
       Value<String?> personalNote,
       required DateTime dateSaved,
@@ -2607,6 +2718,8 @@ typedef $$SavedPostsTableUpdateCompanionBuilder =
       Value<String?> aiCountry,
       Value<String?> aiBestTime,
       Value<String?> aiBudgetNote,
+      Value<double?> aiLatitude,
+      Value<double?> aiLongitude,
       Value<int?> tripId,
       Value<String?> personalNote,
       Value<DateTime> dateSaved,
@@ -2708,6 +2821,16 @@ class $$SavedPostsTableFilterComposer
 
   ColumnFilters<String> get aiBudgetNote => $composableBuilder(
     column: $table.aiBudgetNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get aiLatitude => $composableBuilder(
+    column: $table.aiLatitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get aiLongitude => $composableBuilder(
+    column: $table.aiLongitude,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2829,6 +2952,16 @@ class $$SavedPostsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get aiLatitude => $composableBuilder(
+    column: $table.aiLatitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get aiLongitude => $composableBuilder(
+    column: $table.aiLongitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get personalNote => $composableBuilder(
     column: $table.personalNote,
     builder: (column) => ColumnOrderings(column),
@@ -2935,6 +3068,16 @@ class $$SavedPostsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get aiLatitude => $composableBuilder(
+    column: $table.aiLatitude,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get aiLongitude => $composableBuilder(
+    column: $table.aiLongitude,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get personalNote => $composableBuilder(
     column: $table.personalNote,
     builder: (column) => column,
@@ -3018,6 +3161,8 @@ class $$SavedPostsTableTableManager
                 Value<String?> aiCountry = const Value.absent(),
                 Value<String?> aiBestTime = const Value.absent(),
                 Value<String?> aiBudgetNote = const Value.absent(),
+                Value<double?> aiLatitude = const Value.absent(),
+                Value<double?> aiLongitude = const Value.absent(),
                 Value<int?> tripId = const Value.absent(),
                 Value<String?> personalNote = const Value.absent(),
                 Value<DateTime> dateSaved = const Value.absent(),
@@ -3037,6 +3182,8 @@ class $$SavedPostsTableTableManager
                 aiCountry: aiCountry,
                 aiBestTime: aiBestTime,
                 aiBudgetNote: aiBudgetNote,
+                aiLatitude: aiLatitude,
+                aiLongitude: aiLongitude,
                 tripId: tripId,
                 personalNote: personalNote,
                 dateSaved: dateSaved,
@@ -3058,6 +3205,8 @@ class $$SavedPostsTableTableManager
                 Value<String?> aiCountry = const Value.absent(),
                 Value<String?> aiBestTime = const Value.absent(),
                 Value<String?> aiBudgetNote = const Value.absent(),
+                Value<double?> aiLatitude = const Value.absent(),
+                Value<double?> aiLongitude = const Value.absent(),
                 Value<int?> tripId = const Value.absent(),
                 Value<String?> personalNote = const Value.absent(),
                 required DateTime dateSaved,
@@ -3077,6 +3226,8 @@ class $$SavedPostsTableTableManager
                 aiCountry: aiCountry,
                 aiBestTime: aiBestTime,
                 aiBudgetNote: aiBudgetNote,
+                aiLatitude: aiLatitude,
+                aiLongitude: aiLongitude,
                 tripId: tripId,
                 personalNote: personalNote,
                 dateSaved: dateSaved,

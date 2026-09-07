@@ -39,8 +39,54 @@ void main() {
     final japanPosts = await posts.watchByTrip(japan.trip.id).first;
     expect(japan.itemCount, japanPosts.length);
 
+    // The seeded user row exists so trips have an owner, but it carries no
+    // name: that is what tells the launch gate to run onboarding. If this ever
+    // comes back named, LA1-LA6 and LO1 become unreachable again.
     final profile = await users.currentUser();
-    expect(profile?.name, 'Ali Sampang');
+    expect(profile, isNotNull);
+    expect(profile!.name, isEmpty);
+    expect(profile.email, isEmpty);
+  });
+
+  test('saving a profile fills the seeded row rather than adding a second',
+      () async {
+    await users.saveProfile(name: 'Ali Sampang', email: 'ali@example.com');
+
+    final all = await db.select(db.users).get();
+    expect(all, hasLength(1), reason: 'the seeded row is reused');
+    expect(all.single.name, 'Ali Sampang');
+
+    // The seeded trips still belong to it.
+    final summaries = await trips.watchTripSummaries().first;
+    expect(summaries.every((s) => s.trip.userId == all.single.id), isTrue);
+
+  });
+
+  test('seeded posts carry coordinates so the map has something to pin',
+      () async {
+    final all = await posts.watchAll().first;
+    final placeable = all.where((p) => p.aiLatitude != null).toList();
+
+    expect(placeable, isNotEmpty);
+    for (final post in placeable) {
+      expect(post.aiLongitude, isNotNull, reason: 'coordinates come in pairs');
+      expect(post.aiLatitude!.abs(), lessThanOrEqualTo(90));
+      expect(post.aiLongitude!.abs(), lessThanOrEqualTo(180));
+    }
+
+    // A region-wide destination has no single point, and says so with a null.
+    final region = all.firstWhere((p) => p.aiDestination == 'Southeast Asia');
+    expect(region.aiLatitude, isNull);
+  });
+
+  test('seeded posts carry no thumbnail, because their links are invented',
+      () async {
+    // The demo library's URLs are illustrative, not real posts, so no real
+    // preview image exists for them and every card draws the placeholder.
+    // Thumbnails appear once a real link is saved — see extractor_test.dart for
+    // the derivation itself.
+    final all = await posts.watchAll().first;
+    expect(all.every((p) => p.thumbnailUrl == null), isTrue);
   });
 
   test('a saved post survives a restart', () async {

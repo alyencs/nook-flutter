@@ -18,9 +18,13 @@ public repo means for secrets and personal data.
 
 ## Screenshots
 
-| Home | Search results | Post details | Travel details |
+| Onboarding | Set up profile | Home | Search results |
 | --- | --- | --- | --- |
-| ![Home](docs/assets/screen-home.png) | ![Search results](docs/assets/screen-search-results.png) | ![Post details](docs/assets/screen-post-details.png) | ![Travel details](docs/assets/screen-travel-details.png) |
+| ![Onboarding](docs/assets/screen-onboarding.png) | ![Set up profile](docs/assets/screen-profile-setup.png) | ![Home](docs/assets/screen-home.png) | ![Search results](docs/assets/screen-search-results.png) |
+
+| Post details | Travel details |
+| --- | --- |
+| ![Post details](docs/assets/screen-post-details.png) | ![Travel details](docs/assets/screen-travel-details.png) |
 
 ## What it does
 
@@ -34,6 +38,9 @@ Saved folders group content by trip or search across platforms. Nook does both.
   a travel category, a short summary, the country, the best time to visit and a
   rough budget. Anything it cannot tell you is left blank rather than invented,
   and the destination is editable before you save.
+- **See where it is.** A save whose destination is specific enough to place gets
+  a pin on a map in Travel Details. A region like "Southeast Asia" has no single
+  point, so it keeps the placeholder and says why.
 - **Group saves into trips.** "Japan 2027", "Weekend Getaways". A post belongs
   to exactly one trip and can be moved between them.
 - **Search across everything.** One field matches titles, creators,
@@ -49,6 +56,7 @@ Saved folders group content by trip or search across platforms. Nook does both.
 | State | `setState` plus Drift stream queries read through `StreamBuilder` — no state-management package |
 | Storage | [Drift](https://drift.simonbinder.eu) — on-device SQL, five tables, works on web |
 | AI | `google_generative_ai` (Gemini), behind an interface with a keyless fallback |
+| Maps | `flutter_map` with OpenStreetMap tiles — no key, no billing account |
 | Other packages | `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `device_preview` (phone frame on the live link) |
 | Type | Inter, bundled as a local asset |
 
@@ -63,9 +71,13 @@ do not sync between devices.
 
 ```bash
 flutter pub get
-cp .env.example .env      # optional: add a Gemini key for real extraction
+cp .env.example .env      # required — see below
 flutter run -d web-server --web-port 8080
 ```
+
+`.env` is listed as an asset in `pubspec.yaml` (that is how `flutter_dotenv`
+reads it), so **the file has to exist before the app will build**, even empty.
+Copying `.env.example` is enough; the key itself is optional.
 
 Then open http://localhost:8080. Built and tested with Flutter 3.47.2.
 
@@ -81,8 +93,19 @@ result.
 
 | Variable | What it is | Where to get one |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Powers destination and category detection. Optional — without it Nook runs its sample extractor and says so on screen. | https://aistudio.google.com/apikey |
+| `GEMINI_API_KEY` | Powers destination, category, summary and coordinate detection. Optional — without it Nook runs its sample extractor and says so on screen. | https://aistudio.google.com/apikey |
 | `GEMINI_MODEL` | Optional model override. Defaults to `gemini-2.5-flash`. | — |
+
+### Turning on real extraction
+
+1. Get a key at https://aistudio.google.com/apikey.
+2. Put it in `.env` at the root of the project: `GEMINI_API_KEY=your-key-here`
+3. Restart the app — `.env` is read once at startup, so a hot reload will not
+   pick it up.
+
+**Profile → Settings** shows which extractor is running, so you can confirm the
+key was found without saving anything. Paste Link says so too, before you spend
+a link finding out.
 
 **The Gemini key is never deployed.** It is not a repository secret and not a
 `--dart-define`. Anyone can read a value compiled into a web build and spend the
@@ -136,16 +159,19 @@ profile, and the demo library with reset and clear.
 
 **Deliberately not built:**
 
-- **Map view** (`flutter_map`) — a stretch goal. Travel Details draws the map
-  placeholder the mockup drew, labelled as such.
 - **Itinerary generator** — stretch goal #3. The button is drawn and disabled,
   with a line saying why.
 - **Connected Platforms** — stretch goal #1, and auto-sync needs each platform's
   API. The screen exists as drawn, disabled, and says so.
 - **Sharing** — the share button on Post Details is drawn but inert.
-- **Real thumbnails** — a browser cannot fetch a TikTok or Instagram preview
-  image (CORS), so every card draws the mockup's placeholder rather than a
-  broken image.
+- **Instagram and Facebook thumbnails** — both retired their public oEmbed
+  endpoints, so reading a preview image from either now needs a Meta app, an
+  access token and app review. Those saves keep the drawn placeholder. YouTube
+  thumbnails are derived from the video id and work with no key at all; TikTok
+  is attempted through its public oEmbed endpoint and falls back quietly when
+  the browser is not allowed to read it.
+- **Thumbnails for the seeded demo library** — its links are invented, so no
+  real preview image exists for them. Save a real link to see thumbnails.
 
 **Known limits.** Extraction reads the link itself — its host, its slug, its
 handle — because those pages cannot be fetched from a browser. A URL that names

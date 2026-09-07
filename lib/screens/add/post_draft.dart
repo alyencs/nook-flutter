@@ -1,6 +1,7 @@
 import '../../ai/ai_extractor.dart';
 import '../../ai/categories.dart';
 import '../../ai/platform_from_url.dart';
+import '../../ai/thumbnail_from_url.dart';
 
 /// What the add flow carries from one screen to the next.
 ///
@@ -19,6 +20,9 @@ class PostDraft {
         summary = result.summary,
         bestTime = result.bestTime,
         budgetNote = result.budgetNote,
+        latitude = result.latitude,
+        longitude = result.longitude,
+        thumbnailUrl = result.thumbnailUrl,
         fromSample = result.isSample;
 
   /// The "Enter manually" path, taken when extraction fails or the user would
@@ -34,6 +38,9 @@ class PostDraft {
         summary = null,
         bestTime = null,
         budgetNote = null,
+        latitude = null,
+        longitude = null,
+        thumbnailUrl = PostThumbnails.fromUrl(url),
         fromSample = false;
 
   /// A note with no link and no extraction: the second tile on Add Post.
@@ -48,6 +55,9 @@ class PostDraft {
         summary = null,
         bestTime = null,
         budgetNote = null,
+        latitude = null,
+        longitude = null,
+        thumbnailUrl = null,
         fromSample = false;
 
   final String? url;
@@ -66,6 +76,9 @@ class PostDraft {
   String? summary;
   String? bestTime;
   String? budgetNote;
+  double? latitude;
+  double? longitude;
+  String? thumbnailUrl;
 
   int? tripId;
   String? tripName;

@@ -5,12 +5,12 @@ import '../../data/database.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
-import '../../widgets/metadata_chip.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
-import '../../widgets/thumb_placeholder.dart';
+import '../../widgets/post_map.dart';
+import '../../widgets/post_thumbnail.dart';
 
 /// S2. The screen the whole proposal is built around.
 ///
@@ -40,7 +40,8 @@ class TravelDetailsScreen extends StatelessWidget {
               const SizedBox(height: NookSpacing.section),
               Row(
                 children: [
-                  const ThumbPlaceholder(
+                  PostThumbnail(
+                    url: post.thumbnailUrl,
                     width: 64,
                     height: 64,
                     showGlyph: false,
@@ -82,7 +83,21 @@ class TravelDetailsScreen extends StatelessWidget {
               const SizedBox(height: NookSpacing.screenEdge),
               const OverlineLabel('Map location'),
               const SizedBox(height: NookSpacing.tight),
-              const _MapPlaceholder(),
+              if (post.aiLatitude != null && post.aiLongitude != null)
+                PostMap(
+                  latitude: post.aiLatitude!,
+                  longitude: post.aiLongitude!,
+                  label: _cityOf(post.aiDestination) ??
+                      post.aiDestination ??
+                      'Saved location',
+                )
+              else
+                PostMapPlaceholder(
+                  reason: post.aiDestination == null
+                      ? 'No destination was detected for this post, so there is '
+                          'nothing to pin yet. Add one from the post to place it.'
+                      : '"${post.aiDestination}" is too broad to place on a map.',
+                ),
               const SizedBox(height: NookSpacing.screenEdge),
               const Divider(),
               _MetaRow(
@@ -135,16 +150,25 @@ class _MetaRow extends StatelessWidget {
         children: [
           Icon(icon, size: 22, color: NookColors.textPrimary),
           const SizedBox(width: NookSpacing.tight),
-          // Flexible so a long label yields to the value rather than pushing
-          // it off the edge.
-          Flexible(
+          // Both sides are flex, so the two boxes tile the whole row and the
+          // value box always ends at the right edge.
+          //
+          // With a loose Flexible label the value box was only half the free
+          // space and sat wherever the label happened to end — so short labels
+          // like "Location" left their value floating in the middle, while long
+          // ones like "Best Time to Visit" looked correctly right-aligned.
+          Expanded(
+            flex: 4,
             child: Text(
               label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: NookType.body.copyWith(fontSize: 17),
             ),
           ),
-          const SizedBox(width: NookSpacing.section),
+          const SizedBox(width: NookSpacing.tight),
           Expanded(
+            flex: 6,
             child: Text(
               value ?? '—',
               textAlign: TextAlign.right,
@@ -158,28 +182,6 @@ class _MetaRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// The map is a stretch goal, and this is drawn as a placeholder in the mockup.
-///
-/// Labelled rather than left blank: an unexplained grey panel reads as broken,
-/// and `flutter_map` is deliberately not in this build.
-class _MapPlaceholder extends StatelessWidget {
-  const _MapPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        const ThumbPlaceholder(aspectRatio: 1.6, showGlyph: false),
-        const Positioned(
-          top: NookSpacing.tight,
-          left: NookSpacing.tight,
-          child: MetadataChip('Map View Placeholder'),
-        ),
-      ],
     );
   }
 }

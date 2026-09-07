@@ -55,4 +55,45 @@ One short entry per week, written as the week happens.
   usable destination comes back. This is the mitigation the proposal committed
   to for its biggest risk, and it needs real numbers.
 - Record the demo video, showing real Gemini extraction locally.
-- Screenshots into `docs/assets/` and the README.
+
+---
+
+## Week of 2026-09-08 — review pass: the map, thumbnails, and three bugs
+
+Reviewed the built app against the mockup. Six items; the useful part was that
+three of them were bugs rather than missing work.
+
+**Bugs found.**
+
+- *The onboarding screens could never be seen.* LA1-LA6 and LO1 were built in
+  week one, but the seed inserted a named user row and the launch gate treated
+  any user row as "already set up" — so every install went straight to Home. The
+  seeded row is nameless now and exists only so trips have an owner. Fixing that
+  exposed a second one: onboarding screens are pushed routes, so swapping the
+  home route left them on top; saving a profile clears the stack.
+- *The note field did not render.* `NookNoteField` had an `Expanded` inside a
+  Column with unbounded height, so it collapsed to zero and Create Note showed
+  only a title box — a note could not be typed at all.
+- *Travel Details values were not flush right.* A loose `Flexible` label and an
+  `Expanded` value split the free space equally, so the value box was half the
+  row and short labels left their value floating in the middle. Long labels
+  happened to look correct, which is why it read as a spacing quirk rather than
+  a layout bug.
+
+**Built.**
+
+- `flutter_map` with OpenStreetMap tiles and a pin per saved location — the
+  stretch goal, and cheaper than expected because the extraction call now
+  returns coordinates alongside the destination.
+- Thumbnails: derived from the video id for YouTube, oEmbed for TikTok. Instagram
+  and Facebook are not possible without a Meta app, so those keep the
+  placeholder — worth saying plainly rather than leaving it looking broken.
+- Chips moved off a `Wrap` and onto one line beside the creator, as drawn.
+- Detection now says which extractor is running, in Settings and on Paste Link.
+
+**Next.**
+
+- The 40-link extraction test, still outstanding.
+- Confirm the map tiles render outside the sandbox this was built in, which
+  blocks the tile host.
+- Record the demo video.

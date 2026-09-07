@@ -57,6 +57,12 @@ class SavedPosts extends Table {
   TextColumn get aiBestTime => text().nullable()();
   TextColumn get aiBudgetNote => text().nullable()();
 
+  /// Where the destination is, so it can be pinned on a map. Null whenever the
+  /// destination is null or too vague to place — "Southeast Asia" has no single
+  /// point — in which case Travel Details shows the placeholder instead.
+  RealColumn get aiLatitude => real().nullable()();
+  RealColumn get aiLongitude => real().nullable()();
+
   IntColumn get tripId => integer()
       .nullable()
       .customConstraint('NULL REFERENCES trips(id) ON DELETE SET NULL')();

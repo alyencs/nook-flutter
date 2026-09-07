@@ -11,7 +11,7 @@ import '../../widgets/metadata_chip.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
-import '../../widgets/thumb_placeholder.dart';
+import '../../widgets/post_thumbnail.dart';
 import 'post_draft.dart';
 
 /// A6. Everything the flow gathered, on one screen, before anything is written.
@@ -47,6 +47,9 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
             aiSummary: Value(draft.summary),
             aiBestTime: Value(draft.bestTime),
             aiBudgetNote: Value(draft.budgetNote),
+            aiLatitude: Value(draft.latitude),
+            aiLongitude: Value(draft.longitude),
+            thumbnailUrl: Value(draft.thumbnailUrl),
             tripId: Value(draft.tripId),
             personalNote: Value(draft.note),
             dateSaved: DateTime.now(),
@@ -92,7 +95,8 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const ThumbPlaceholder(
+                      PostThumbnail(
+                        url: draft.thumbnailUrl,
                         width: 72,
                         height: 72,
                         showGlyph: false,

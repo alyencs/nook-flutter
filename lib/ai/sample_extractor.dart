@@ -1,5 +1,6 @@
 import 'ai_extractor.dart';
 import 'categories.dart';
+import 'thumbnail_from_url.dart';
 
 /// What runs when there is no Gemini key — which is always true of the
 /// deployed build, because a billable key must never ship in a public web app.
@@ -29,10 +30,12 @@ class SampleExtractor implements AiExtractor {
 
     // Prefer a fixture whose subject the link actually mentions, so pasting a
     // Kyoto link gets the Kyoto result rather than an arbitrary one.
+    final thumbnailUrl = await PostThumbnails.resolve(trimmed);
+
     final haystack = trimmed.toLowerCase();
     for (final fixture in _fixtures) {
       if (fixture.keywords.any(haystack.contains)) {
-        return fixture.toResult();
+        return fixture.toResult(thumbnailUrl: thumbnailUrl);
       }
     }
 
@@ -44,7 +47,7 @@ class SampleExtractor implements AiExtractor {
     final fixture = _fixtures[index];
     final slugTitle = _titleFromUrl(trimmed);
     final creator = _handleFromUrl(trimmed);
-    final result = fixture.toResult();
+    final result = fixture.toResult(thumbnailUrl: thumbnailUrl);
     return ExtractionResult(
       title: slugTitle ?? result.title,
       creator: creator ?? result.creator,
@@ -54,6 +57,9 @@ class SampleExtractor implements AiExtractor {
       summary: result.summary,
       bestTime: result.bestTime,
       budgetNote: result.budgetNote,
+      latitude: result.latitude,
+      longitude: result.longitude,
+      thumbnailUrl: thumbnailUrl,
       isSample: true,
     );
   }
@@ -98,6 +104,8 @@ class _Fixture {
     required this.summary,
     required this.bestTime,
     required this.budgetNote,
+    this.latitude,
+    this.longitude,
   });
 
   final List<String> keywords;
@@ -109,8 +117,10 @@ class _Fixture {
   final String summary;
   final String bestTime;
   final String budgetNote;
+  final double? latitude;
+  final double? longitude;
 
-  ExtractionResult toResult() => ExtractionResult(
+  ExtractionResult toResult({String? thumbnailUrl}) => ExtractionResult(
         title: title,
         creator: creator,
         destination: destination,
@@ -119,6 +129,9 @@ class _Fixture {
         summary: summary,
         bestTime: bestTime,
         budgetNote: budgetNote,
+        latitude: latitude,
+        longitude: longitude,
+        thumbnailUrl: thumbnailUrl,
         isSample: true,
       );
 }
@@ -139,6 +152,8 @@ const _fixtures = <_Fixture>[
         'hidden matcha bar near Fushimi Inari. Great for slow travel days.',
     bestTime: 'March–May',
     budgetNote: '~¥3,000/day for cafes and transit',
+    latitude: 35.0116,
+    longitude: 135.7681,
   ),
   _Fixture(
     keywords: ['lisbon', 'portugal', 'itinerary'],
@@ -152,6 +167,8 @@ const _fixtures = <_Fixture>[
         'Leans on the tram network and free viewpoints, with one splurge meal built in.',
     bestTime: 'March–May',
     budgetNote: '~€70/day excluding flights',
+    latitude: 38.7223,
+    longitude: -9.1393,
   ),
   _Fixture(
     keywords: ['porto', 'gems'],
@@ -166,6 +183,8 @@ const _fixtures = <_Fixture>[
         'rather than planned.',
     bestTime: 'March–May',
     budgetNote: '~€80/day excluding flights',
+    latitude: 41.1579,
+    longitude: -8.6291,
   ),
   _Fixture(
     keywords: ['palawan', 'beach', 'philippines'],
@@ -179,6 +198,8 @@ const _fixtures = <_Fixture>[
         'to read the seabed. Go early: the day-tour boats arrive by eleven.',
     bestTime: 'December–March',
     budgetNote: '~₱2,500/day including boat hire',
+    latitude: 9.8349,
+    longitude: 118.7384,
   ),
   _Fixture(
     keywords: ['bangkok', 'thailand', 'street food'],
@@ -192,6 +213,8 @@ const _fixtures = <_Fixture>[
         'nothing closes before you reach it. Cash only, and bring an appetite.',
     bestTime: 'November–February',
     budgetNote: '~฿600/day for food',
+    latitude: 13.7563,
+    longitude: 100.5018,
   ),
   _Fixture(
     keywords: ['bali', 'batur', 'hike', 'indonesia'],
@@ -205,6 +228,8 @@ const _fixtures = <_Fixture>[
         'the light comes over Abang. Guides are compulsory and worth it.',
     bestTime: 'April–October',
     budgetNote: '~IDR 500,000 including guide',
+    latitude: -8.2422,
+    longitude: 115.3753,
   ),
   _Fixture(
     keywords: ['hostel', 'southeast asia', 'accommodation'],

@@ -538,3 +538,110 @@ decision rather than a typo.
 - The 40-link extraction test (10 real links per platform), which is the
   proposal's own mitigation for its biggest risk.
 - The demo video, showing real Gemini extraction locally.
+
+
+---
+
+## 14. Second pass — map, thumbnails, and three bugs
+
+A review against the mockup after the first build turned up six items. What each
+one actually turned out to be:
+
+### 1. Gemini extraction — already implemented, and now visible
+
+`GeminiExtractor` was wired from the first build; what was missing was any way
+to *tell* which extractor was running. Detection now reports itself in
+**Profile → Settings**, and Paste Link says so before a link is spent finding
+out. Extraction was also extended to return **latitude and longitude** so the
+map has something to pin.
+
+The seeded Recent Saves and Trips are, as suspected, sample data. Real
+extraction needs `GEMINI_API_KEY` in `.env` — see §15.
+
+### 2. Map — was not implemented, now is
+
+`flutter_map` with OpenStreetMap tiles, which is what the proposal chose and
+why: no key, no billing account, works on web. A post with coordinates gets a
+pin; a destination too broad to place ("Southeast Asia") keeps the mockup's
+placeholder and says why rather than showing an empty grey panel. The seeded
+library carries real coordinates so the map works before anything is saved.
+
+### 3. Thumbnails — partly possible, and honest about the rest
+
+- **YouTube**: derived from the video id. No key, no network call, always works.
+- **TikTok**: attempted through its public oEmbed endpoint, with silent fallback
+  when the browser is not allowed to read it.
+- **Instagram and Facebook**: not possible. Both retired public oEmbed; a
+  thumbnail now needs a Meta app, an access token and app review. Those posts
+  keep the placeholder.
+
+Images render through `WebHtmlElementStrategy.prefer`, so a host without CORS
+headers still displays, and a dead URL falls back to the placeholder instead of
+a broken image.
+
+### 4. Alignment — two real layout bugs
+
+- **Travel Details values were not flush right.** The label was a loose
+  `Flexible` and the value an `Expanded`, so both took an *equal share of the
+  free space*: the value box was only half the row and sat wherever the label
+  happened to end. Short labels ("Location") left their value floating in the
+  middle; long ones ("Best Time to Visit") happened to look correct. Both sides
+  are now flex, so the boxes tile the full width and every value ends at the
+  right edge.
+- **Chips dropped below the creator.** The caption row was a `Wrap`, so the
+  platform and category chips fell to a second line as soon as the handle was
+  long. It is a `Row` now: the creator ellipsises instead, since it is the part
+  that survives shortening. Trip Details also stopped showing the category chip
+  — with both chips there was no room left for the handle at phone width.
+
+### 5. Add Note — genuinely broken, now fixed
+
+`NookNoteField` put an `Expanded` inside a `Column` with unbounded height (these
+fields live in scroll views), so **the note field collapsed to nothing** and the
+Create Note screen showed only a title box. It is sized by `minLines` now and
+grows with its content.
+
+### 6. LA1-LA6 and LO1 — built all along, but unreachable
+
+Every one of those screens existed from the first build. The seed inserted a
+*named* user row, and the launch gate treated any user row as "already set up",
+so every install went straight to Home and the onboarding run could never be
+seen. The seeded row is now nameless — it exists only so trips have an owner —
+and the gate checks for a name. Set Up Profile fills that same row in rather
+than inserting a second one.
+
+Fixing that exposed a second bug behind it: the onboarding screens are *pushed*
+routes, so swapping the gate's home route left them sitting on top. Saving a
+profile now clears the stack.
+
+### Tests
+
+40, all passing. New coverage: onboarding reachability and the full LA1-LO1 run,
+Set Up Profile reusing the seeded row, the Create Note field and its saved note,
+seeded coordinates, the region-with-no-coordinates case, and thumbnail
+derivation for every YouTube URL shape.
+
+The rendered map is checked in the browser rather than in a widget test:
+`flutter_map`'s tile layer holds live timers for tiles a test environment never
+serves, so a widget test can neither settle nor tear it down.
+
+---
+
+## 15. What needs a key, and where it goes
+
+Two things in this app depend on something outside the repository.
+
+| What | Needs | Where |
+| --- | --- | --- |
+| Real destination, category, summary and coordinate detection | A Google Gemini API key, free tier is enough | `GEMINI_API_KEY` in `.env` at the project root. Get one at https://aistudio.google.com/apikey |
+| Instagram and Facebook thumbnails | A Meta app, an access token and app review | Not configured, and not planned — out of scope for the MVP |
+
+`.env` is listed as an asset in `pubspec.yaml`, so **the file must exist for the
+app to build at all**, even empty. `cp .env.example .env` is enough; the key
+itself is optional. Restart after adding it — `.env` is read once at startup.
+
+Nothing else needs configuring. The map needs no key. OpenStreetMap tiles are
+fetched directly from `tile.openstreetmap.org`, which the sandbox this was built
+in blocks, so **the tile imagery is the one thing not verified here** — the map
+widget, its pin, its attribution and the placeholder logic all are. It should
+render normally on any machine with ordinary internet access.

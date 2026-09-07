@@ -83,26 +83,32 @@ class NookTextField extends StatelessWidget {
 
 /// The multiline note field, with the character counter the mockup draws in its
 /// bottom-right corner.
+///
+/// Sized by [minLines] rather than by an [Expanded] inside a fixed-height box.
+/// The earlier version put an `Expanded` in a Column with no bounded height —
+/// these fields live inside scroll views — so the field collapsed to nothing and
+/// the note could not be typed at all. Growing with its content is also the
+/// right behaviour: a long note pushes the counter down instead of scrolling
+/// inside a cramped box.
 class NookNoteField extends StatelessWidget {
   const NookNoteField({
     super.key,
     required this.controller,
     required this.hint,
     this.maxLength = 500,
-    this.minHeight = 220,
+    this.minLines = 7,
     this.onChanged,
   });
 
   final TextEditingController controller;
   final String hint;
   final int maxLength;
-  final double minHeight;
+  final int minLines;
   final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: BoxConstraints(minHeight: minHeight),
       decoration: BoxDecoration(
         color: NookColors.surface,
         borderRadius: BorderRadius.circular(NookRadius.md),
@@ -110,30 +116,31 @@ class NookNoteField extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(NookSpacing.section),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              maxLength: maxLength,
-              maxLines: null,
-              expands: true,
-              textAlignVertical: TextAlignVertical.top,
-              onChanged: onChanged,
-              style: NookType.body,
-              cursorColor: NookColors.primary,
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: NookType.body.copyWith(color: NookColors.textMuted),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-                // The design system's own counter is drawn below, so Material's
-                // is switched off rather than shown twice.
-                counterText: '',
-              ),
+          TextField(
+            controller: controller,
+            maxLength: maxLength,
+            maxLines: null,
+            minLines: minLines,
+            keyboardType: TextInputType.multiline,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: onChanged,
+            style: NookType.body,
+            cursorColor: NookColors.primary,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: NookType.body.copyWith(color: NookColors.textMuted),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+              // The design system's own counter is drawn below, so Material's
+              // is switched off rather than shown twice.
+              counterText: '',
             ),
           ),
+          const SizedBox(height: NookSpacing.tight),
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, _) => Text(

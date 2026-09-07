@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../ai/platform_from_url.dart';
+import '../ai/thumbnail_from_url.dart';
 import 'database.dart';
 
 /// The demo library, inserted on first run only.
@@ -14,8 +15,11 @@ Future<void> seedDatabase(NookDatabase db) async {
   final now = DateTime.now();
   DateTime daysAgo(int days) => now.subtract(Duration(days: days));
 
+  // The row exists so trips have a user to belong to, but it carries no
+  // profile: the launch gate treats a nameless row as "not set up yet" and
+  // runs the onboarding screens. Set Up Profile fills this same row in.
   final userId = await db.into(db.users).insert(
-        UsersCompanion.insert(name: 'Ali Sampang', email: 'alisampang@email.com'),
+        UsersCompanion.insert(name: '', email: ''),
       );
 
   Future<int> trip(String name, int createdDaysAgo) => db.into(db.trips).insert(
@@ -44,6 +48,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     required String bestTime,
     required String budgetNote,
     required int savedDaysAgo,
+    double? latitude,
+    double? longitude,
     String? note,
     int? viewedDaysAgo,
     int? noteEditedDaysAgo,
@@ -61,6 +67,9 @@ Future<void> seedDatabase(NookDatabase db) async {
             aiSummary: Value(summary),
             aiBestTime: Value(bestTime),
             aiBudgetNote: Value(budgetNote),
+            aiLatitude: Value(latitude),
+            aiLongitude: Value(longitude),
+            thumbnailUrl: Value(PostThumbnails.fromUrl(url)),
             tripId: Value(tripId),
             personalNote: Value(note),
             dateSaved: daysAgo(savedDaysAgo),
@@ -92,6 +101,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     savedDaysAgo: 2,
     viewedDaysAgo: 4,
     noteEditedDaysAgo: 1,
+    latitude: 35.0116,
+    longitude: 135.7681,
   );
 
   await post(
@@ -109,6 +120,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~€70/day excluding flights',
     note: 'The tram 28 tip only works before 9am.',
     savedDaysAgo: 3,
+    latitude: 38.7223,
+    longitude: -9.1393,
   );
 
   await post(
@@ -126,6 +139,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~₱2,500/day including boat hire',
     savedDaysAgo: 6,
     viewedDaysAgo: 1,
+    latitude: 9.8349,
+    longitude: 118.7384,
   );
 
   await post(
@@ -143,6 +158,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~฿600/day for food',
     savedDaysAgo: 8,
     viewedDaysAgo: 2,
+    latitude: 13.7563,
+    longitude: 100.5018,
   );
 
   await post(
@@ -177,6 +194,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~IDR 500,000 including guide',
     savedDaysAgo: 12,
     viewedDaysAgo: 5,
+    latitude: -8.2422,
+    longitude: 115.3753,
   );
 
   await post(
@@ -210,6 +229,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'March–May',
     budgetNote: '~¥2,500/day',
     savedDaysAgo: 16,
+    latitude: 35.0116,
+    longitude: 135.7681,
   );
 
   await post(
@@ -226,6 +247,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'March–May',
     budgetNote: '~¥1,800/day',
     savedDaysAgo: 18,
+    latitude: 34.9671,
+    longitude: 135.7727,
   );
 
   await post(
@@ -244,6 +267,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~€80/day excluding flights',
     savedDaysAgo: 20,
     viewedDaysAgo: 7,
+    latitude: 41.1579,
+    longitude: -8.6291,
   );
 
   await post(
@@ -260,6 +285,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'December–February',
     budgetNote: '~₱1,800/day',
     savedDaysAgo: 24,
+    latitude: 16.4023,
+    longitude: 120.596,
   );
 
   await post(
@@ -276,6 +303,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'May–September',
     budgetNote: '~€15/evening',
     savedDaysAgo: 28,
+    latitude: 38.7223,
+    longitude: -9.1393,
   );
 
   // The searches drawn on the Search screen.

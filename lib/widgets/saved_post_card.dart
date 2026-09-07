@@ -7,7 +7,7 @@ import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
 import 'metadata_chip.dart';
 import 'nook_card.dart';
-import 'thumb_placeholder.dart';
+import 'post_thumbnail.dart';
 
 /// The Recent Saves carousel card: thumbnail on top, then title, creator and
 /// the platform chip.
@@ -28,7 +28,7 @@ class SavedPostGridCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const ThumbPlaceholder(aspectRatio: 1.25),
+            PostThumbnail(url: post.thumbnailUrl, aspectRatio: 1.25),
             const SizedBox(height: NookSpacing.tight),
             Text(
               post.title,
@@ -38,7 +38,9 @@ class SavedPostGridCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              post.creator ?? '—',
+              // A note has no creator; its destination, or nothing, reads
+              // better there than a stray em dash.
+              post.creator ?? post.aiDestination ?? '',
               style: NookType.caption.copyWith(fontSize: 13),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -72,16 +74,23 @@ class SavedPostRowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final caption = showDestination
-        ? (post.aiDestination ?? '—')
-        : (post.creator ?? '—');
+    // Search Results caption with the destination, everywhere else with the
+    // creator. An em dash would only take room from the chips, so a post with
+    // neither simply drops the caption and its separator.
+    final caption =
+        (showDestination ? post.aiDestination : post.creator)?.trim() ?? '';
 
     return NookCard(
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const ThumbPlaceholder(width: 64, height: 56, showGlyph: false),
+          PostThumbnail(
+            url: post.thumbnailUrl,
+            width: 64,
+            height: 56,
+            showGlyph: false,
+          ),
           const SizedBox(width: NookSpacing.section),
           Expanded(
             child: Column(
@@ -95,22 +104,40 @@ class SavedPostRowCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
-                Wrap(
-                  spacing: NookSpacing.tight,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                // A Row, not a Wrap: the mockup keeps the creator, the
+                // platform and the category on one line. In a Wrap the chips
+                // dropped underneath the creator as soon as the text was long.
+                // Here the creator yields instead — it is the part that can be
+                // shortened without losing meaning.
+                Row(
                   children: [
-                    Text(
-                      caption,
-                      style: NookType.caption.copyWith(fontSize: 13),
-                    ),
-                    const Text(
-                      '•',
-                      style: TextStyle(color: NookColors.textMuted, fontSize: 13),
-                    ),
+                    if (caption.isNotEmpty) ...[
+                      Flexible(
+                        child: Text(
+                          caption,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NookType.caption.copyWith(fontSize: 13),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: NookSpacing.tight,
+                        ),
+                        child: Text(
+                          '•',
+                          style: TextStyle(
+                            color: NookColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
                     MetadataChip(NookPlatform.label(post.platform)),
-                    if (showCategory && post.aiCategory != null)
+                    if (showCategory && post.aiCategory != null) ...[
+                      const SizedBox(width: NookSpacing.tight),
                       MetadataChip(post.aiCategory!),
+                    ],
                   ],
                 ),
               ],

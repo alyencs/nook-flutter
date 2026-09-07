@@ -131,6 +131,10 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
                 onManual: _enterManually,
               ),
             ],
+            if (!AppScope.of(context).extractor.isLive) ...[
+              const SizedBox(height: NookSpacing.section),
+              const _SampleModeNote(),
+            ],
             const SizedBox(height: NookSpacing.screenEdge),
             const OverlineLabel('Supported platforms'),
             const SizedBox(height: NookSpacing.section),
@@ -147,6 +151,33 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Says which extractor will run, before a link is spent finding out.
+class _SampleModeNote extends StatelessWidget {
+  const _SampleModeNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.science_outlined,
+          size: 18,
+          color: NookColors.textMuted,
+        ),
+        const SizedBox(width: NookSpacing.tight),
+        Expanded(
+          child: Text(
+            'No API key found, so this will use sample details. Add '
+            'GEMINI_API_KEY to .env for real extraction.',
+            style: NookType.caption.copyWith(fontSize: 13),
+          ),
+        ),
+      ],
     );
   }
 }

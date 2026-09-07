@@ -86,7 +86,6 @@ class TripDetailsScreen extends StatelessWidget {
                         final post = posts[index - 1];
                         return SavedPostRowCard(
                           post: post,
-                          showCategory: true,
                           onTap: () => openPostDetails(context, post.id),
                         );
                       },

@@ -13,6 +13,9 @@ class ExtractionResult {
     this.summary,
     this.bestTime,
     this.budgetNote,
+    this.latitude,
+    this.longitude,
+    this.thumbnailUrl,
     this.isSample = false,
   });
 
@@ -24,6 +27,16 @@ class ExtractionResult {
   final String? summary;
   final String? bestTime;
   final String? budgetNote;
+
+  /// Where to drop the map pin. Null when the destination is missing or too
+  /// broad to place on a map.
+  final double? latitude;
+  final double? longitude;
+
+  /// A preview image for the post, when one can be worked out from the link.
+  final String? thumbnailUrl;
+
+  bool get hasCoordinates => latitude != null && longitude != null;
 
   /// True when this came from [SampleExtractor], so the UI can say so out loud
   /// instead of passing invented data off as a real extraction.

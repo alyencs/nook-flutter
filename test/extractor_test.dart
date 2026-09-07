@@ -3,6 +3,7 @@ import 'package:nook/ai/ai_extractor.dart';
 import 'package:nook/ai/categories.dart';
 import 'package:nook/ai/platform_from_url.dart';
 import 'package:nook/ai/sample_extractor.dart';
+import 'package:nook/ai/thumbnail_from_url.dart';
 
 void main() {
   group('platform detection', () {
@@ -45,6 +46,46 @@ void main() {
     });
   });
 
+  group('thumbnails', () {
+    test('derives a YouTube thumbnail from every URL shape', () {
+      const id = 'dQw4w9WgXcQ';
+      for (final url in [
+        'https://www.youtube.com/watch?v=$id',
+        'https://youtu.be/$id',
+        'https://www.youtube.com/shorts/$id',
+        'https://www.youtube.com/embed/$id?start=30',
+      ]) {
+        expect(
+          PostThumbnails.fromUrl(url),
+          'https://img.youtube.com/vi/$id/hqdefault.jpg',
+          reason: url,
+        );
+      }
+    });
+
+    test('refuses to invent one from a slug that is not a video id', () {
+      // The seeded demo links look like this. Guessing would produce a URL that
+      // 404s, and a broken image is worse than the placeholder.
+      expect(
+        PostThumbnails.fromUrl(
+          'https://www.youtube.com/watch?v=lisbon-3-day-itinerary-budget',
+        ),
+        isNull,
+      );
+    });
+
+    test('has none for platforms without a public endpoint', () {
+      // Instagram and Facebook both retired public oEmbed; reading a thumbnail
+      // now needs a Meta app and an access token.
+      expect(
+        PostThumbnails.fromUrl('https://www.instagram.com/reel/abc123'),
+        isNull,
+      );
+      expect(PostThumbnails.fromUrl('https://fb.watch/xyz'), isNull);
+      expect(PostThumbnails.fromUrl('https://example.com/a-post'), isNull);
+    });
+  });
+
   group('sample extractor', () {
     const extractor = SampleExtractor();
 
@@ -77,6 +118,22 @@ void main() {
       );
       expect(result.title, 'Hidden Ramen Bars in Osaka');
       expect(result.creator, '@ramenhunter');
+    });
+
+    test('gives placeable destinations coordinates, and regions none', () async {
+      final kyoto = await extractor.extract(
+        'https://www.tiktok.com/@wanderwithmia/video/5-hidden-cafes-in-kyoto',
+      );
+      expect(kyoto.hasCoordinates, isTrue);
+      expect(kyoto.latitude, closeTo(35.0, 1.0));
+      expect(kyoto.longitude, closeTo(135.8, 1.0));
+
+      // "Top 10 Hostels in Southeast Asia" covers a region, not a point.
+      final region = await extractor.extract(
+        'https://www.tiktok.com/@budgetroamer/video/top-10-hostels-southeast-asia',
+      );
+      expect(region.destination, 'Southeast Asia');
+      expect(region.hasCoordinates, isFalse);
     });
 
     test('always returns a category from the vocabulary', () async {

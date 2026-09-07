@@ -72,7 +72,7 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
             NookNoteField(
               controller: _note,
               hint: 'Write your thoughts...',
-              minHeight: 180,
+              minLines: 6,
             ),
           ],
         ),

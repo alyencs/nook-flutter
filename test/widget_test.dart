@@ -3,7 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nook/ai/sample_extractor.dart';
 import 'package:nook/app_scope.dart';
+import 'package:nook/app.dart';
+import 'package:nook/data/daos/posts_dao.dart';
+import 'package:nook/data/daos/users_dao.dart';
 import 'package:nook/data/database.dart';
+import 'package:nook/screens/add/create_note_screen.dart';
+import 'package:nook/screens/details/travel_details_screen.dart';
+import 'package:nook/widgets/post_map.dart';
 import 'package:nook/screens/onboarding/splash_screen.dart';
 import 'package:nook/screens/root_shell.dart';
 import 'package:nook/theme/nook_colors.dart';
@@ -31,6 +37,17 @@ Future<void> pumpApp(WidgetTester tester, NookDatabase db, Widget child) async {
   await tester.pumpAndSettle();
 }
 
+/// Pumps the whole app, launch gate included, rather than one screen.
+Future<void> pumpFullApp(WidgetTester tester, NookDatabase db) async {
+  tester.view.physicalSize = const Size(390 * 3, 1600 * 3);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    AppScope(db: db, extractor: const SampleExtractor(), child: const NookApp()),
+  );
+  await tester.pumpAndSettle();
+}
+
 /// Unmounts inside the test.
 ///
 /// Drift schedules a zero-duration timer when a stream query is cancelled. If
@@ -52,6 +69,8 @@ void main() {
 
   testWidgets('Home shows the greeting, both sections and the tab bar',
       (tester) async {
+    // Home is only reached once a profile exists, so give it one.
+    await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
     await pumpApp(tester, db, const RootShell());
 
     expect(find.text('Ali Sampang'), findsOneWidget);
@@ -140,6 +159,154 @@ void main() {
 
     expect(find.text('No trips yet — save your first find'), findsOneWidget);
     expect(find.text('Save First Find'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('a fresh install lands on onboarding, not Home', (tester) async {
+    // The seed gives trips a user row to belong to, but leaves it nameless, so
+    // LA1-LA6 and LO1 are reachable on a first run. Regression guard: when the
+    // seed named that row, the launch gate sent every install straight to Home
+    // and the onboarding screens could never be seen.
+    await pumpFullApp(tester, db);
+
+    expect(find.text('Nook'), findsOneWidget);
+    expect(find.text('Never lose your next favourite find.'), findsOneWidget);
+    expect(find.text('Recent Saves'), findsNothing);
+
+    await unmount(tester);
+  });
+
+  testWidgets('onboarding runs LA1-LA6 through to Set Up Profile',
+      (tester) async {
+    await pumpFullApp(tester, db);
+
+    await tester.tap(find.text('Continue'));         // LA1 splash
+    await tester.pumpAndSettle();
+    expect(find.text('Save travel finds'), findsOneWidget);          // LA2
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    expect(find.text('AI organizes your trips'), findsOneWidget);    // LA3
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    expect(find.text('Organize by trip'), findsOneWidget);           // LA4
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rediscover anything'), findsOneWidget);        // LA5
+
+    await tester.tap(find.text('Get Started'));
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome to Nook'), findsOneWidget);            // LA6
+
+    await tester.tap(find.text('Get Started'));
+    await tester.pumpAndSettle();
+    expect(find.text('Set Up Profile'), findsOneWidget);             // LO1
+    expect(find.text('Full Name'), findsOneWidget);
+    expect(find.text('Email address'), findsOneWidget);
+    expect(find.text('Profile Picture'), findsOneWidget);
+
+    await unmount(tester);
+  });
+
+  testWidgets('finishing Set Up Profile opens Home with the seeded library',
+      (tester) async {
+    await pumpFullApp(tester, db);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.text('Get Started'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Get Started'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(0), 'Ali Sampang');
+    await tester.enterText(find.byType(TextField).at(1), 'ali@example.com');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ali Sampang'), findsOneWidget);
+    expect(find.text('Recent Saves'), findsOneWidget);
+
+    await unmount(tester);
+  });
+
+  testWidgets('Create Note has a note field, and the note is saved',
+      (tester) async {
+    // The note field used to collapse to nothing — an Expanded inside a Column
+    // with unbounded height — so a note could not be typed at all.
+    await pumpApp(tester, db, const CreateNoteScreen());
+
+    expect(find.text('Write your thoughts...'), findsOneWidget);
+    expect(find.text('0/500'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2));
+
+    await tester.enterText(find.byType(TextField).at(0), 'Ferry times');
+    await tester.enterText(
+      find.byType(TextField).at(1),
+      'Last boat back is 4pm.',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('22/500'), findsOneWidget);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add to trip'.toUpperCase()), findsOneWidget);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    // Straight to review: a note already carries its text.
+    expect(find.text('Review & Save'), findsOneWidget);
+    expect(find.text('Ferry times'), findsOneWidget);
+    expect(find.text('Last boat back is 4pm.'), findsOneWidget);
+
+    await tester.tap(find.text('Save Post'));
+    await tester.pumpAndSettle();
+
+    // runAsync: reading a real database stream needs real timers, which the
+    // fake-async zone a widget test runs in will not fire on its own.
+    final saved = await tester.runAsync(
+      () => PostsDao(db).search('Ferry times').first,
+    );
+    expect(saved, hasLength(1));
+    expect(saved!.single.personalNote, 'Last boat back is 4pm.');
+    expect(saved.single.importMethod, 'note');
+
+    await unmount(tester);
+  });
+
+  /// The id of a seeded post, by title.
+  Future<int> postId(WidgetTester tester, String title) async {
+    final found = await tester.runAsync(() => PostsDao(db).search(title).first);
+    return found!.single.id;
+  }
+
+  // The map itself is not exercised here on purpose: flutter_map's tile layer
+  // keeps live timers for tiles a test environment never serves, so a widget
+  // test can neither settle nor tear it down cleanly. The decision either side
+  // of it is covered — coordinates in dao_test, the placeholder below — and the
+  // rendered map is checked in the browser.
+
+  testWidgets('a post with no coordinates keeps the placeholder, and says why',
+      (tester) async {
+    // "Southeast Asia" is a region, not a point, so extraction returns no
+    // coordinates and the mockup's placeholder stands in.
+    final id = await postId(tester, 'Top 10 Hostels in Southeast Asia');
+    await pumpApp(tester, db, TravelDetailsScreen(postId: id));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(PostMapPlaceholder), findsOneWidget);
+    expect(find.byType(PostMap), findsNothing);
+    expect(find.textContaining('too broad to place'), findsOneWidget);
+
     await unmount(tester);
   });
 

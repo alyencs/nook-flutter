@@ -12,7 +12,7 @@ import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
-import '../../widgets/thumb_placeholder.dart';
+import '../../widgets/post_thumbnail.dart';
 import 'manage_post_screen.dart';
 import 'personal_notes_screen.dart';
 import 'travel_details_screen.dart';
@@ -85,7 +85,12 @@ class PostDetailsScreen extends StatelessWidget {
               const SizedBox(height: NookSpacing.section),
               Stack(
                 children: [
-                  const ThumbPlaceholder(aspectRatio: 1.7, showGlyph: false),
+                  PostThumbnail(
+                    url: post.thumbnailUrl,
+                    aspectRatio: 1.7,
+                    showGlyph: false,
+                    radius: NookRadius.md,
+                  ),
                   Positioned(
                     top: NookSpacing.tight,
                     left: NookSpacing.tight,

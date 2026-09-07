@@ -10,7 +10,7 @@ import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_text_field.dart';
-import '../../widgets/thumb_placeholder.dart';
+import '../../widgets/post_thumbnail.dart';
 
 /// S3. Feature #5, after the fact.
 class PersonalNotesScreen extends StatefulWidget {
@@ -74,7 +74,8 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
                 const SizedBox(height: NookSpacing.section),
                 Row(
                   children: [
-                    const ThumbPlaceholder(
+                    PostThumbnail(
+                      url: post.thumbnailUrl,
                       width: 64,
                       height: 64,
                       showGlyph: false,
@@ -108,7 +109,7 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
                 NookNoteField(
                   controller: _note,
                   hint: 'Write your thoughts about this post...',
-                  minHeight: 200,
+                  minLines: 7,
                 ),
                 if (post.noteEditedAt != null) ...[
                   const SizedBox(height: NookSpacing.section),

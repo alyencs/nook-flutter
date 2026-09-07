@@ -38,6 +38,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const NookAppBar(title: 'Settings'),
           const SizedBox(height: NookSpacing.section),
+          const _AiStatusCard(),
+          const SizedBox(height: NookSpacing.screenEdge),
           for (final entry in _switches.entries) ...[
             _SwitchRow(
               label: entry.key,
@@ -93,6 +95,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (!confirmed || !context.mounted) return;
               await scope.db.clearAll();
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Whether destination detection is running on Gemini or on sample data.
+///
+/// Worth a place on screen rather than only in the README: the difference is
+/// invisible until you save something, and "why is it giving me Kyoto for an
+/// Osaka link" has exactly one answer.
+class _AiStatusCard extends StatelessWidget {
+  const _AiStatusCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final live = AppScope.of(context).extractor.isLive;
+
+    return Container(
+      padding: const EdgeInsets.all(NookSpacing.section),
+      decoration: BoxDecoration(
+        color: live ? NookColors.surface : NookColors.secondary,
+        borderRadius: BorderRadius.circular(NookRadius.md),
+        border: Border.all(color: live ? NookColors.border : NookColors.primary),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                live ? Icons.auto_awesome : Icons.science_outlined,
+                size: 20,
+                color: NookColors.primary,
+              ),
+              const SizedBox(width: NookSpacing.tight),
+              Expanded(
+                child: Text(
+                  live ? 'Detection: Gemini' : 'Detection: sample data',
+                  style: NookType.bodyStrong.copyWith(fontSize: 17),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            live
+                ? 'Saved links are read by Gemini using the key in your .env '
+                    'file. Destinations, categories, summaries and coordinates '
+                    'come back from the model.'
+                : 'No GEMINI_API_KEY was found, so saved links get illustrative '
+                    'details instead. To use the real thing, put your key in a '
+                    '.env file at the root of the project and restart the app.',
+            style: NookType.body.copyWith(
+              fontSize: 14,
+              color: NookColors.textMuted,
+            ),
           ),
         ],
       ),

@@ -4,6 +4,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 import 'ai_extractor.dart';
 import 'categories.dart';
+import 'thumbnail_from_url.dart';
 
 /// Feature #2, for real.
 ///
@@ -63,6 +64,16 @@ class GeminiExtractor implements AiExtractor {
         description: 'A rough daily budget, e.g. "~EUR80/day excluding flights".',
         nullable: true,
       ),
+      'latitude': Schema.number(
+        description: 'Latitude of the destination in decimal degrees. Null if '
+            'the destination is missing or too broad to place on a map.',
+        nullable: true,
+      ),
+      'longitude': Schema.number(
+        description: 'Longitude of the destination in decimal degrees. Null '
+            'if the destination is missing or too broad to place on a map.',
+        nullable: true,
+      ),
     },
     requiredProperties: ['title', 'category'],
   );
@@ -80,6 +91,10 @@ Return JSON only, matching the schema.
 - category: exactly one of the listed values. Use "Other" when unsure.
 - summary: 2-3 sentences, written for a traveller deciding whether to keep this.
 - best_time and budget_note: only when the destination is known; otherwise null.
+- latitude/longitude: the coordinates of the destination, in decimal degrees,
+  so it can be pinned on a map. Give them only for a place specific enough to
+  have a single point: a city, a town, an island, a landmark. For a whole
+  region or country ("Southeast Asia", "Anywhere") return null for both.
 ''';
 
   @override
@@ -118,6 +133,22 @@ Return JSON only, matching the schema.
       return trimmed.isEmpty || trimmed.toLowerCase() == 'null' ? null : trimmed;
     }
 
+    double? number(String key) {
+      final value = json[key];
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
+    // Coordinates are only useful as a pair, and only inside the real ranges.
+    final latitude = number('latitude');
+    final longitude = number('longitude');
+    final placeable = latitude != null &&
+        longitude != null &&
+        latitude.abs() <= 90 &&
+        longitude.abs() <= 180 &&
+        !(latitude == 0 && longitude == 0);
+
     return ExtractionResult(
       title: string('title') ?? _titleFromUrl(url),
       creator: string('creator'),
@@ -127,6 +158,11 @@ Return JSON only, matching the schema.
       summary: string('summary'),
       bestTime: string('best_time'),
       budgetNote: string('budget_note'),
+      latitude: placeable ? latitude : null,
+      longitude: placeable ? longitude : null,
+      // Worked out from the link itself rather than asked of the model: a
+      // language model cannot know a thumbnail URL, and would invent one.
+      thumbnailUrl: await PostThumbnails.resolve(url),
     );
   }
 

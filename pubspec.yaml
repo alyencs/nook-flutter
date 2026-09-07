@@ -25,6 +25,12 @@ dependencies:
   flutter_dotenv: ^5.1.0
   # Profile picture on Set Up Profile and Account.
   image_picker: ^1.1.2
+  # Map pins for a saved post's location. Chosen over google_maps_flutter for
+  # the reason the proposal gives: no key, no billing account, works on web.
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  # oEmbed lookups for post thumbnails.
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

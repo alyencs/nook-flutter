@@ -75,16 +75,20 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       _saving = true;
     });
 
-    await AppScope.of(context).users.createProfile(
+    await AppScope.of(context).users.saveProfile(
           name: _name.text.trim(),
           email: email,
           profilePicture: _picture,
         );
 
-    // The launch gate is watching the users table, so writing the row is what
-    // moves the app to Home. Nothing to navigate.
     if (!mounted) return;
     setState(() => _saving = false);
+
+    // The launch gate swaps the app's home route once a profile exists, but
+    // the onboarding screens were pushed on top of it and would stay there,
+    // leaving the user looking at this screen after saving. Clearing the stack
+    // reveals Home underneath.
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
