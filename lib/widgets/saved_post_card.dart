@@ -28,7 +28,11 @@ class SavedPostGridCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PostThumbnail(url: post.thumbnailUrl, aspectRatio: 1.25),
+            // 16:9, matching the shape of the thumbnails themselves. At 1.25
+            // a 16:9 image was cropped down its sides while the letterboxing it
+            // arrived with stayed put — black bars top and bottom on every
+            // card. The source is 16:9 now, and so is the box.
+            PostThumbnail(url: post.thumbnailUrl, aspectRatio: 16 / 9),
             const SizedBox(height: NookSpacing.tight),
             Text(
               post.title,
@@ -88,7 +92,7 @@ class SavedPostRowCard extends StatelessWidget {
           PostThumbnail(
             url: post.thumbnailUrl,
             width: 64,
-            height: 56,
+            height: 64,
             showGlyph: false,
           ),
           const SizedBox(width: NookSpacing.section),

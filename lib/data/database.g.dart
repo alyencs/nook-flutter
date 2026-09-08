@@ -684,6 +684,50 @@ class $SavedPostsTable extends SavedPosts
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _captionMeta = const VerificationMeta(
+    'caption',
+  );
+  @override
+  late final GeneratedColumn<String> caption = GeneratedColumn<String>(
+    'caption',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _creatorHandleMeta = const VerificationMeta(
+    'creatorHandle',
+  );
+  @override
+  late final GeneratedColumn<String> creatorHandle = GeneratedColumn<String>(
+    'creator_handle',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mediaTypeMeta = const VerificationMeta(
+    'mediaType',
+  );
+  @override
+  late final GeneratedColumn<String> mediaType = GeneratedColumn<String>(
+    'media_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _aiDestinationMeta = const VerificationMeta(
     'aiDestination',
   );
@@ -745,6 +789,59 @@ class $SavedPostsTable extends SavedPosts
   @override
   late final GeneratedColumn<String> aiBudgetNote = GeneratedColumn<String>(
     'ai_budget_note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiPlaceNameMeta = const VerificationMeta(
+    'aiPlaceName',
+  );
+  @override
+  late final GeneratedColumn<String> aiPlaceName = GeneratedColumn<String>(
+    'ai_place_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiAddressMeta = const VerificationMeta(
+    'aiAddress',
+  );
+  @override
+  late final GeneratedColumn<String> aiAddress = GeneratedColumn<String>(
+    'ai_address',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiNeighbourhoodMeta = const VerificationMeta(
+    'aiNeighbourhood',
+  );
+  @override
+  late final GeneratedColumn<String> aiNeighbourhood = GeneratedColumn<String>(
+    'ai_neighbourhood',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiCityMeta = const VerificationMeta('aiCity');
+  @override
+  late final GeneratedColumn<String> aiCity = GeneratedColumn<String>(
+    'ai_city',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiRegionMeta = const VerificationMeta(
+    'aiRegion',
+  );
+  @override
+  late final GeneratedColumn<String> aiRegion = GeneratedColumn<String>(
+    'ai_region',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -835,12 +932,21 @@ class $SavedPostsTable extends SavedPosts
     originalUrl,
     importMethod,
     thumbnailUrl,
+    caption,
+    creatorHandle,
+    sourceId,
+    mediaType,
     aiDestination,
     aiCategory,
     aiSummary,
     aiCountry,
     aiBestTime,
     aiBudgetNote,
+    aiPlaceName,
+    aiAddress,
+    aiNeighbourhood,
+    aiCity,
+    aiRegion,
     aiLatitude,
     aiLongitude,
     tripId,
@@ -915,6 +1021,33 @@ class $SavedPostsTable extends SavedPosts
         ),
       );
     }
+    if (data.containsKey('caption')) {
+      context.handle(
+        _captionMeta,
+        caption.isAcceptableOrUnknown(data['caption']!, _captionMeta),
+      );
+    }
+    if (data.containsKey('creator_handle')) {
+      context.handle(
+        _creatorHandleMeta,
+        creatorHandle.isAcceptableOrUnknown(
+          data['creator_handle']!,
+          _creatorHandleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    }
+    if (data.containsKey('media_type')) {
+      context.handle(
+        _mediaTypeMeta,
+        mediaType.isAcceptableOrUnknown(data['media_type']!, _mediaTypeMeta),
+      );
+    }
     if (data.containsKey('ai_destination')) {
       context.handle(
         _aiDestinationMeta,
@@ -958,6 +1091,42 @@ class $SavedPostsTable extends SavedPosts
           data['ai_budget_note']!,
           _aiBudgetNoteMeta,
         ),
+      );
+    }
+    if (data.containsKey('ai_place_name')) {
+      context.handle(
+        _aiPlaceNameMeta,
+        aiPlaceName.isAcceptableOrUnknown(
+          data['ai_place_name']!,
+          _aiPlaceNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ai_address')) {
+      context.handle(
+        _aiAddressMeta,
+        aiAddress.isAcceptableOrUnknown(data['ai_address']!, _aiAddressMeta),
+      );
+    }
+    if (data.containsKey('ai_neighbourhood')) {
+      context.handle(
+        _aiNeighbourhoodMeta,
+        aiNeighbourhood.isAcceptableOrUnknown(
+          data['ai_neighbourhood']!,
+          _aiNeighbourhoodMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ai_city')) {
+      context.handle(
+        _aiCityMeta,
+        aiCity.isAcceptableOrUnknown(data['ai_city']!, _aiCityMeta),
+      );
+    }
+    if (data.containsKey('ai_region')) {
+      context.handle(
+        _aiRegionMeta,
+        aiRegion.isAcceptableOrUnknown(data['ai_region']!, _aiRegionMeta),
       );
     }
     if (data.containsKey('ai_latitude')) {
@@ -1053,6 +1222,22 @@ class $SavedPostsTable extends SavedPosts
         DriftSqlType.string,
         data['${effectivePrefix}thumbnail_url'],
       ),
+      caption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption'],
+      ),
+      creatorHandle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}creator_handle'],
+      ),
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      ),
+      mediaType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}media_type'],
+      ),
       aiDestination: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}ai_destination'],
@@ -1076,6 +1261,26 @@ class $SavedPostsTable extends SavedPosts
       aiBudgetNote: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}ai_budget_note'],
+      ),
+      aiPlaceName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_place_name'],
+      ),
+      aiAddress: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_address'],
+      ),
+      aiNeighbourhood: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_neighbourhood'],
+      ),
+      aiCity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_city'],
+      ),
+      aiRegion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_region'],
       ),
       aiLatitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
@@ -1129,12 +1334,34 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
   /// link | note
   final String importMethod;
   final String? thumbnailUrl;
+
+  /// The post's own words — a YouTube description, a TikTok or Instagram
+  /// caption. Separate from [title], because a title is a line and a caption is
+  /// a paragraph, and search should match either.
+  final String? caption;
+
+  /// The @handle, where the platform has one. [creator] is the display name.
+  final String? creatorHandle;
+
+  /// The platform's own id: a YouTube video id, an Instagram shortcode. Held so
+  /// that it is available as metadata and never needed as a title — showing
+  /// `Sf9ihvL0Usk` where a title belongs is what this column exists to prevent.
+  final String? sourceId;
+
+  /// video | image | carousel | unknown. Not assumed: a photo post is not a
+  /// video, and the badge over its thumbnail should not say so.
+  final String? mediaType;
   final String? aiDestination;
   final String? aiCategory;
   final String? aiSummary;
   final String? aiCountry;
   final String? aiBestTime;
   final String? aiBudgetNote;
+  final String? aiPlaceName;
+  final String? aiAddress;
+  final String? aiNeighbourhood;
+  final String? aiCity;
+  final String? aiRegion;
 
   /// Where the destination is, so it can be pinned on a map. Null whenever the
   /// destination is null or too vague to place — "Southeast Asia" has no single
@@ -1158,12 +1385,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     this.originalUrl,
     required this.importMethod,
     this.thumbnailUrl,
+    this.caption,
+    this.creatorHandle,
+    this.sourceId,
+    this.mediaType,
     this.aiDestination,
     this.aiCategory,
     this.aiSummary,
     this.aiCountry,
     this.aiBestTime,
     this.aiBudgetNote,
+    this.aiPlaceName,
+    this.aiAddress,
+    this.aiNeighbourhood,
+    this.aiCity,
+    this.aiRegion,
     this.aiLatitude,
     this.aiLongitude,
     this.tripId,
@@ -1188,6 +1424,18 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     if (!nullToAbsent || thumbnailUrl != null) {
       map['thumbnail_url'] = Variable<String>(thumbnailUrl);
     }
+    if (!nullToAbsent || caption != null) {
+      map['caption'] = Variable<String>(caption);
+    }
+    if (!nullToAbsent || creatorHandle != null) {
+      map['creator_handle'] = Variable<String>(creatorHandle);
+    }
+    if (!nullToAbsent || sourceId != null) {
+      map['source_id'] = Variable<String>(sourceId);
+    }
+    if (!nullToAbsent || mediaType != null) {
+      map['media_type'] = Variable<String>(mediaType);
+    }
     if (!nullToAbsent || aiDestination != null) {
       map['ai_destination'] = Variable<String>(aiDestination);
     }
@@ -1205,6 +1453,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     }
     if (!nullToAbsent || aiBudgetNote != null) {
       map['ai_budget_note'] = Variable<String>(aiBudgetNote);
+    }
+    if (!nullToAbsent || aiPlaceName != null) {
+      map['ai_place_name'] = Variable<String>(aiPlaceName);
+    }
+    if (!nullToAbsent || aiAddress != null) {
+      map['ai_address'] = Variable<String>(aiAddress);
+    }
+    if (!nullToAbsent || aiNeighbourhood != null) {
+      map['ai_neighbourhood'] = Variable<String>(aiNeighbourhood);
+    }
+    if (!nullToAbsent || aiCity != null) {
+      map['ai_city'] = Variable<String>(aiCity);
+    }
+    if (!nullToAbsent || aiRegion != null) {
+      map['ai_region'] = Variable<String>(aiRegion);
     }
     if (!nullToAbsent || aiLatitude != null) {
       map['ai_latitude'] = Variable<double>(aiLatitude);
@@ -1243,6 +1506,18 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       thumbnailUrl: thumbnailUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbnailUrl),
+      caption: caption == null && nullToAbsent
+          ? const Value.absent()
+          : Value(caption),
+      creatorHandle: creatorHandle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(creatorHandle),
+      sourceId: sourceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceId),
+      mediaType: mediaType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mediaType),
       aiDestination: aiDestination == null && nullToAbsent
           ? const Value.absent()
           : Value(aiDestination),
@@ -1261,6 +1536,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       aiBudgetNote: aiBudgetNote == null && nullToAbsent
           ? const Value.absent()
           : Value(aiBudgetNote),
+      aiPlaceName: aiPlaceName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiPlaceName),
+      aiAddress: aiAddress == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiAddress),
+      aiNeighbourhood: aiNeighbourhood == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiNeighbourhood),
+      aiCity: aiCity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiCity),
+      aiRegion: aiRegion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiRegion),
       aiLatitude: aiLatitude == null && nullToAbsent
           ? const Value.absent()
           : Value(aiLatitude),
@@ -1296,12 +1586,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       originalUrl: serializer.fromJson<String?>(json['originalUrl']),
       importMethod: serializer.fromJson<String>(json['importMethod']),
       thumbnailUrl: serializer.fromJson<String?>(json['thumbnailUrl']),
+      caption: serializer.fromJson<String?>(json['caption']),
+      creatorHandle: serializer.fromJson<String?>(json['creatorHandle']),
+      sourceId: serializer.fromJson<String?>(json['sourceId']),
+      mediaType: serializer.fromJson<String?>(json['mediaType']),
       aiDestination: serializer.fromJson<String?>(json['aiDestination']),
       aiCategory: serializer.fromJson<String?>(json['aiCategory']),
       aiSummary: serializer.fromJson<String?>(json['aiSummary']),
       aiCountry: serializer.fromJson<String?>(json['aiCountry']),
       aiBestTime: serializer.fromJson<String?>(json['aiBestTime']),
       aiBudgetNote: serializer.fromJson<String?>(json['aiBudgetNote']),
+      aiPlaceName: serializer.fromJson<String?>(json['aiPlaceName']),
+      aiAddress: serializer.fromJson<String?>(json['aiAddress']),
+      aiNeighbourhood: serializer.fromJson<String?>(json['aiNeighbourhood']),
+      aiCity: serializer.fromJson<String?>(json['aiCity']),
+      aiRegion: serializer.fromJson<String?>(json['aiRegion']),
       aiLatitude: serializer.fromJson<double?>(json['aiLatitude']),
       aiLongitude: serializer.fromJson<double?>(json['aiLongitude']),
       tripId: serializer.fromJson<int?>(json['tripId']),
@@ -1322,12 +1621,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       'originalUrl': serializer.toJson<String?>(originalUrl),
       'importMethod': serializer.toJson<String>(importMethod),
       'thumbnailUrl': serializer.toJson<String?>(thumbnailUrl),
+      'caption': serializer.toJson<String?>(caption),
+      'creatorHandle': serializer.toJson<String?>(creatorHandle),
+      'sourceId': serializer.toJson<String?>(sourceId),
+      'mediaType': serializer.toJson<String?>(mediaType),
       'aiDestination': serializer.toJson<String?>(aiDestination),
       'aiCategory': serializer.toJson<String?>(aiCategory),
       'aiSummary': serializer.toJson<String?>(aiSummary),
       'aiCountry': serializer.toJson<String?>(aiCountry),
       'aiBestTime': serializer.toJson<String?>(aiBestTime),
       'aiBudgetNote': serializer.toJson<String?>(aiBudgetNote),
+      'aiPlaceName': serializer.toJson<String?>(aiPlaceName),
+      'aiAddress': serializer.toJson<String?>(aiAddress),
+      'aiNeighbourhood': serializer.toJson<String?>(aiNeighbourhood),
+      'aiCity': serializer.toJson<String?>(aiCity),
+      'aiRegion': serializer.toJson<String?>(aiRegion),
       'aiLatitude': serializer.toJson<double?>(aiLatitude),
       'aiLongitude': serializer.toJson<double?>(aiLongitude),
       'tripId': serializer.toJson<int?>(tripId),
@@ -1346,12 +1654,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     Value<String?> originalUrl = const Value.absent(),
     String? importMethod,
     Value<String?> thumbnailUrl = const Value.absent(),
+    Value<String?> caption = const Value.absent(),
+    Value<String?> creatorHandle = const Value.absent(),
+    Value<String?> sourceId = const Value.absent(),
+    Value<String?> mediaType = const Value.absent(),
     Value<String?> aiDestination = const Value.absent(),
     Value<String?> aiCategory = const Value.absent(),
     Value<String?> aiSummary = const Value.absent(),
     Value<String?> aiCountry = const Value.absent(),
     Value<String?> aiBestTime = const Value.absent(),
     Value<String?> aiBudgetNote = const Value.absent(),
+    Value<String?> aiPlaceName = const Value.absent(),
+    Value<String?> aiAddress = const Value.absent(),
+    Value<String?> aiNeighbourhood = const Value.absent(),
+    Value<String?> aiCity = const Value.absent(),
+    Value<String?> aiRegion = const Value.absent(),
     Value<double?> aiLatitude = const Value.absent(),
     Value<double?> aiLongitude = const Value.absent(),
     Value<int?> tripId = const Value.absent(),
@@ -1367,6 +1684,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     originalUrl: originalUrl.present ? originalUrl.value : this.originalUrl,
     importMethod: importMethod ?? this.importMethod,
     thumbnailUrl: thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
+    caption: caption.present ? caption.value : this.caption,
+    creatorHandle: creatorHandle.present
+        ? creatorHandle.value
+        : this.creatorHandle,
+    sourceId: sourceId.present ? sourceId.value : this.sourceId,
+    mediaType: mediaType.present ? mediaType.value : this.mediaType,
     aiDestination: aiDestination.present
         ? aiDestination.value
         : this.aiDestination,
@@ -1375,6 +1698,13 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     aiCountry: aiCountry.present ? aiCountry.value : this.aiCountry,
     aiBestTime: aiBestTime.present ? aiBestTime.value : this.aiBestTime,
     aiBudgetNote: aiBudgetNote.present ? aiBudgetNote.value : this.aiBudgetNote,
+    aiPlaceName: aiPlaceName.present ? aiPlaceName.value : this.aiPlaceName,
+    aiAddress: aiAddress.present ? aiAddress.value : this.aiAddress,
+    aiNeighbourhood: aiNeighbourhood.present
+        ? aiNeighbourhood.value
+        : this.aiNeighbourhood,
+    aiCity: aiCity.present ? aiCity.value : this.aiCity,
+    aiRegion: aiRegion.present ? aiRegion.value : this.aiRegion,
     aiLatitude: aiLatitude.present ? aiLatitude.value : this.aiLatitude,
     aiLongitude: aiLongitude.present ? aiLongitude.value : this.aiLongitude,
     tripId: tripId.present ? tripId.value : this.tripId,
@@ -1398,6 +1728,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       thumbnailUrl: data.thumbnailUrl.present
           ? data.thumbnailUrl.value
           : this.thumbnailUrl,
+      caption: data.caption.present ? data.caption.value : this.caption,
+      creatorHandle: data.creatorHandle.present
+          ? data.creatorHandle.value
+          : this.creatorHandle,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
       aiDestination: data.aiDestination.present
           ? data.aiDestination.value
           : this.aiDestination,
@@ -1412,6 +1748,15 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       aiBudgetNote: data.aiBudgetNote.present
           ? data.aiBudgetNote.value
           : this.aiBudgetNote,
+      aiPlaceName: data.aiPlaceName.present
+          ? data.aiPlaceName.value
+          : this.aiPlaceName,
+      aiAddress: data.aiAddress.present ? data.aiAddress.value : this.aiAddress,
+      aiNeighbourhood: data.aiNeighbourhood.present
+          ? data.aiNeighbourhood.value
+          : this.aiNeighbourhood,
+      aiCity: data.aiCity.present ? data.aiCity.value : this.aiCity,
+      aiRegion: data.aiRegion.present ? data.aiRegion.value : this.aiRegion,
       aiLatitude: data.aiLatitude.present
           ? data.aiLatitude.value
           : this.aiLatitude,
@@ -1442,12 +1787,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           ..write('originalUrl: $originalUrl, ')
           ..write('importMethod: $importMethod, ')
           ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('caption: $caption, ')
+          ..write('creatorHandle: $creatorHandle, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('mediaType: $mediaType, ')
           ..write('aiDestination: $aiDestination, ')
           ..write('aiCategory: $aiCategory, ')
           ..write('aiSummary: $aiSummary, ')
           ..write('aiCountry: $aiCountry, ')
           ..write('aiBestTime: $aiBestTime, ')
           ..write('aiBudgetNote: $aiBudgetNote, ')
+          ..write('aiPlaceName: $aiPlaceName, ')
+          ..write('aiAddress: $aiAddress, ')
+          ..write('aiNeighbourhood: $aiNeighbourhood, ')
+          ..write('aiCity: $aiCity, ')
+          ..write('aiRegion: $aiRegion, ')
           ..write('aiLatitude: $aiLatitude, ')
           ..write('aiLongitude: $aiLongitude, ')
           ..write('tripId: $tripId, ')
@@ -1460,7 +1814,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     title,
     creator,
@@ -1468,12 +1822,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     originalUrl,
     importMethod,
     thumbnailUrl,
+    caption,
+    creatorHandle,
+    sourceId,
+    mediaType,
     aiDestination,
     aiCategory,
     aiSummary,
     aiCountry,
     aiBestTime,
     aiBudgetNote,
+    aiPlaceName,
+    aiAddress,
+    aiNeighbourhood,
+    aiCity,
+    aiRegion,
     aiLatitude,
     aiLongitude,
     tripId,
@@ -1481,7 +1844,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     dateSaved,
     lastViewedAt,
     noteEditedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1493,12 +1856,21 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           other.originalUrl == this.originalUrl &&
           other.importMethod == this.importMethod &&
           other.thumbnailUrl == this.thumbnailUrl &&
+          other.caption == this.caption &&
+          other.creatorHandle == this.creatorHandle &&
+          other.sourceId == this.sourceId &&
+          other.mediaType == this.mediaType &&
           other.aiDestination == this.aiDestination &&
           other.aiCategory == this.aiCategory &&
           other.aiSummary == this.aiSummary &&
           other.aiCountry == this.aiCountry &&
           other.aiBestTime == this.aiBestTime &&
           other.aiBudgetNote == this.aiBudgetNote &&
+          other.aiPlaceName == this.aiPlaceName &&
+          other.aiAddress == this.aiAddress &&
+          other.aiNeighbourhood == this.aiNeighbourhood &&
+          other.aiCity == this.aiCity &&
+          other.aiRegion == this.aiRegion &&
           other.aiLatitude == this.aiLatitude &&
           other.aiLongitude == this.aiLongitude &&
           other.tripId == this.tripId &&
@@ -1516,12 +1888,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
   final Value<String?> originalUrl;
   final Value<String> importMethod;
   final Value<String?> thumbnailUrl;
+  final Value<String?> caption;
+  final Value<String?> creatorHandle;
+  final Value<String?> sourceId;
+  final Value<String?> mediaType;
   final Value<String?> aiDestination;
   final Value<String?> aiCategory;
   final Value<String?> aiSummary;
   final Value<String?> aiCountry;
   final Value<String?> aiBestTime;
   final Value<String?> aiBudgetNote;
+  final Value<String?> aiPlaceName;
+  final Value<String?> aiAddress;
+  final Value<String?> aiNeighbourhood;
+  final Value<String?> aiCity;
+  final Value<String?> aiRegion;
   final Value<double?> aiLatitude;
   final Value<double?> aiLongitude;
   final Value<int?> tripId;
@@ -1537,12 +1918,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.originalUrl = const Value.absent(),
     this.importMethod = const Value.absent(),
     this.thumbnailUrl = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.creatorHandle = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.mediaType = const Value.absent(),
     this.aiDestination = const Value.absent(),
     this.aiCategory = const Value.absent(),
     this.aiSummary = const Value.absent(),
     this.aiCountry = const Value.absent(),
     this.aiBestTime = const Value.absent(),
     this.aiBudgetNote = const Value.absent(),
+    this.aiPlaceName = const Value.absent(),
+    this.aiAddress = const Value.absent(),
+    this.aiNeighbourhood = const Value.absent(),
+    this.aiCity = const Value.absent(),
+    this.aiRegion = const Value.absent(),
     this.aiLatitude = const Value.absent(),
     this.aiLongitude = const Value.absent(),
     this.tripId = const Value.absent(),
@@ -1559,12 +1949,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.originalUrl = const Value.absent(),
     required String importMethod,
     this.thumbnailUrl = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.creatorHandle = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.mediaType = const Value.absent(),
     this.aiDestination = const Value.absent(),
     this.aiCategory = const Value.absent(),
     this.aiSummary = const Value.absent(),
     this.aiCountry = const Value.absent(),
     this.aiBestTime = const Value.absent(),
     this.aiBudgetNote = const Value.absent(),
+    this.aiPlaceName = const Value.absent(),
+    this.aiAddress = const Value.absent(),
+    this.aiNeighbourhood = const Value.absent(),
+    this.aiCity = const Value.absent(),
+    this.aiRegion = const Value.absent(),
     this.aiLatitude = const Value.absent(),
     this.aiLongitude = const Value.absent(),
     this.tripId = const Value.absent(),
@@ -1584,12 +1983,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Expression<String>? originalUrl,
     Expression<String>? importMethod,
     Expression<String>? thumbnailUrl,
+    Expression<String>? caption,
+    Expression<String>? creatorHandle,
+    Expression<String>? sourceId,
+    Expression<String>? mediaType,
     Expression<String>? aiDestination,
     Expression<String>? aiCategory,
     Expression<String>? aiSummary,
     Expression<String>? aiCountry,
     Expression<String>? aiBestTime,
     Expression<String>? aiBudgetNote,
+    Expression<String>? aiPlaceName,
+    Expression<String>? aiAddress,
+    Expression<String>? aiNeighbourhood,
+    Expression<String>? aiCity,
+    Expression<String>? aiRegion,
     Expression<double>? aiLatitude,
     Expression<double>? aiLongitude,
     Expression<int>? tripId,
@@ -1606,12 +2014,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       if (originalUrl != null) 'original_url': originalUrl,
       if (importMethod != null) 'import_method': importMethod,
       if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (caption != null) 'caption': caption,
+      if (creatorHandle != null) 'creator_handle': creatorHandle,
+      if (sourceId != null) 'source_id': sourceId,
+      if (mediaType != null) 'media_type': mediaType,
       if (aiDestination != null) 'ai_destination': aiDestination,
       if (aiCategory != null) 'ai_category': aiCategory,
       if (aiSummary != null) 'ai_summary': aiSummary,
       if (aiCountry != null) 'ai_country': aiCountry,
       if (aiBestTime != null) 'ai_best_time': aiBestTime,
       if (aiBudgetNote != null) 'ai_budget_note': aiBudgetNote,
+      if (aiPlaceName != null) 'ai_place_name': aiPlaceName,
+      if (aiAddress != null) 'ai_address': aiAddress,
+      if (aiNeighbourhood != null) 'ai_neighbourhood': aiNeighbourhood,
+      if (aiCity != null) 'ai_city': aiCity,
+      if (aiRegion != null) 'ai_region': aiRegion,
       if (aiLatitude != null) 'ai_latitude': aiLatitude,
       if (aiLongitude != null) 'ai_longitude': aiLongitude,
       if (tripId != null) 'trip_id': tripId,
@@ -1630,12 +2047,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Value<String?>? originalUrl,
     Value<String>? importMethod,
     Value<String?>? thumbnailUrl,
+    Value<String?>? caption,
+    Value<String?>? creatorHandle,
+    Value<String?>? sourceId,
+    Value<String?>? mediaType,
     Value<String?>? aiDestination,
     Value<String?>? aiCategory,
     Value<String?>? aiSummary,
     Value<String?>? aiCountry,
     Value<String?>? aiBestTime,
     Value<String?>? aiBudgetNote,
+    Value<String?>? aiPlaceName,
+    Value<String?>? aiAddress,
+    Value<String?>? aiNeighbourhood,
+    Value<String?>? aiCity,
+    Value<String?>? aiRegion,
     Value<double?>? aiLatitude,
     Value<double?>? aiLongitude,
     Value<int?>? tripId,
@@ -1652,12 +2078,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       originalUrl: originalUrl ?? this.originalUrl,
       importMethod: importMethod ?? this.importMethod,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      caption: caption ?? this.caption,
+      creatorHandle: creatorHandle ?? this.creatorHandle,
+      sourceId: sourceId ?? this.sourceId,
+      mediaType: mediaType ?? this.mediaType,
       aiDestination: aiDestination ?? this.aiDestination,
       aiCategory: aiCategory ?? this.aiCategory,
       aiSummary: aiSummary ?? this.aiSummary,
       aiCountry: aiCountry ?? this.aiCountry,
       aiBestTime: aiBestTime ?? this.aiBestTime,
       aiBudgetNote: aiBudgetNote ?? this.aiBudgetNote,
+      aiPlaceName: aiPlaceName ?? this.aiPlaceName,
+      aiAddress: aiAddress ?? this.aiAddress,
+      aiNeighbourhood: aiNeighbourhood ?? this.aiNeighbourhood,
+      aiCity: aiCity ?? this.aiCity,
+      aiRegion: aiRegion ?? this.aiRegion,
       aiLatitude: aiLatitude ?? this.aiLatitude,
       aiLongitude: aiLongitude ?? this.aiLongitude,
       tripId: tripId ?? this.tripId,
@@ -1692,6 +2127,18 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     if (thumbnailUrl.present) {
       map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
     }
+    if (caption.present) {
+      map['caption'] = Variable<String>(caption.value);
+    }
+    if (creatorHandle.present) {
+      map['creator_handle'] = Variable<String>(creatorHandle.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (mediaType.present) {
+      map['media_type'] = Variable<String>(mediaType.value);
+    }
     if (aiDestination.present) {
       map['ai_destination'] = Variable<String>(aiDestination.value);
     }
@@ -1709,6 +2156,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     }
     if (aiBudgetNote.present) {
       map['ai_budget_note'] = Variable<String>(aiBudgetNote.value);
+    }
+    if (aiPlaceName.present) {
+      map['ai_place_name'] = Variable<String>(aiPlaceName.value);
+    }
+    if (aiAddress.present) {
+      map['ai_address'] = Variable<String>(aiAddress.value);
+    }
+    if (aiNeighbourhood.present) {
+      map['ai_neighbourhood'] = Variable<String>(aiNeighbourhood.value);
+    }
+    if (aiCity.present) {
+      map['ai_city'] = Variable<String>(aiCity.value);
+    }
+    if (aiRegion.present) {
+      map['ai_region'] = Variable<String>(aiRegion.value);
     }
     if (aiLatitude.present) {
       map['ai_latitude'] = Variable<double>(aiLatitude.value);
@@ -1744,12 +2206,21 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
           ..write('originalUrl: $originalUrl, ')
           ..write('importMethod: $importMethod, ')
           ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('caption: $caption, ')
+          ..write('creatorHandle: $creatorHandle, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('mediaType: $mediaType, ')
           ..write('aiDestination: $aiDestination, ')
           ..write('aiCategory: $aiCategory, ')
           ..write('aiSummary: $aiSummary, ')
           ..write('aiCountry: $aiCountry, ')
           ..write('aiBestTime: $aiBestTime, ')
           ..write('aiBudgetNote: $aiBudgetNote, ')
+          ..write('aiPlaceName: $aiPlaceName, ')
+          ..write('aiAddress: $aiAddress, ')
+          ..write('aiNeighbourhood: $aiNeighbourhood, ')
+          ..write('aiCity: $aiCity, ')
+          ..write('aiRegion: $aiRegion, ')
           ..write('aiLatitude: $aiLatitude, ')
           ..write('aiLongitude: $aiLongitude, ')
           ..write('tripId: $tripId, ')
@@ -2904,12 +3375,21 @@ typedef $$SavedPostsTableCreateCompanionBuilder =
       Value<String?> originalUrl,
       required String importMethod,
       Value<String?> thumbnailUrl,
+      Value<String?> caption,
+      Value<String?> creatorHandle,
+      Value<String?> sourceId,
+      Value<String?> mediaType,
       Value<String?> aiDestination,
       Value<String?> aiCategory,
       Value<String?> aiSummary,
       Value<String?> aiCountry,
       Value<String?> aiBestTime,
       Value<String?> aiBudgetNote,
+      Value<String?> aiPlaceName,
+      Value<String?> aiAddress,
+      Value<String?> aiNeighbourhood,
+      Value<String?> aiCity,
+      Value<String?> aiRegion,
       Value<double?> aiLatitude,
       Value<double?> aiLongitude,
       Value<int?> tripId,
@@ -2927,12 +3407,21 @@ typedef $$SavedPostsTableUpdateCompanionBuilder =
       Value<String?> originalUrl,
       Value<String> importMethod,
       Value<String?> thumbnailUrl,
+      Value<String?> caption,
+      Value<String?> creatorHandle,
+      Value<String?> sourceId,
+      Value<String?> mediaType,
       Value<String?> aiDestination,
       Value<String?> aiCategory,
       Value<String?> aiSummary,
       Value<String?> aiCountry,
       Value<String?> aiBestTime,
       Value<String?> aiBudgetNote,
+      Value<String?> aiPlaceName,
+      Value<String?> aiAddress,
+      Value<String?> aiNeighbourhood,
+      Value<String?> aiCity,
+      Value<String?> aiRegion,
       Value<double?> aiLatitude,
       Value<double?> aiLongitude,
       Value<int?> tripId,
@@ -3009,6 +3498,26 @@ class $$SavedPostsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get creatorHandle => $composableBuilder(
+    column: $table.creatorHandle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get aiDestination => $composableBuilder(
     column: $table.aiDestination,
     builder: (column) => ColumnFilters(column),
@@ -3036,6 +3545,31 @@ class $$SavedPostsTableFilterComposer
 
   ColumnFilters<String> get aiBudgetNote => $composableBuilder(
     column: $table.aiBudgetNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiPlaceName => $composableBuilder(
+    column: $table.aiPlaceName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiAddress => $composableBuilder(
+    column: $table.aiAddress,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiNeighbourhood => $composableBuilder(
+    column: $table.aiNeighbourhood,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiCity => $composableBuilder(
+    column: $table.aiCity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiRegion => $composableBuilder(
+    column: $table.aiRegion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3137,6 +3671,26 @@ class $$SavedPostsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get creatorHandle => $composableBuilder(
+    column: $table.creatorHandle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mediaType => $composableBuilder(
+    column: $table.mediaType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get aiDestination => $composableBuilder(
     column: $table.aiDestination,
     builder: (column) => ColumnOrderings(column),
@@ -3164,6 +3718,31 @@ class $$SavedPostsTableOrderingComposer
 
   ColumnOrderings<String> get aiBudgetNote => $composableBuilder(
     column: $table.aiBudgetNote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiPlaceName => $composableBuilder(
+    column: $table.aiPlaceName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiAddress => $composableBuilder(
+    column: $table.aiAddress,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiNeighbourhood => $composableBuilder(
+    column: $table.aiNeighbourhood,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiCity => $composableBuilder(
+    column: $table.aiCity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiRegion => $composableBuilder(
+    column: $table.aiRegion,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -3257,6 +3836,20 @@ class $$SavedPostsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get caption =>
+      $composableBuilder(column: $table.caption, builder: (column) => column);
+
+  GeneratedColumn<String> get creatorHandle => $composableBuilder(
+    column: $table.creatorHandle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaType =>
+      $composableBuilder(column: $table.mediaType, builder: (column) => column);
+
   GeneratedColumn<String> get aiDestination => $composableBuilder(
     column: $table.aiDestination,
     builder: (column) => column,
@@ -3282,6 +3875,25 @@ class $$SavedPostsTableAnnotationComposer
     column: $table.aiBudgetNote,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get aiPlaceName => $composableBuilder(
+    column: $table.aiPlaceName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiAddress =>
+      $composableBuilder(column: $table.aiAddress, builder: (column) => column);
+
+  GeneratedColumn<String> get aiNeighbourhood => $composableBuilder(
+    column: $table.aiNeighbourhood,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiCity =>
+      $composableBuilder(column: $table.aiCity, builder: (column) => column);
+
+  GeneratedColumn<String> get aiRegion =>
+      $composableBuilder(column: $table.aiRegion, builder: (column) => column);
 
   GeneratedColumn<double> get aiLatitude => $composableBuilder(
     column: $table.aiLatitude,
@@ -3370,12 +3982,21 @@ class $$SavedPostsTableTableManager
                 Value<String?> originalUrl = const Value.absent(),
                 Value<String> importMethod = const Value.absent(),
                 Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> caption = const Value.absent(),
+                Value<String?> creatorHandle = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String?> mediaType = const Value.absent(),
                 Value<String?> aiDestination = const Value.absent(),
                 Value<String?> aiCategory = const Value.absent(),
                 Value<String?> aiSummary = const Value.absent(),
                 Value<String?> aiCountry = const Value.absent(),
                 Value<String?> aiBestTime = const Value.absent(),
                 Value<String?> aiBudgetNote = const Value.absent(),
+                Value<String?> aiPlaceName = const Value.absent(),
+                Value<String?> aiAddress = const Value.absent(),
+                Value<String?> aiNeighbourhood = const Value.absent(),
+                Value<String?> aiCity = const Value.absent(),
+                Value<String?> aiRegion = const Value.absent(),
                 Value<double?> aiLatitude = const Value.absent(),
                 Value<double?> aiLongitude = const Value.absent(),
                 Value<int?> tripId = const Value.absent(),
@@ -3391,12 +4012,21 @@ class $$SavedPostsTableTableManager
                 originalUrl: originalUrl,
                 importMethod: importMethod,
                 thumbnailUrl: thumbnailUrl,
+                caption: caption,
+                creatorHandle: creatorHandle,
+                sourceId: sourceId,
+                mediaType: mediaType,
                 aiDestination: aiDestination,
                 aiCategory: aiCategory,
                 aiSummary: aiSummary,
                 aiCountry: aiCountry,
                 aiBestTime: aiBestTime,
                 aiBudgetNote: aiBudgetNote,
+                aiPlaceName: aiPlaceName,
+                aiAddress: aiAddress,
+                aiNeighbourhood: aiNeighbourhood,
+                aiCity: aiCity,
+                aiRegion: aiRegion,
                 aiLatitude: aiLatitude,
                 aiLongitude: aiLongitude,
                 tripId: tripId,
@@ -3414,12 +4044,21 @@ class $$SavedPostsTableTableManager
                 Value<String?> originalUrl = const Value.absent(),
                 required String importMethod,
                 Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String?> caption = const Value.absent(),
+                Value<String?> creatorHandle = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String?> mediaType = const Value.absent(),
                 Value<String?> aiDestination = const Value.absent(),
                 Value<String?> aiCategory = const Value.absent(),
                 Value<String?> aiSummary = const Value.absent(),
                 Value<String?> aiCountry = const Value.absent(),
                 Value<String?> aiBestTime = const Value.absent(),
                 Value<String?> aiBudgetNote = const Value.absent(),
+                Value<String?> aiPlaceName = const Value.absent(),
+                Value<String?> aiAddress = const Value.absent(),
+                Value<String?> aiNeighbourhood = const Value.absent(),
+                Value<String?> aiCity = const Value.absent(),
+                Value<String?> aiRegion = const Value.absent(),
                 Value<double?> aiLatitude = const Value.absent(),
                 Value<double?> aiLongitude = const Value.absent(),
                 Value<int?> tripId = const Value.absent(),
@@ -3435,12 +4074,21 @@ class $$SavedPostsTableTableManager
                 originalUrl: originalUrl,
                 importMethod: importMethod,
                 thumbnailUrl: thumbnailUrl,
+                caption: caption,
+                creatorHandle: creatorHandle,
+                sourceId: sourceId,
+                mediaType: mediaType,
                 aiDestination: aiDestination,
                 aiCategory: aiCategory,
                 aiSummary: aiSummary,
                 aiCountry: aiCountry,
                 aiBestTime: aiBestTime,
                 aiBudgetNote: aiBudgetNote,
+                aiPlaceName: aiPlaceName,
+                aiAddress: aiAddress,
+                aiNeighbourhood: aiNeighbourhood,
+                aiCity: aiCity,
+                aiRegion: aiRegion,
                 aiLatitude: aiLatitude,
                 aiLongitude: aiLongitude,
                 tripId: tripId,

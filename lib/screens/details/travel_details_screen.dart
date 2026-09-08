@@ -72,9 +72,36 @@ class TravelDetailsScreen extends StatelessWidget {
               _MetaRow(
                 icon: Icons.place_outlined,
                 label: 'Location',
-                value: _cityOf(post.aiDestination),
+                value: post.aiPlaceName ?? _cityOf(post.aiDestination),
               ),
               const Divider(),
+              // The specific parts, each shown only when extraction actually
+              // found it. A post that says nothing more than "Japan" still
+              // shows Country alone, exactly as before.
+              if (post.aiPlaceName != null && post.aiAddress != null)
+                _MetaRow(
+                  icon: Icons.signpost_outlined,
+                  label: 'Address',
+                  value: post.aiAddress,
+                ),
+              if (post.aiNeighbourhood != null)
+                _MetaRow(
+                  icon: Icons.explore_outlined,
+                  label: 'Area',
+                  value: post.aiNeighbourhood,
+                ),
+              if (post.aiCity != null)
+                _MetaRow(
+                  icon: Icons.location_city_rounded,
+                  label: 'City',
+                  value: post.aiCity,
+                ),
+              if (post.aiRegion != null)
+                _MetaRow(
+                  icon: Icons.map_outlined,
+                  label: 'Region',
+                  value: post.aiRegion,
+                ),
               _MetaRow(
                 icon: Icons.public_rounded,
                 label: 'Country',
@@ -87,7 +114,10 @@ class TravelDetailsScreen extends StatelessWidget {
                 PostMap(
                   latitude: post.aiLatitude!,
                   longitude: post.aiLongitude!,
-                  label: _cityOf(post.aiDestination) ??
+                  label: post.aiPlaceName ??
+                      post.aiNeighbourhood ??
+                      post.aiCity ??
+                      _cityOf(post.aiDestination) ??
                       post.aiDestination ??
                       'Saved location',
                 )

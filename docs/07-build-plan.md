@@ -1132,3 +1132,157 @@ The three faults above are real, are in this flow, and two of them are measured
 rather than argued. Whether they were *the* trigger on 3.44.x is not something
 this container can settle. The full stack trace from the browser console under
 the red screen would settle it.
+
+## 20. Seventh pass — giving the model something to read
+
+Pasting the Osaka video produced `Japan` for a location and saved the post as
+`Sf9ihvL0Usk`. Both had the same cause, and it was not the model.
+
+### The extraction had nothing to extract from
+
+`GeminiExtractor` sent the model one line:
+
+```
+URL: https://www.youtube.com/watch?v=Sf9ihvL0Usk
+```
+
+Eleven characters of video id. "Japan" was a reasonable answer to that question;
+there was no better one available. A larger model would not have helped, because
+the information was never in the request.
+
+`lib/ai/source_metadata.dart` reads the post first. What is reachable without a
+key differs sharply by platform, and the honest position is to say so:
+
+| Platform | What can be read | How |
+| --- | --- | --- |
+| YouTube | title, channel name, channel handle, thumbnail | public oEmbed |
+| TikTok | caption (its `title` field), display name, `@handle`, thumbnail | public oEmbed |
+| Instagram | nothing — shortcode and username from the URL path only | oEmbed retired 2020 |
+| Facebook | nothing — page name from the URL path only | oEmbed retired 2020 |
+
+Both live endpoints send `Access-Control-Allow-Origin: *`, which is what makes
+them usable from a browser at all. When a lookup fails, extraction continues on
+the URL alone and the prompt says so explicitly — less information is a worse
+extraction, not a broken one.
+
+For the Osaka link that turns the request into:
+
+```
+PLATFORM: YouTube
+SOURCE_ID: Sf9ihvL0Usk
+CREATOR_NAME: Sweet Rain
+CREATOR_HANDLE: @sweetrain
+MEDIA_TYPE: video
+TITLE:
+Rainy Day in Osaka City 🌧️ hidden gem cafe in Nakazakicho 🌿 walk around Osaka station
+```
+
+A neighbourhood, a city and a subject, where before there was a video id.
+
+### One destination field could not hold a neighbourhood
+
+The schema asked for a single `destination`. There was nowhere to put
+"Nakazakicho", so a neighbourhood in the source had nowhere to go. It now steps
+from most specific to least — `place_name`, `address`, `neighbourhood`, `city`,
+`region`, `country` — plus `caption`, `creator_handle` and `source_id`.
+`aiDestination` is still stored, composed from the two most specific parts, so
+every screen that already draws it keeps working.
+
+The instructions are explicit that nulls are correct: *"It is better to return
+null than to fill a field with something plausible… You will not be penalised
+for nulls; you will be wrong if you guess."*
+
+### Coordinates are dropped when the location is broad
+
+A model asked for the coordinates of "Japan" will give the centre of Japan. That
+is a true fact and a false claim about the post. Coordinates are now kept only
+when something specific was found — a venue, a district, a city — so a
+country-only extraction shows the map placeholder and says why, rather than
+pinning the middle of a country. `hasPreciseLocation` is the test.
+
+### The title was the video id
+
+The id now lives in `source_id`, as metadata, and cannot be reached by anything
+that draws a title. Where the platform stated a title outright, that wins over
+the model's version: a title read from YouTube is a fact, and the model's is a
+paraphrase.
+
+### Model: flash, not flash-lite
+
+Pass 5 ranked flash-lite first, reasoning that the call was tiny — a URL in, a
+small JSON object out. It is not tiny any more. The model now reads a real
+description, recognises that Nakazakicho is a district of Osaka, and decides
+what the source does *not* support. That is comprehension. Ranking is now flash,
+then flash-lite, then pro; the discovery mechanism from §18 is unchanged, so no
+model id is hardcoded.
+
+### Media type is read, not assumed
+
+Every preview was labelled "Video Thumbnail". A `media_type` column now stores
+`video`, `image`, `carousel` or `unknown`, taken from oEmbed's `type` or from
+the URL shape — an Instagram `/reel/` is a video, an Instagram `/p/` is a photo,
+a Facebook post is neither until something says otherwise. The badge reads
+"Video", "Photo", "Gallery" or "Preview". Posts saved before the column existed
+have no value and get the neutral one rather than claiming to be videos.
+
+### The black bars were in the image file
+
+Not padding, and not a `BoxFit`: `PostThumbnail` was already `BoxFit.cover`.
+YouTube's `hqdefault.jpg` is 480x360 — 4:3 — and YouTube fits the 16:9 frame
+inside it by painting black bars along the top and bottom. Those bars are
+pixels, so no fit can crop them away as bars; cover crops the picture.
+
+`mqdefault.jpg` is 320x180, true 16:9, no bars, and exists for every video ever
+uploaded. Thumbnails now use it, and any letterboxed URL that arrives from
+oEmbed (YouTube's oEmbed hands back `hqdefault`) is rewritten to it.
+
+The containers were wrong too. The Home card was `aspectRatio: 1.25`, narrower
+than the 4:3 source, so cover cropped down the sides while the letterboxing
+stayed. The card and the detail hero are both 16:9 now, matching the shape of
+the images themselves. The small square thumbnails in row layouts are left
+square, as the mockup draws them; a 16:9 source in a square box crops the sides
+and fills it.
+
+### Migration
+
+Schema version 3 adds `caption`, `creator_handle`, `source_id`, `media_type`,
+`ai_place_name`, `ai_address`, `ai_neighbourhood`, `ai_city` and `ai_region`,
+each guarded by a `PRAGMA table_info` check like the version 2 additions.
+Existing posts keep their values and gain nulls, which every screen already
+draws as an em dash.
+
+### Verified
+
+`test/source_metadata_test.dart` (17) — the real oEmbed shapes for YouTube and
+TikTok, id extraction across every URL form, the platforms that publish nothing
+saying so, a failed lookup degrading rather than throwing, and the 16:9
+thumbnail rules.
+
+`test/extraction_pipeline_test.dart` (12) — the Osaka video from source to row:
+the request body contains "Nakazakicho" and "Sweet Rain"; the result carries
+title, caption, creator, handle, place, neighbourhood, city, region, country,
+season, price and coordinates; the draft carries them; the row stores them. Plus
+the cases that must stay empty — a country-only answer gets no pin even when the
+model returns one, a post with no location stays null, a photo post is not a
+video, and a title never falls back to an id.
+
+`test/migration_test.dart` — a real version 2 database gaining the nine columns
+with its existing row intact.
+
+In Chromium, the Osaka link scripted end to end at the network boundary:
+
+| Screen | Before | After |
+| --- | --- | --- |
+| Review & Save | title `Sf9ihvL0Usk`, no creator | full title, "Sweet Rain", "Taiyo no Tou, Nakazakicho" |
+| Home card | black bars | fills the 16:9 card |
+| Post Details | "Video Thumbnail", no caption | "Video" badge, creator + `@sweetrain`, caption section |
+| Travel Details | Location "Japan" | Location, Area, City, Region, Country, season, price, pin |
+
+**Not verified here:** the live oEmbed calls. The sandbox denies CONNECT to
+youtube.com and tiktok.com at the proxy, so those endpoints were exercised
+against their documented payloads rather than the real service. Everything up to
+the socket runs.
+
+### Tests
+
+153 passing.

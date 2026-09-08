@@ -1,6 +1,7 @@
 import '../../ai/ai_extractor.dart';
 import '../../ai/categories.dart';
 import '../../ai/platform_from_url.dart';
+import '../../ai/source_metadata.dart';
 import '../../ai/thumbnail_from_url.dart';
 
 /// What the add flow carries from one screen to the next.
@@ -13,9 +14,18 @@ class PostDraft {
         platform = NookPlatform.fromUrl(url),
         importMethod = 'link',
         title = result.title,
+        caption = result.caption,
         creator = result.creator,
+        creatorHandle = result.creatorHandle,
         destination = result.destination,
+        placeName = result.placeName,
+        address = result.address,
+        neighbourhood = result.neighbourhood,
+        city = result.city,
+        region = result.region,
         country = result.country,
+        sourceId = result.sourceId,
+        mediaType = result.mediaType,
         category = NookCategories.normalise(result.category),
         summary = result.summary,
         bestTime = result.bestTime,
@@ -31,9 +41,18 @@ class PostDraft {
       : url = url,
         platform = NookPlatform.fromUrl(url),
         importMethod = 'link',
+        caption = null,
         creator = null,
+        creatorHandle = null,
         destination = null,
+        placeName = null,
+        address = null,
+        neighbourhood = null,
+        city = null,
+        region = null,
         country = null,
+        sourceId = SourceIds.of(url, NookPlatform.fromUrl(url)),
+        mediaType = SourceIds.mediaTypeFrom(url, NookPlatform.fromUrl(url)),
         category = NookCategories.fallback,
         summary = null,
         bestTime = null,
@@ -48,9 +67,18 @@ class PostDraft {
       : url = null,
         platform = NookPlatform.other,
         importMethod = 'note',
+        caption = null,
         creator = null,
+        creatorHandle = null,
         destination = null,
+        placeName = null,
+        address = null,
+        neighbourhood = null,
+        city = null,
+        region = null,
         country = null,
+        sourceId = null,
+        mediaType = PostMediaType.unknown,
         category = NookCategories.fallback,
         summary = null,
         bestTime = null,
@@ -69,9 +97,18 @@ class PostDraft {
   final bool fromSample;
 
   String title;
+  String? caption;
   String? creator;
+  String? creatorHandle;
   String? destination;
+  String? placeName;
+  String? address;
+  String? neighbourhood;
+  String? city;
+  String? region;
   String? country;
+  final String? sourceId;
+  final PostMediaType mediaType;
   String? category;
   String? summary;
   String? bestTime;

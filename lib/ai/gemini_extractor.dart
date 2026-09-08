@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'ai_extractor.dart';
 import 'categories.dart';
 import 'gemini_api.dart';
+import 'source_metadata.dart';
 import 'thumbnail_from_url.dart';
 
 /// Feature #2, for real.
@@ -31,6 +32,7 @@ class GeminiExtractor implements AiExtractor {
     http.Client? httpClient,
     RetryPolicy retry = const RetryPolicy(),
   })  : _override = _clean(model),
+        _sourceClient = httpClient,
         _client = GeminiClient(
           apiKey: apiKey,
           httpClient: httpClient,
@@ -40,6 +42,10 @@ class GeminiExtractor implements AiExtractor {
   /// A pinned id from `GEMINI_MODEL`, or null to ask the API what it has.
   final String? _override;
   final GeminiClient _client;
+
+  /// Shared with the Gemini client so a test can script both the oEmbed lookup
+  /// and the model call through one handler.
+  final http.Client? _sourceClient;
 
   /// Resolved once per session, then reused.
   Future<List<String>>? _candidates;
@@ -84,18 +90,34 @@ class GeminiExtractor implements AiExtractor {
   }
 
   Future<ExtractionResult> _extract(String url, ExtractionStage? onStage) async {
-    onStage?.call('Reading the link');
+    onStage?.call('Reading the post');
+
+    // The post itself, before the model sees anything. This is the step that
+    // was missing: without it the model received a bare URL and could only
+    // answer from an eleven-character video id.
+    final source = await SourceMetadataFetcher.fetch(url, client: _sourceClient);
+    if (source.hasText) {
+      onStage?.call('Read "${_shorten(source.title ?? '')}"');
+    }
 
     // Started before the model call and awaited after it. The thumbnail lookup
     // can reach out to a platform that never answers, and it has nothing to do
     // with the model, so it must not be one more thing waited for in series.
-    final thumbnail = PostThumbnails.resolve(url);
+    final thumbnail = PostThumbnails.resolve(url, source: source);
 
-    final json = await _generate(url, onStage);
+    final json = await _generate(url, source, onStage);
 
     onStage?.call('Reading the reply');
-    return _resultFrom(json, url: url, thumbnailUrl: await thumbnail);
+    return _resultFrom(
+      json,
+      url: url,
+      source: source,
+      thumbnailUrl: await thumbnail,
+    );
   }
+
+  static String _shorten(String value) =>
+      value.length <= 40 ? value : '${value.substring(0, 39)}…';
 
   /// Asks each candidate model in turn until one answers.
   ///
@@ -110,6 +132,7 @@ class GeminiExtractor implements AiExtractor {
   /// pinned id turns out not to exist.
   Future<Map<String, dynamic>> _generate(
     String url,
+    SourceMetadata source,
     ExtractionStage? onStage,
   ) async {
     final tried = <String>[];
@@ -121,7 +144,7 @@ class GeminiExtractor implements AiExtractor {
       try {
         return await _client.generateContent(
           model: model,
-          body: _requestBody(url),
+          body: _requestBody(source),
           onRetry: (attempt, of, wait) => onStage?.call(
             'Gemini is busy — retrying in ${_seconds(wait)}s '
             '(attempt $attempt of $of)',
@@ -185,12 +208,13 @@ class GeminiExtractor implements AiExtractor {
     }();
   }
 
-  Map<String, Object?> _requestBody(String url) => {
+  Map<String, Object?> _requestBody(SourceMetadata source) => {
         'contents': [
           {
             'role': 'user',
             'parts': [
-              {'text': '$_instructions\n\nURL: $url'},
+              {'text': '$_instructions\n\n--- SOURCE ---\n'
+                  '${source.toPromptBlock()}--- END SOURCE ---'},
             ],
           },
         ],
@@ -204,73 +228,113 @@ class GeminiExtractor implements AiExtractor {
   /// A response schema, so the reply is JSON of a known shape rather than prose
   /// that has to be guessed at. Written as a plain map because that is what the
   /// REST body wants.
+  ///
+  /// The location fields step from most specific to least on purpose. Asking
+  /// for one "destination" is what produced "Japan": there was nowhere to put a
+  /// neighbourhood, so a neighbourhood in the source had nowhere to go.
   static final Map<String, Object?> _responseSchema = {
     'type': 'OBJECT',
     'properties': {
       'title': {
         'type': 'STRING',
-        'description': 'A short human title for the post, from the link slug.',
+        'description': 'The post\'s real human title or caption, copied from '
+            'the source. Never an id, a URL or a filename.',
+      },
+      'caption': {
+        'type': 'STRING',
+        'nullable': true,
+        'description': 'The post\'s own description or caption text, kept as '
+            'written. Null if the source carries none.',
       },
       'creator': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'The @handle if the URL contains one.',
+        'description': 'Channel name, display name or page name, as given.',
       },
-      'destination': {
+      'creator_handle': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'The place, as "City, Country". Null if none is evident.',
+        'description': 'The @handle, if the source has one.',
+      },
+      'place_name': {
+        'type': 'STRING',
+        'nullable': true,
+        'description': 'The specific cafe, restaurant, shop, hotel or landmark '
+            'the post is about, if it names one.',
+      },
+      'address': {'type': 'STRING', 'nullable': true},
+      'neighbourhood': {
+        'type': 'STRING',
+        'nullable': true,
+        'description': 'District or neighbourhood, e.g. "Nakazakicho".',
+      },
+      'city': {'type': 'STRING', 'nullable': true},
+      'region': {
+        'type': 'STRING',
+        'nullable': true,
+        'description': 'Prefecture, state or province.',
       },
       'country': {'type': 'STRING', 'nullable': true},
       'category': {'type': 'STRING', 'enum': NookCategories.all},
       'summary': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'Two or three sentences about what a traveller finds.',
+        'description': 'Two or three sentences about what a traveller finds, '
+            'drawn only from the source.',
       },
       'best_time': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'Best months to visit, e.g. "March-May".',
+        'description': 'Only if the source mentions a season, month or date.',
       },
       'budget_note': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'A rough daily budget, e.g. "~EUR80/day".',
+        'description': 'Only if the source mentions a price or cost.',
       },
       'latitude': {
         'type': 'NUMBER',
         'nullable': true,
-        'description': 'Latitude in decimal degrees, or null if the '
-            'destination is missing or too broad to place on a map.',
+        'description': 'Decimal degrees for the specific place or '
+            'neighbourhood. Null unless the location is specific enough to '
+            'have a single point.',
       },
-      'longitude': {
-        'type': 'NUMBER',
-        'nullable': true,
-        'description': 'Longitude in decimal degrees, or null if the '
-            'destination is missing or too broad to place on a map.',
-      },
+      'longitude': {'type': 'NUMBER', 'nullable': true},
     },
     'required': ['title', 'category'],
   };
 
   static const _instructions = '''
-You extract travel metadata from a social media link for a trip-planning app.
+You extract travel metadata from a saved social media post for a trip-planning
+app called Nook. Everything you need is in the SOURCE block below.
 
-You are given only the URL. Read the host, the path slug and any handle in it,
-and combine that with what you already know about the place named. Do not invent
-a destination that the link gives you no reason to believe in: returning null is
-correct and expected when the link is opaque.
+Work only from what the SOURCE says. It is better to return null than to fill a
+field with something plausible. In particular, never invent a place, a business,
+an address, a creator, a price, a date, or a pair of coordinates. If the source
+does not support a field, that field is null. You will not be penalised for
+nulls; you will be wrong if you guess.
+
+- title: the post's real title or caption, copied from TITLE. Never the
+  SOURCE_ID, never the URL. Only if there is genuinely no title anywhere may you
+  describe the post in a few words instead.
+- caption: the post's own description or caption text. On platforms where the
+  title *is* the caption, repeat it here only if it carries detail beyond the
+  title; otherwise null.
+- creator / creator_handle: copy from CREATOR_NAME and CREATOR_HANDLE. Never use
+  the SOURCE_ID or any part of the URL as a creator.
+- Location: go as specific as the source honestly supports, and no further. If
+  the post names a cafe, give place_name. If it names a district, give
+  neighbourhood. Fill in city, region and country when they follow from what is
+  named. A post that only says "Japan" gets country alone and nulls above it.
+- latitude / longitude: only for a place specific enough to have one point — a
+  named venue, a neighbourhood, a town. For a whole country or region
+  ("Japan", "Southeast Asia") return null for both, even though you know where
+  the country is. A pin in the middle of a country is a false precision.
+- best_time and budget_note: only when the source actually mentions a season,
+  a date, a price or a cost.
+- category: exactly one of the listed values. Use "Other" when unsure.
 
 Return JSON only, matching the schema.
-- destination: "City, Country" when a specific place is evident, otherwise null.
-- category: exactly one of the listed values. Use "Other" when unsure.
-- summary: 2-3 sentences, written for a traveller deciding whether to keep this.
-- best_time and budget_note: only when the destination is known; otherwise null.
-- latitude/longitude: the coordinates of the destination, in decimal degrees,
-  so it can be pinned on a map. Give them only for a place specific enough to
-  have a single point: a city, a town, an island, a landmark. For a whole
-  region or country ("Southeast Asia", "Anywhere") return null for both.
 ''';
 
   /// Digs the model's JSON out of the response envelope.
@@ -281,6 +345,7 @@ Return JSON only, matching the schema.
   ExtractionResult _resultFrom(
     Map<String, dynamic> response, {
     required String url,
+    required SourceMetadata source,
     required String? thumbnailUrl,
   }) {
     final blockReason = (response['promptFeedback'] as Map?)?['blockReason'];
@@ -347,22 +412,79 @@ Return JSON only, matching the schema.
         longitude.abs() <= 180 &&
         !(latitude == 0 && longitude == 0);
 
+    final placeName = string('place_name');
+    final neighbourhood = string('neighbourhood');
+    final city = string('city');
+    final region = string('region');
+    final country = string('country');
+
+    // The source is trusted over the model for anything the source already
+    // states outright. A title and a channel name that were read from the
+    // platform are facts; the model's version of them is a paraphrase at best.
+    final title = source.title ?? string('title') ?? _titleFromUrl(url);
+    final creator = source.creator ?? string('creator');
+
+    // A pin needs somewhere specific to point. Country-level coordinates are
+    // dropped even when the model returns them, because a marker in the middle
+    // of Japan claims a precision the post never had — Travel Details shows the
+    // placeholder and says why instead.
+    final specific =
+        placeName != null || neighbourhood != null || city != null ||
+            string('address') != null;
+
     return ExtractionResult(
-      title: string('title') ?? _titleFromUrl(url),
-      creator: string('creator'),
-      destination: string('destination'),
-      country: string('country'),
+      title: title,
+      caption: string('caption') ?? source.description,
+      creator: creator,
+      creatorHandle: string('creator_handle') ?? source.creatorHandle,
+      destination: _destinationFrom(
+        placeName: placeName,
+        neighbourhood: neighbourhood,
+        city: city,
+        region: region,
+        country: country,
+      ),
+      placeName: placeName,
+      address: string('address'),
+      neighbourhood: neighbourhood,
+      city: city,
+      region: region,
+      country: country,
       category: NookCategories.normalise(string('category')),
       summary: string('summary'),
       bestTime: string('best_time'),
       budgetNote: string('budget_note'),
-      latitude: placeable ? latitude : null,
-      longitude: placeable ? longitude : null,
-      // Worked out from the link itself rather than asked of the model: a
-      // language model cannot know a thumbnail URL, and would invent one.
+      latitude: placeable && specific ? latitude : null,
+      longitude: placeable && specific ? longitude : null,
+      // Worked out from the link and the source rather than asked of the model:
+      // a language model cannot know a thumbnail URL, and would invent one.
       // Already in flight since before the model call.
       thumbnailUrl: thumbnailUrl,
+      sourceId: source.sourceId,
+      mediaType: source.mediaType,
     );
+  }
+
+  /// The one-line location, built from the most specific parts available.
+  ///
+  /// Two parts at most, so a card reads "Nakazakicho, Osaka" rather than
+  /// "Cafe X, Nakazakicho, Osaka, Osaka Prefecture, Japan".
+  static String? _destinationFrom({
+    String? placeName,
+    String? neighbourhood,
+    String? city,
+    String? region,
+    String? country,
+  }) {
+    final parts = <String>[
+      ?placeName,
+      ?neighbourhood,
+      ?city,
+      if (city == null) ?region,
+      ?country,
+    ];
+    if (parts.isEmpty) return null;
+    return parts.take(2).join(', ');
   }
 
   /// Turns an API failure into something worth reading, and — where the user

@@ -1,5 +1,6 @@
 import 'ai_extractor.dart';
 import 'categories.dart';
+import 'source_metadata.dart';
 import 'thumbnail_from_url.dart';
 
 /// What runs when there is no Gemini key — which is always true of the
@@ -119,10 +120,19 @@ class _Fixture {
   final double? latitude;
   final double? longitude;
 
+  /// Splits "City, Country" into the parts the model now returns separately,
+  /// so a seeded post carries the same shape as an extracted one.
+  String? get _city {
+    final parts = destination.split(',');
+    return parts.length > 1 ? parts.first.trim() : null;
+  }
+
   ExtractionResult toResult({String? thumbnailUrl}) => ExtractionResult(
         title: title,
         creator: creator,
+        creatorHandle: creator.startsWith('@') ? creator : null,
         destination: destination,
+        city: _city,
         country: country,
         category: NookCategories.normalise(category),
         summary: summary,
@@ -131,6 +141,7 @@ class _Fixture {
         latitude: latitude,
         longitude: longitude,
         thumbnailUrl: thumbnailUrl,
+        mediaType: PostMediaType.video,
         isSample: true,
       );
 }

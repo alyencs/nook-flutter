@@ -62,7 +62,9 @@ String _extraction({String title = '5 Hidden Cafes in Kyoto'}) => jsonEncode({
                 'text': jsonEncode({
                   'title': title,
                   'creator': '@wanderwithmia',
-                  'destination': 'Kyoto, Japan',
+                  'place_name': 'Kissa Master',
+                  'neighbourhood': 'Gion',
+                  'city': 'Kyoto',
                   'country': 'Japan',
                   'category': 'Food',
                   'summary': 'Six cafes within a short walk of each other.',
@@ -88,22 +90,41 @@ String get _modelList => jsonEncode({
     });
 
 /// Records every request, and answers from a script.
+///
+/// Routed by host rather than by position: extraction now reads the post from
+/// its platform before it asks Gemini anything, and an oEmbed lookup landing in
+/// the middle of a script written for the model would shift every entry.
 class _Server {
   _Server(this.script);
 
-  /// One entry per request, in order. The last entry repeats once exhausted.
+  /// One entry per Gemini request, in order. The last repeats once exhausted.
   final List<http.Response Function(http.Request)> script;
+
+  /// The post's own metadata, so these tests exercise the real path: a post
+  /// that was read before the model was asked about it. The "nothing could be
+  /// read" path is covered in `extraction_pipeline_test.dart`.
+  static const oEmbed =
+      '{"title":"5 Hidden Cafes in Kyoto","author_name":"Mia",'
+      '"author_url":"https://www.youtube.com/@wanderwithmia","type":"video"}';
+
   final requests = <http.Request>[];
   final at = <DateTime>[];
 
   http.Client get client => MockClient((request) async {
         requests.add(request);
         at.add(DateTime.now());
-        final index = min(requests.length - 1, script.length - 1);
+        if (!request.url.host.contains('generativelanguage')) {
+          return http.Response(oEmbed, 200,
+              headers: {'content-type': 'application/json'});
+        }
+        final index = min(geminiCalls.length - 1, script.length - 1);
         return script[index](request);
       });
 
   int get calls => requests.length;
+  List<http.Request> get geminiCalls => requests
+      .where((r) => r.url.host.contains('generativelanguage'))
+      .toList();
   List<http.Request> get generateCalls =>
       requests.where((r) => r.url.path.contains(':generateContent')).toList();
 }
@@ -136,7 +157,9 @@ void main() {
 
       final result = await _extractor(server).extract(_url);
 
-      expect(result.destination, 'Kyoto, Japan');
+      expect(result.destination, 'Kissa Master, Gion');
+      expect(result.city, 'Kyoto');
+      expect(result.country, 'Japan');
       expect(result.isSample, isFalse, reason: 'never fake a real extraction');
       expect(server.generateCalls, hasLength(2));
     });
@@ -266,7 +289,12 @@ void main() {
 
     test('a network failure is retried, then reported honestly', () async {
       var calls = 0;
-      final client = MockClient((_) async {
+      final client = MockClient((request) async {
+        // The oEmbed lookup is allowed to fail quietly; this test is about the
+        // model call, so only those are counted.
+        if (!request.url.host.contains('generativelanguage')) {
+          return http.Response('not found', 404);
+        }
         calls++;
         throw const SocketishException();
       });
@@ -396,15 +424,17 @@ void main() {
 
       final result = await _extractor(server).extract(_url);
 
-      expect(result.destination, 'Kyoto, Japan');
+      expect(result.city, 'Kyoto');
       expect(server.generateCalls, hasLength(2));
       // The second call went to a different model than the first.
       expect(
         server.generateCalls[0].url.path,
         isNot(server.generateCalls[1].url.path),
       );
-      // And 404 is not retried against the same model.
-      expect(server.generateCalls[0].url.path, contains('gemini-3.1-flash-lite'));
+      // And 404 is not retried against the same model. Flash outranks
+      // flash-lite, so 2.5-flash is tried first even though 3.1-flash-lite is
+      // the newer id.
+      expect(server.generateCalls[0].url.path, contains('gemini-2.5-flash'));
     });
 
     test('when no model works the message names what was tried', () async {
@@ -432,18 +462,20 @@ void main() {
       ]);
       // 2.0-flash is dead, but ranking cannot know that — what it can do is
       // prefer the newest, which is the property that keeps this from rotting.
-      expect(ranked.first, 'gemini-3.1-flash-lite');
+      expect(ranked.first, 'gemini-3.8-flash');
       expect(ranked.indexOf('gemini-2.0-flash'), greaterThan(0));
     });
 
-    test('flash-lite is preferred, then flash, then pro', () {
+    test('flash is preferred, then flash-lite, then pro', () {
+      // Reading a real description and deciding what it does not support is
+      // comprehension, which is the job flash is for.
       expect(
         GeminiModels.rank([
           'gemini-2.5-pro',
           'gemini-2.5-flash',
           'gemini-2.5-flash-lite',
         ]),
-        ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+        ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'],
       );
     });
 
@@ -462,9 +494,8 @@ void main() {
 
     test('a plain id beats a suffixed one of the same version', () {
       expect(
-        GeminiModels.rank(['gemini-3.1-flash-lite-001', 'gemini-3.1-flash-lite'])
-            .first,
-        'gemini-3.1-flash-lite',
+        GeminiModels.rank(['gemini-3.1-flash-001', 'gemini-3.1-flash']).first,
+        'gemini-3.1-flash',
       );
     });
 
@@ -497,7 +528,7 @@ void main() {
       final result =
           await _extractor(server, model: 'gemini-2.0-flash').extract(_url);
 
-      expect(result.destination, 'Kyoto, Japan');
+      expect(result.city, 'Kyoto');
       expect(server.generateCalls.first.url.path, contains('gemini-2.0-flash'));
       expect(server.generateCalls.last.url.path,
           contains('gemini-2.5-flash-lite'));
@@ -514,7 +545,7 @@ void main() {
 
       final result = await _extractor(server).extract(_url);
 
-      expect(result.destination, 'Kyoto, Japan');
+      expect(result.city, 'Kyoto');
       expect(
         server.generateCalls.single.url.path,
         contains(GeminiModels.fallback.first),
@@ -545,7 +576,7 @@ void main() {
       final result = await _extractor(server).extract(_url);
 
       expect(result.thumbnailUrl,
-          'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+          'https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg');
     });
 
     test('coordinates outside the real ranges are dropped, not stored',
@@ -615,7 +646,7 @@ void main() {
       await extractor.extract(_url);
       await extractor.extract('https://www.youtube.com/watch?v=abcdefghijk');
 
-      final lists = server.requests
+      final lists = server.geminiCalls
           .where((r) => r.url.path.endsWith('/models'))
           .toList();
       expect(lists, hasLength(1));
@@ -625,7 +656,10 @@ void main() {
   group('it never hangs', () {
     test('a server that never answers ends in an error, not a spinner',
         () async {
-      final client = MockClient((_) async {
+      final client = MockClient((request) async {
+        if (!request.url.host.contains('generativelanguage')) {
+          return http.Response('not found', 404);
+        }
         await Future<void>.delayed(const Duration(seconds: 30));
         return http.Response('{}', 200);
       });
@@ -682,7 +716,7 @@ void main() {
 
       await _extractor(server).extract(_url, onStage: stages.add);
 
-      expect(stages.first, 'Reading the link');
+      expect(stages.first, 'Reading the post');
       expect(stages.any((s) => s.contains('busy')), isTrue);
       expect(stages.any((s) => s.contains('attempt 2 of 4')), isTrue);
       expect(stages.last, 'Reading the reply');

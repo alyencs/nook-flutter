@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../ai/platform_from_url.dart';
+import '../ai/source_metadata.dart';
 import '../ai/thumbnail_from_url.dart';
 import 'database.dart';
 
@@ -62,7 +63,15 @@ Future<void> seedDatabase(NookDatabase db) async {
             originalUrl: Value(url),
             importMethod: 'link',
             aiDestination: Value(destination),
+            aiCity: Value(
+              destination.contains(',') ? destination.split(',').first.trim() : null,
+            ),
             aiCountry: Value(country),
+            creatorHandle: Value(creator.startsWith('@') ? creator : null),
+            sourceId: Value(SourceIds.of(url, NookPlatform.fromUrl(url))),
+            mediaType: Value(
+              SourceIds.mediaTypeFrom(url, NookPlatform.fromUrl(url)).name,
+            ),
             aiCategory: Value(category),
             aiSummary: Value(summary),
             aiBestTime: Value(bestTime),

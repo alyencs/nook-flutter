@@ -57,7 +57,7 @@ void main() {
       ]) {
         expect(
           PostThumbnails.fromUrl(url),
-          'https://img.youtube.com/vi/$id/hqdefault.jpg',
+          'https://img.youtube.com/vi/$id/mqdefault.jpg',
           reason: url,
         );
       }

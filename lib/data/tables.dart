@@ -44,6 +44,23 @@ class SavedPosts extends Table {
   TextColumn get importMethod => text()();
   TextColumn get thumbnailUrl => text().nullable()();
 
+  /// The post's own words — a YouTube description, a TikTok or Instagram
+  /// caption. Separate from [title], because a title is a line and a caption is
+  /// a paragraph, and search should match either.
+  TextColumn get caption => text().nullable()();
+
+  /// The @handle, where the platform has one. [creator] is the display name.
+  TextColumn get creatorHandle => text().nullable()();
+
+  /// The platform's own id: a YouTube video id, an Instagram shortcode. Held so
+  /// that it is available as metadata and never needed as a title — showing
+  /// `Sf9ihvL0Usk` where a title belongs is what this column exists to prevent.
+  TextColumn get sourceId => text().nullable()();
+
+  /// video | image | carousel | unknown. Not assumed: a photo post is not a
+  /// video, and the badge over its thumbnail should not say so.
+  TextColumn get mediaType => text().nullable()();
+
   // --- Extraction results. Every one may be null: the proposal's second risk
   // is that a destination comes back vague or absent, so every screen renders
   // an em dash rather than assuming a value.
@@ -56,6 +73,15 @@ class SavedPosts extends Table {
   TextColumn get aiCountry => text().nullable()();
   TextColumn get aiBestTime => text().nullable()();
   TextColumn get aiBudgetNote => text().nullable()();
+
+  // The location, from most specific to least. [aiDestination] stays as the
+  // one-line display string composed from these; these are what make it
+  // possible to store "a cafe in Nakazakicho, Osaka" rather than "Japan".
+  TextColumn get aiPlaceName => text().nullable()();
+  TextColumn get aiAddress => text().nullable()();
+  TextColumn get aiNeighbourhood => text().nullable()();
+  TextColumn get aiCity => text().nullable()();
+  TextColumn get aiRegion => text().nullable()();
 
   /// Where the destination is, so it can be pinned on a map. Null whenever the
   /// destination is null or too vague to place — "Southeast Asia" has no single

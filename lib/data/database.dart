@@ -13,14 +13,16 @@ class NookDatabase extends _$NookDatabase {
   /// For tests: an in-memory database with no seed data.
   NookDatabase.forTesting(super.executor);
 
-  /// Bumped to 2 when `app_settings` and the coordinate columns were added.
+  /// 2 added `app_settings` and the coordinate columns; 3 added the columns
+  /// that keep a full extraction — caption, creator handle, source id, media
+  /// type and the specific location parts.
   ///
   /// They were added at version 1 without bumping this, which is the bug behind
   /// "no such table: app_settings": drift creates the whole schema only for a
   /// database it creates itself, so every database that already existed stayed
   /// on the old shape and no migration ever ran.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -30,6 +32,7 @@ class NookDatabase extends _$NookDatabase {
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) await _upgradeToV2(m);
+          if (from < 3) await _upgradeToV3(m);
         },
         beforeOpen: (details) async {
           // SQLite does not enforce foreign keys unless asked to. Without
@@ -56,6 +59,31 @@ class NookDatabase extends _$NookDatabase {
     }
     if (!await _hasColumn('saved_posts', 'ai_longitude')) {
       await m.addColumn(savedPosts, savedPosts.aiLongitude);
+    }
+  }
+
+  /// Version 3: the columns that let a full extraction survive being saved.
+  ///
+  /// Before this, everything the model found beyond a destination, a country
+  /// and a category was thrown away at the point of writing the row. Existing
+  /// posts keep their values and gain nulls in the new columns, which every
+  /// screen already renders as an em dash.
+  Future<void> _upgradeToV3(Migrator m) async {
+    final columns = <String, GeneratedColumn<String>>{
+      'caption': savedPosts.caption,
+      'creator_handle': savedPosts.creatorHandle,
+      'source_id': savedPosts.sourceId,
+      'media_type': savedPosts.mediaType,
+      'ai_place_name': savedPosts.aiPlaceName,
+      'ai_address': savedPosts.aiAddress,
+      'ai_neighbourhood': savedPosts.aiNeighbourhood,
+      'ai_city': savedPosts.aiCity,
+      'ai_region': savedPosts.aiRegion,
+    };
+    for (final entry in columns.entries) {
+      if (!await _hasColumn('saved_posts', entry.key)) {
+        await m.addColumn(savedPosts, entry.value);
+      }
     }
   }
 

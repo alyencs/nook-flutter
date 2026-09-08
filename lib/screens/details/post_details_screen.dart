@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../ai/source_metadata.dart';
 import '../../app_scope.dart';
 import '../../data/database.dart';
 import '../../theme/nook_colors.dart';
@@ -87,16 +88,18 @@ class PostDetailsScreen extends StatelessWidget {
                 children: [
                   PostThumbnail(
                     url: post.thumbnailUrl,
-                    aspectRatio: 1.7,
+                    // 16:9, the shape the thumbnails themselves are, so the
+                    // image fills the box instead of being letterboxed into it.
+                    aspectRatio: 16 / 9,
                     showGlyph: false,
                     radius: NookRadius.md,
                   ),
                   Positioned(
                     top: NookSpacing.tight,
                     left: NookSpacing.tight,
-                    child: MetadataChip(
-                      post.importMethod == 'note' ? 'Note' : 'Video Thumbnail',
-                    ),
+                    // What this actually is, not what every post was assumed to
+                    // be. A photo post is not a video.
+                    child: MetadataChip(_mediaLabel(post)),
                   ),
                 ],
               ),
@@ -116,9 +119,26 @@ class PostDetailsScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: NookSpacing.tight),
-                    Text(
-                      post.creator!,
-                      style: NookType.body,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            post.creator!,
+                            style: NookType.body,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (post.creatorHandle != null)
+                            Text(
+                              post.creatorHandle!,
+                              style: NookType.caption
+                                  .copyWith(color: NookColors.textMuted),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -138,6 +158,12 @@ class PostDetailsScreen extends StatelessWidget {
                     MetadataChip(post.aiCategory!, icon: Icons.sell_outlined),
                 ],
               ),
+              if (post.caption != null) ...[
+                const SizedBox(height: NookSpacing.block),
+                const OverlineLabel('Caption'),
+                const SizedBox(height: NookSpacing.tight),
+                Text(post.caption!, style: NookType.body),
+              ],
               if (post.aiSummary != null) ...[
                 const SizedBox(height: NookSpacing.block),
                 const OverlineLabel('AI summary'),
@@ -191,6 +217,16 @@ class PostDetailsScreen extends StatelessWidget {
       },
     );
   }
+}
+
+/// What the badge over the preview says.
+///
+/// Read from the stored media type rather than assumed. Posts saved before
+/// that column existed have no value, so they fall back to the neutral
+/// "Preview" instead of claiming to be a video.
+String _mediaLabel(SavedPost post) {
+  if (post.importMethod == 'note') return 'Note';
+  return PostMediaType.parse(post.mediaType).label;
 }
 
 class _TripTile extends StatelessWidget {

@@ -338,10 +338,10 @@ abstract final class GeminiModels {
   /// release is the safer guess than one that can be retired out from under the
   /// app — which is precisely how `gemini-2.0-flash` broke it.
   static const fallback = <String>[
-    'gemini-flash-lite-latest',
     'gemini-flash-latest',
-    'gemini-2.5-flash-lite',
+    'gemini-flash-lite-latest',
     'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
   ];
 
   /// Model families that cannot do this job, or would do it badly.
@@ -357,11 +357,18 @@ abstract final class GeminiModels {
 
   /// The candidates from [available], best first.
   ///
-  /// This is a short structured-extraction call — a URL in, a small JSON object
-  /// out — so the cheapest, fastest tier that can follow a response schema is
-  /// the right one: flash-lite ahead of flash, and pro only as a last resort.
+  /// Flash ahead of flash-lite, and pro only as a last resort.
+  ///
+  /// This used to prefer flash-lite, on the reasoning that the call was tiny —
+  /// a URL in, a small JSON object out. It is not tiny any more: the model now
+  /// receives the post's real title and description and has to read them,
+  /// recognise that "Nakazakicho" is a district of Osaka, and decide what the
+  /// source does *not* support. That is comprehension, and it is the job flash
+  /// is for. Flash-lite stays next in line, so a key that cannot reach flash
+  /// still works.
+  ///
   /// Within a family the newest version wins, and a plain id beats a suffixed
-  /// one (`gemini-3.1-flash-lite` over `gemini-3.1-flash-lite-001`).
+  /// one (`gemini-3.1-flash` over `gemini-3.1-flash-001`).
   static List<String> rank(Iterable<String> available) {
     final candidates = available
         .map((id) => id.toLowerCase())
@@ -371,8 +378,8 @@ abstract final class GeminiModels {
         .toList();
 
     int family(String id) {
-      if (id.contains('flash-lite')) return 3;
-      if (id.contains('flash')) return 2;
+      if (id.contains('flash-lite')) return 2;
+      if (id.contains('flash')) return 3;
       if (id.contains('pro')) return 1;
       return 0;
     }
