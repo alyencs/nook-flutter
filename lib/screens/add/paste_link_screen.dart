@@ -51,6 +51,12 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   /// "Paste detection" in Settings: if the clipboard already holds a link,
   /// put it in the field so the screen is one tap from analysing.
   Future<void> _prefillFromClipboard() async {
+    // This runs a frame after initState, so the screen can already be gone —
+    // pushed past, or popped straight back out of. Reading an inherited widget
+    // through a context whose element has been deactivated is the mistake that
+    // leaves a dependency behind, so the guard comes before the lookup, not
+    // after it.
+    if (!mounted) return;
     final settings = AppScope.of(context).settings;
     if (!await settings.isEnabled(NookSettings.pasteDetection)) return;
 
@@ -426,20 +432,13 @@ class _ExtractionError extends StatelessWidget {
             ],
           ),
           const SizedBox(height: NookSpacing.section),
-          Row(
-            children: [
-              Expanded(
-                child: NookSecondaryButton(label: 'Retry', onPressed: onRetry),
-              ),
-              const SizedBox(width: NookSpacing.tight),
-              Expanded(
-                child: NookSecondaryButton(
-                  label: 'Enter manually',
-                  onPressed: onManual,
-                ),
-              ),
-            ],
-          ),
+          // Stacked, not side by side. Half of a 390pt screen, minus the screen
+          // edge and the card padding, leaves about 135pt per button, and
+          // "Enter manually" needs 202pt — as a Row this overflowed by 54px.
+          // The Personal Note screen already stacks its two actions this way.
+          NookSecondaryButton(label: 'Retry', onPressed: onRetry),
+          const SizedBox(height: NookSpacing.tight),
+          NookSecondaryButton(label: 'Enter manually', onPressed: onManual),
         ],
       ),
     );

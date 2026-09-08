@@ -977,3 +977,158 @@ exercised; running it against Google needs `GEMINI_API_KEY` in a local `.env`.
 ### Tests
 
 108 passing: 71 from the fourth pass, plus 37 for the Gemini transport.
+
+## 19. Sixth pass — `_dependents.isEmpty`, and the blind spot that hid it
+
+A debug run crashed to the red error screen during paste → analyze → save:
+
+```
+Assertion failed: framework.dart:6268:12
+_dependents.isEmpty is not true
+```
+
+### What that assertion is
+
+`InheritedElement.debugDeactivated()`:
+
+```dart
+class InheritedElement extends ProxyElement {
+  final Map<Element, Object?> _dependents = HashMap<Element, Object?>();
+
+  @override
+  void debugDeactivated() {
+    assert(_dependents.isEmpty);
+    super.debugDeactivated();
+  }
+```
+
+An `InheritedWidget`'s element is being deactivated while some element still
+lists it as a dependency. A dependent registers itself in `_dependents` when it
+calls `X.of(context)`, and removes itself in its own `deactivate()`. So the
+invariant breaks when a dependent is *not* deactivated along with the inherited
+element it depends on — which needs either a `.of(context)` reaching a
+deactivated element, or a subtree that moved instead of being torn down.
+
+It is a `debug`-only assertion. That matters below.
+
+### The blind spot
+
+Every browser check in passes 1-5 ran a **release** build, where this assertion
+does not exist. Every widget test hosted screens under a bare `MaterialApp`,
+but `main()` wraps the app in `DevicePreview`. So the two things that could
+have caught this were both looking somewhere else.
+
+Worse: adding `DevicePreview` to a test is not enough. Its store loads from
+`shared_preferences`, which has no binding under `flutter test`, so it stays on
+its uninitialised branch and renders the app bare — `DeviceFrame` never appears
+in the tree. `DevicePreviewStorage.none()` is what makes a test exercise the
+real thing.
+
+### The Flutter version — checked, and ruled out
+
+The report's line number is 6268. This project builds on 3.47.2, where the same
+assertion is at 6281, so the two are not the same Flutter:
+
+| Version | `assert(_dependents.isEmpty)` |
+| --- | --- |
+| 3.44.9, 3.45.0-pre | 6268 |
+| 3.46.0-pre | 6279 |
+| 3.47.0 – 3.47.2 | 6281 |
+| 3.48.0-pre | 6285 |
+
+So the crash came from Flutter 3.44.x. That is not the cause, and upgrading is
+not the fix: between 3.44.9 and 3.47.2 `framework.dart` has exactly two commits,
+both documentation (`#187294` on a `setState` error message, `#186216` on
+`dependOnInheritedWidgetOfExactType` docs). The deactivation machinery is
+behaviourally identical. `pubspec.yaml` asks only for `sdk: ^3.8.0` and CI
+tracks `stable`; no version is pinned and none needs to be.
+
+### GlobalKeys — none in Nook, one very large one in `device_preview`
+
+`grep` finds no `GlobalKey`, `GlobalObjectKey` or `LabeledGlobalKey` anywhere in
+`lib/`. `device_preview` 1.3.1 has five, and one of them matters:
+
+```dart
+final GlobalKey _appKey = GlobalKey();
+```
+
+It is attached at four different points in `DevicePreview.build`
+(`device_preview.dart` lines 466, 489, 511 and 619) — the disabled branch, the
+store-not-yet-loaded branch, the preview-off branch, and the full preview, where
+the app sits under `Container > FittedBox > RepaintBoundary > DeviceFrame >
+VirtualKeyboard > Theme > MediaQuery`. Whenever the build switches branches, the
+**whole application subtree is reparented through that one GlobalKey**.
+
+`main()` used to build `AppScope` — the single `InheritedWidget` every screen in
+Nook depends on — *inside* `DevicePreview.builder`, which put it in that
+subtree.
+
+### What was actually wrong, and is now fixed
+
+**1. `AppScope` was rebuilt on every preview change.** `DevicePreview` calls its
+builder again on every preview rebuild, and the builder ran
+`NookAi.createExtractor()`. With a key present that returns a new
+`GeminiExtractor` each time. `test/scope_identity_test.dart` measures it: four
+builder calls before the first frame settles, four distinct extractors. Each one
+discarded the in-flight request map that stops duplicate Gemini calls and the
+resolved-model cache from §18.
+
+It also made `AppScope.updateShouldNotify` return true every time, because it
+compares `extractor` — so every dependent in the app was marked dirty on every
+preview rebuild, including during a GlobalKey reactivation pass. A mass rebuild
+of every dependent, driven from inside a tree restructure, is the most plausible
+route to this assertion that this codebase contains.
+
+`AppScope` now sits **above** `DevicePreview`, and the extractor is created once
+in `main()`. The scope is one instance, one element, never rebuilt by the
+preview and never inside the subtree it reparents.
+
+**2. The extraction-error card overflowed by 54 pixels.** Found by
+`test/save_flow_race_test.dart`, not by inspection. `Retry` and `Enter manually`
+sat side by side in a `Row`; half of a 390pt screen minus the screen edge and
+the card padding leaves about 135pt per button, and `Enter manually` measures
+201.6pt. The root cause was in the buttons themselves — both `NookPrimaryButton`
+and `NookSecondaryButton` put an unconstrained `Text` inside a fixed-width `Row`,
+so *any* label too long for *any* button overflowed rather than shrinking. Both
+now wrap the label in `Flexible` with `maxLines: 1` and ellipsis, and the error
+card stacks its two actions the way Personal Note already stacked Skip and
+Continue.
+
+This is the screen a 503 lands on, so it is the screen this flow had been
+showing most often.
+
+**3. `_prefillFromClipboard` read `AppScope.of(context)` with no `mounted`
+guard.** It runs from a post-frame callback, by which time the screen can
+already have been popped. Reading an inherited widget through a deactivated
+element is precisely the mistake this assertion exists to catch, so the guard
+now comes before the lookup.
+
+### Tests
+
+`test/save_flow_race_test.dart` covers the interleavings a person can cause:
+the happy path, leaving Paste Link mid-analysis, backing out to the shell and
+switching tabs mid-analysis, cancelling and re-analysing, failing and retrying,
+Analyze twice, Save Post twice (one row, not two), walking back out of every
+step, and tearing the whole tree down with an extraction still open. It uses an
+extractor whose futures the test completes by hand; `SampleExtractor` resolves
+immediately and can express none of this.
+
+`test/save_flow_test.dart` runs the flow in the tree `main()` actually builds,
+with `DevicePreview` and `DevicePreviewStorage.none()`.
+
+`test/layout_test.dart` gained the two states that had no coverage — Paste Link
+while analysing, and Paste Link with the longest error the retry loop can
+produce. A screen's states are separate surfaces; drawing only the state a
+screen opens in is what let a 54px overflow live in the error path.
+
+### What is not proven
+
+The assertion itself was not reproduced here. The full flow was driven through a
+**debug** web build (`flutter run -d web-server`, assertions live) with Gemini
+scripted at the network boundary — three 503s then a result, and 503 forever —
+plus the nine race scenarios above, and none of it asserted on 3.47.2.
+
+The three faults above are real, are in this flow, and two of them are measured
+rather than argued. Whether they were *the* trigger on 3.44.x is not something
+this container can settle. The full stack trace from the browser console under
+the red screen would settle it.

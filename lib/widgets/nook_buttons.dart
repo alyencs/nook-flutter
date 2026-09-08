@@ -74,12 +74,18 @@ class NookPrimaryButton extends StatelessWidget {
                             Icon(icon, size: 18, color: Colors.white),
                             const SizedBox(width: NookSpacing.tight),
                           ],
-                          Text(
-                            label,
-                            style: NookType.button.copyWith(
-                              color: enabled
-                                  ? Colors.white
-                                  : NookColors.textMuted,
+                          // Flexible, because a button is a fixed-width box and
+                          // its label is not.
+                          Flexible(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: NookType.button.copyWith(
+                                color: enabled
+                                    ? Colors.white
+                                    : NookColors.textMuted,
+                              ),
                             ),
                           ),
                         ],
@@ -139,7 +145,17 @@ class NookSecondaryButton extends StatelessWidget {
                   Icon(icon, size: 18, color: colour),
                   const SizedBox(width: NookSpacing.tight),
                 ],
-                Text(label, style: NookType.button.copyWith(color: colour)),
+                // Flexible, because a button is a fixed-width box and its
+                // label is not: "Enter manually" in a half-width slot used to
+                // overflow the row by 54px rather than shrink.
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NookType.button.copyWith(color: colour),
+                  ),
+                ),
               ],
             ),
           ),

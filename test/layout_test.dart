@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,6 +79,39 @@ Future<void> unmount(WidgetTester tester) async {
   await settle(tester);
 }
 
+/// Never returns, so the analysing state stays on screen long enough to be
+/// measured. `SampleExtractor` resolves in the same frame.
+class _HangingExtractor implements AiExtractor {
+  const _HangingExtractor();
+
+  @override
+  bool get isLive => true;
+
+  @override
+  Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) {
+    onStage?.call('Asking gemini-3.1-flash-lite');
+    return Completer<ExtractionResult>().future;
+  }
+}
+
+/// Fails with the longest message the retry loop can produce, so the error card
+/// is measured at its widest.
+class _FailingExtractor implements AiExtractor {
+  const _FailingExtractor();
+
+  @override
+  bool get isLive => true;
+
+  @override
+  Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) async {
+    throw const ExtractionException(
+      'Gemini is overloaded (HTTP 503). Nook retried this a few times with a '
+      'growing wait and it stayed unavailable. This is on their side and '
+      'usually clears in a few minutes — retry, or enter the details yourself.',
+    );
+  }
+}
+
 /// The longest strings the sample library can produce, so that a screen is
 /// measured at its widest rather than at its most convenient.
 PostDraft longestDraft() => PostDraft.fromLink(
@@ -143,6 +177,75 @@ void main() {
       await pumpPhone(tester, db, build());
       await unmount(tester);
     });
+  });
+
+  // Screens in a state other than the one they open in.
+  //
+  // The list above draws each screen as it first appears. That is not where the
+  // overflows are: the extraction-error card overflowed by 54px for months
+  // because no test ever put Paste Link into its failed state. A screen's
+  // states are separate surfaces and are measured separately.
+  testWidgets('Paste Link lays out while analysing', (tester) async {
+    tester.view.physicalSize = phone * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      AppScope(
+        db: db,
+        tab: ValueNotifier(0),
+        extractor: const _HangingExtractor(),
+        child: MaterialApp(
+          theme: NookTheme.theme,
+          home: const PasteLinkScreen(),
+        ),
+      ),
+    );
+    await settle(tester);
+    await tester.enterText(find.byType(TextField).first, 'https://x.com/a/b');
+    await settle(tester);
+    await tester.tap(find.text('Analyze'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+
+    // The progress card: stage, elapsed seconds, and a way out.
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.textContaining('gemini'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    // Leave while it is still running; the abandoned call must not assert.
+    await unmount(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Paste Link lays out with a long extraction error',
+      (tester) async {
+    // The real screen in its real failed state, with the longest message the
+    // retry loop can produce.
+    tester.view.physicalSize = phone * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      AppScope(
+        db: db,
+        tab: ValueNotifier(0),
+        extractor: const _FailingExtractor(),
+        child: MaterialApp(
+          theme: NookTheme.theme,
+          home: const PasteLinkScreen(),
+        ),
+      ),
+    );
+    await settle(tester);
+    await tester.enterText(find.byType(TextField).first, 'https://x.com/a/b');
+    await settle(tester);
+    await tester.tap(find.text('Analyze'));
+    await settle(tester);
+
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Enter manually'), findsOneWidget);
+    expect(tester.takeException(), isNull,
+        reason: 'this card overflowed by 54px before the buttons were stacked');
+    await unmount(tester);
   });
 
   // The four tabs live inside the shell, which owns the bottom bar, so they
