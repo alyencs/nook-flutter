@@ -84,20 +84,26 @@ jobs:
         run: flutter test
         continue-on-error: true
 
+      # pubspec.yaml lists .env as an asset (that is how flutter_dotenv reads
+      # it), but .env is git-ignored, so the runner has none. This creates one
+      # from .env.example, which carries no key: the deployed build therefore
+      # runs Nook's sample extractor rather than Gemini. The Gemini key is
+      # deliberately NOT a repository secret — see docs/06-security-and-privacy.md.
+      - name: Provide a keyless .env for the build
+        if: steps.check.outputs.ready == 'true'
+        run: cp .env.example .env
+
       - name: Build web
         if: steps.check.outputs.ready == 'true'
-        env:
-          # Uncomment to match the repository secrets you actually created.
-          # SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          # SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          DUMMY: unused
+        # No repository secrets, on purpose. Nook stores everything on the
+        # device, so there is no backend URL or publishable key to pass in, and
+        # the Gemini key is billable and stays local.
         # --base-href matters: on a project page the site lives at
         # username.github.io/<repo>/, and without it every asset 404s and you get
         # a white screen.
         run: |
           flutter build web --release \
             --base-href "/${{ github.event.repository.name }}/"
-          # add one --dart-define=NAME=$NAME line per secret you uncommented above
 
       - if: steps.check.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v5
