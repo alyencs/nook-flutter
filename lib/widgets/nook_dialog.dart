@@ -93,11 +93,14 @@ Future<String?> showCreateTripDialog(BuildContext context) async {
                 style: NookType.body,
                 cursorColor: NookColors.primary,
                 textCapitalization: TextCapitalization.words,
-                onSubmitted: (value) =>
-                    Navigator.of(context).pop(value.trim().isEmpty ? null : value.trim()),
+                onSubmitted: (value) => Navigator.of(
+                  context,
+                ).pop(value.trim().isEmpty ? null : value.trim()),
                 decoration: InputDecoration(
                   hintText: 'e.g. Japan 2027',
-                  hintStyle: NookType.body.copyWith(color: NookColors.textMuted),
+                  hintStyle: NookType.body.copyWith(
+                    color: NookColors.textMuted,
+                  ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: NookSpacing.section,

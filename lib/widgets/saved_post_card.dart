@@ -133,9 +133,7 @@ class SavedPostRowCard extends StatelessWidget {
                         ),
                         child: Text(
                           '•',
-                          style: TextStyle(
-                            color: NookColors.textMuted,
-                            ),
+                          style: TextStyle(color: NookColors.textMuted),
                         ),
                       ),
                     ],

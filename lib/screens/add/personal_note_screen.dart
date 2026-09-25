@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/nook_spacing.dart';
-import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/screen_title.dart';
 import '../../widgets/nook_text_field.dart';
 import 'post_draft.dart';
 import 'review_save_screen.dart';
@@ -60,7 +60,7 @@ class _PersonalNoteScreenState extends State<PersonalNoteScreen> {
           children: [
             const NookAppBar(title: 'Personal Note'),
             const SizedBox(height: NookSpacing.section),
-            Text('Add a Note (Optional)', style: NookType.display),
+            const ScreenTitle('Add a note'),
             const SizedBox(height: NookSpacing.block),
             NookNoteField(
               controller: _note,

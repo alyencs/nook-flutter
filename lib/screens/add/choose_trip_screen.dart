@@ -147,10 +147,7 @@ class _TripRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      summary.trip.name,
-                      style: NookType.bodyStrong,
-                    ),
+                    Text(summary.trip.name, style: NookType.bodyStrong),
                     const SizedBox(height: 2),
                     Text(
                       '${summary.itemCount} '

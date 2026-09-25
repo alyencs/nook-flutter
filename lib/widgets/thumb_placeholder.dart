@@ -35,7 +35,10 @@ class ThumbPlaceholder extends StatelessWidget {
         color: NookColors.placeholder,
         borderRadius: BorderRadius.circular(radius),
       ),
-      child: CustomPaint(painter: _CrossPainter(), child: const SizedBox.expand()),
+      child: CustomPaint(
+        painter: _CrossPainter(),
+        child: const SizedBox.expand(),
+      ),
     );
 
     if (aspectRatio != null) {

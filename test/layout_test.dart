@@ -44,7 +44,11 @@ import 'package:nook/theme/nook_theme.dart';
 /// fails on it.
 const phone = Size(390, 844);
 
-Future<void> pumpPhone(WidgetTester tester, NookDatabase db, Widget child) async {
+Future<void> pumpPhone(
+  WidgetTester tester,
+  NookDatabase db,
+  Widget child,
+) async {
   tester.view.physicalSize = phone * 3;
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -89,7 +93,7 @@ class _HangingExtractor implements AiExtractor {
 
   @override
   Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) {
-    onStage?.call('Asking gemini-3.1-flash-lite');
+    onStage?.call(ExtractionPhase.analysing);
     return Completer<ExtractionResult>().future;
   }
 }
@@ -103,7 +107,10 @@ class _FailingExtractor implements AiExtractor {
   bool get isLive => true;
 
   @override
-  Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) async {
+  Future<ExtractionResult> extract(
+    String url, {
+    ExtractionStage? onStage,
+  }) async {
     throw const ExtractionException(
       'Gemini is overloaded (HTTP 503). Nook retried this a few times with a '
       'growing wait and it stayed unavailable. This is on their side and '
@@ -115,22 +122,23 @@ class _FailingExtractor implements AiExtractor {
 /// The longest strings the sample library can produce, so that a screen is
 /// measured at its widest rather than at its most convenient.
 PostDraft longestDraft() => PostDraft.fromLink(
-      url: 'https://www.tiktok.com/@wanderwithmia/video/7300000000000000000',
-      result: const ExtractionResult(
-        title: '3-Day Lisbon Itinerary on a Budget, Miradouros Included',
-        creator: '@backpackbetter',
-        destination: 'Lisbon, Portugal',
-        country: 'Portugal',
-        category: 'Itinerary',
-        summary: 'Three days of viewpoints, pastel de nata and tram 28, with '
-            'every stop reachable on foot or by metro.',
-        bestTime: 'March to May',
-        budgetNote: 'About PHP 4,500 a day including a hostel bed',
-        latitude: 38.7223,
-        longitude: -9.1393,
-        isSample: true,
-      ),
-    );
+  url: 'https://www.tiktok.com/@wanderwithmia/video/7300000000000000000',
+  result: const ExtractionResult(
+    title: '3-Day Lisbon Itinerary on a Budget, Miradouros Included',
+    creator: '@backpackbetter',
+    destination: 'Lisbon, Portugal',
+    country: 'Portugal',
+    category: 'Itinerary',
+    summary:
+        'Three days of viewpoints, pastel de nata and tram 28, with '
+        'every stop reachable on foot or by metro.',
+    bestTime: 'March to May',
+    budgetNote: 'About PHP 4,500 a day including a hostel bed',
+    latitude: 38.7223,
+    longitude: -9.1393,
+    isSample: true,
+  ),
+);
 
 void main() {
   late NookDatabase db;
@@ -207,9 +215,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 2));
 
-    // The progress card: stage, elapsed seconds, and a way out.
+    // The progress card: a sentence in the user's terms, elapsed seconds, and
+    // a way out. It used to read "Asking gemini-3.1-flash-lite", which put a
+    // model id in front of someone who had pasted a link.
     expect(find.text('Cancel'), findsOneWidget);
-    expect(find.textContaining('gemini'), findsOneWidget);
+    expect(find.textContaining('Analysing your post'), findsOneWidget);
+    expect(find.textContaining('emini'), findsNothing);
+    expect(find.textContaining('odel'), findsNothing);
     expect(tester.takeException(), isNull);
 
     // Leave while it is still running; the abandoned call must not assert.
@@ -217,8 +229,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Paste Link lays out with a long extraction error',
-      (tester) async {
+  testWidgets('Paste Link lays out with a long extraction error', (
+    tester,
+  ) async {
     // The real screen in its real failed state, with the longest message the
     // retry loop can produce.
     tester.view.physicalSize = phone * 3;
@@ -243,8 +256,11 @@ void main() {
 
     expect(find.text('Retry'), findsOneWidget);
     expect(find.text('Enter manually'), findsOneWidget);
-    expect(tester.takeException(), isNull,
-        reason: 'this card overflowed by 54px before the buttons were stacked');
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'this card overflowed by 54px before the buttons were stacked',
+    );
     await unmount(tester);
   });
 

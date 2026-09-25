@@ -30,7 +30,7 @@ class _HeldExtractor implements AiExtractor {
   @override
   Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) {
     calls++;
-    onStage?.call('Reading the link');
+    onStage?.call(ExtractionPhase.readingPost);
     stages.add('start:$url');
     final completer = Completer<ExtractionResult>();
     _completers.add(completer);
@@ -41,16 +41,18 @@ class _HeldExtractor implements AiExtractor {
   void complete({String title = 'Ramen Bars in Osaka'}) {
     final completer = _completers.removeAt(0);
     if (!completer.isCompleted) {
-      completer.complete(ExtractionResult(
-        title: title,
-        creator: '@wanderwithmia',
-        destination: 'Osaka, Japan',
-        country: 'Japan',
-        category: 'Food',
-        summary: 'Counters open past midnight.',
-        latitude: 34.6937,
-        longitude: 135.5023,
-      ));
+      completer.complete(
+        ExtractionResult(
+          title: title,
+          creator: '@wanderwithmia',
+          destination: 'Osaka, Japan',
+          country: 'Japan',
+          category: 'Food',
+          summary: 'Counters open past midnight.',
+          latitude: 34.6937,
+          longitude: 135.5023,
+        ),
+      );
     }
   }
 
@@ -143,8 +145,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('leaving Paste Link mid-analysis, then the result arriving',
-      (tester) async {
+  testWidgets('leaving Paste Link mid-analysis, then the result arriving', (
+    tester,
+  ) async {
     await pump(tester);
     await startAnalysing(tester);
 
@@ -161,27 +164,29 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('backing out to the shell mid-analysis, then the result arriving',
-      (tester) async {
-    await pump(tester);
-    await startAnalysing(tester);
+  testWidgets(
+    'backing out to the shell mid-analysis, then the result arriving',
+    (tester) async {
+      await pump(tester);
+      await startAnalysing(tester);
 
-    // Paste Link is a pushed route, so the tab bar is not on screen: getting
-    // back to the shell means popping, twice.
-    await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
-    await tester.pumpAndSettle();
-    expect(find.text('Trips'), findsWidgets, reason: 'back on the shell');
+      // Paste Link is a pushed route, so the tab bar is not on screen: getting
+      // back to the shell means popping, twice.
+      await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Trips'), findsWidgets, reason: 'back on the shell');
 
-    await tester.tap(find.text('Trips'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Trips'));
+      await tester.pumpAndSettle();
 
-    extractor.complete();
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    await unmount(tester);
-  });
+      extractor.complete();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await unmount(tester);
+    },
+  );
 
   testWidgets('cancelling mid-analysis, then analysing again', (tester) async {
     await pump(tester);
@@ -224,8 +229,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('tapping Analyze twice runs one extraction, not two',
-      (tester) async {
+  testWidgets('tapping Analyze twice runs one extraction, not two', (
+    tester,
+  ) async {
     await pump(tester);
     await startAnalysing(tester);
 
@@ -301,8 +307,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('the tree is torn down while an extraction is still open',
-      (tester) async {
+  testWidgets('the tree is torn down while an extraction is still open', (
+    tester,
+  ) async {
     await pump(tester);
     await startAnalysing(tester);
     expect(extractor.isBusy, isTrue);

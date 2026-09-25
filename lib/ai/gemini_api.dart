@@ -59,6 +59,18 @@ class GeminiApiException implements Exception {
     return const {408, 425, 429, 500, 502, 503, 504}.contains(status);
   }
 
+  /// Whether *this model* is busy, as opposed to something wrong with the
+  /// request, the key or the network.
+  ///
+  /// The distinction decides whether trying a different model is worth
+  /// anything. A 503 means this model's serving capacity right now, and
+  /// another model is a different pool — so it usually answers at once. A 429
+  /// is the key's quota and applies to every model equally; a failure with no
+  /// status at all never reached a server, so there is nothing to route
+  /// around. Falling back in those two cases just multiplies one failure by
+  /// the length of the candidate list.
+  bool get isModelOverloaded => const {500, 502, 503, 504}.contains(status);
+
   /// Whether this particular model is gone, so the next candidate should be
   /// tried instead of retrying this one.
   ///
@@ -74,7 +86,9 @@ class GeminiApiException implements Exception {
   /// Whether the key itself is the problem, which no amount of retrying fixes.
   bool get isAuthFailure {
     if (status == 401 || status == 403) return true;
-    if (reason == 'API_KEY_INVALID' || reason == 'SERVICE_DISABLED') return true;
+    if (reason == 'API_KEY_INVALID' || reason == 'SERVICE_DISABLED') {
+      return true;
+    }
     return status == 400 && message.toLowerCase().contains('api key');
   }
 
@@ -114,13 +128,15 @@ class RetryPolicy {
     final exponential = baseDelay * pow(2, attempt - 2).toDouble();
     final capped = exponential > maxDelay ? maxDelay : exponential;
     final half = capped ~/ 2;
-    return half + Duration(microseconds: random.nextInt(half.inMicroseconds + 1));
+    return half +
+        Duration(microseconds: random.nextInt(half.inMicroseconds + 1));
   }
 }
 
 /// Reports a retry so the screen can say what is happening rather than showing
 /// the same spinner for twenty seconds.
-typedef RetryNotice = void Function(int attempt, int maxAttempts, Duration wait);
+typedef RetryNotice =
+    void Function(int attempt, int maxAttempts, Duration wait);
 
 /// A thin client over `generativelanguage.googleapis.com`.
 class GeminiClient {
@@ -129,9 +145,9 @@ class GeminiClient {
     http.Client? httpClient,
     this.retry = const RetryPolicy(),
     Random? random,
-  })  : _apiKey = apiKey,
-        _http = httpClient ?? http.Client(),
-        _random = random ?? Random();
+  }) : _apiKey = apiKey,
+       _http = httpClient ?? http.Client(),
+       _random = random ?? Random();
 
   static const _base = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -247,11 +263,13 @@ class GeminiClient {
       final request = http.Request(method, uri)..headers.addAll(headers);
       if (body != null) request.body = jsonEncode(body);
       final streamed = await _http.send(request).timeout(retry.attemptTimeout);
-      response = await http.Response.fromStream(streamed)
-          .timeout(retry.attemptTimeout);
+      response = await http.Response.fromStream(
+        streamed,
+      ).timeout(retry.attemptTimeout);
     } on TimeoutException {
       throw GeminiApiException(
-        message: 'Gemini did not answer within '
+        message:
+            'Gemini did not answer within '
             '${retry.attemptTimeout.inSeconds} seconds.',
       );
     } catch (e) {
@@ -350,9 +368,23 @@ abstract final class GeminiModels {
   /// model spends seconds reasoning before it answers — which is what made an
   /// extraction take tens of seconds when this app was on `gemini-2.5-flash`.
   static const _excluded = [
-    'embedding', 'aqa', 'imagen', 'image', 'tts', 'audio', 'live', 'vision',
-    'learnlm', 'gemma', 'veo', 'robotics', 'computer-use', 'preview',
-    'experimental', 'thinking', '-exp',
+    'embedding',
+    'aqa',
+    'imagen',
+    'image',
+    'tts',
+    'audio',
+    'live',
+    'vision',
+    'learnlm',
+    'gemma',
+    'veo',
+    'robotics',
+    'computer-use',
+    'preview',
+    'experimental',
+    'thinking',
+    '-exp',
   ];
 
   /// The candidates from [available], best first.

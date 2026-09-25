@@ -20,9 +20,9 @@ class SubScreenNav extends StatelessWidget {
       currentIndex: currentIndex,
       onSelect: (index) {
         if (index == NookTabs.add) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AddMethodScreen()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AddMethodScreen()));
           return;
         }
         AppScope.of(context).tab.value = index;

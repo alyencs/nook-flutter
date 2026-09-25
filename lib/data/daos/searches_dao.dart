@@ -23,10 +23,12 @@ class SearchesDao {
   Future<void> record(String query) async {
     final term = query.trim();
     if (term.isEmpty) return;
-    await (_db.delete(_db.recentSearches)
-          ..where((s) => s.query.lower().equals(term.toLowerCase())))
-        .go();
-    await _db.into(_db.recentSearches).insert(
+    await (_db.delete(
+      _db.recentSearches,
+    )..where((s) => s.query.lower().equals(term.toLowerCase()))).go();
+    await _db
+        .into(_db.recentSearches)
+        .insert(
           RecentSearchesCompanion.insert(
             query: term,
             searchedAt: DateTime.now(),

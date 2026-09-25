@@ -6,6 +6,8 @@ import 'package:nook/widgets/entrance.dart';
 import 'package:nook/widgets/post_map.dart';
 import 'package:nook/widgets/post_thumbnail.dart';
 import 'package:nook/widgets/press_effect.dart';
+import 'package:nook/widgets/delete_flight.dart';
+import 'package:nook/widgets/flight.dart';
 import 'package:nook/widgets/save_flight.dart';
 
 /// The animations, tested for the things that break them in practice: a
@@ -497,6 +499,103 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.byIcon(Icons.location_on), findsNothing);
       tester.takeException();
+    });
+  });
+
+  group('DeleteFlight', () {
+    Future<OverlayState> host(WidgetTester tester) async {
+      late OverlayState overlay;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              overlay = Overlay.of(context, rootOverlay: true);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      return overlay;
+    }
+
+    testWidgets('travels towards Profile, where Recently Deleted lives', (
+      tester,
+    ) async {
+      final overlay = await host(tester);
+
+      DeleteFlight.run(
+        overlay,
+        from: const Rect.fromLTWH(20, 300, 56, 56),
+        thumbnailUrl: null,
+      );
+      await tester.pump();
+      final start = tester.getRect(find.byType(PostThumbnail));
+
+      await tester.pump(NookMotion.slow ~/ 2);
+      final mid = tester.getRect(find.byType(PostThumbnail));
+
+      // Profile is tab 3 of 4, at 0.875 of the width — further right than the
+      // Trips tab a save flies to, which is the point: the two animations say
+      // different things.
+      expect(mid.center.dx, greaterThan(start.center.dx));
+      expect(mid.width, lessThan(start.width));
+
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('aims further right than a save does', (tester) async {
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+      final saveTarget = Flight.tabCentre(
+        screen,
+        EdgeInsets.zero,
+        SaveFlight.tab,
+      );
+      final deleteTarget = Flight.tabCentre(
+        screen,
+        EdgeInsets.zero,
+        DeleteFlight.tab,
+      );
+
+      expect(deleteTarget.dx, greaterThan(saveTarget.dx));
+      expect(saveTarget.dy, deleteTarget.dy, reason: 'both land on the bar');
+    });
+
+    testWidgets('completes its future so the caller can wait for it', (
+      tester,
+    ) async {
+      final overlay = await host(tester);
+      var landed = false;
+
+      DeleteFlight.run(
+        overlay,
+        from: const Rect.fromLTWH(20, 300, 56, 56),
+        thumbnailUrl: null,
+      ).then((_) => landed = true);
+
+      await tester.pump();
+      expect(landed, isFalse, reason: 'still in the air');
+
+      await tester.pump(NookMotion.slow);
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(landed, isTrue, reason: 'the delete waits on this');
+      expect(find.byType(PostThumbnail), findsNothing);
+    });
+
+    testWidgets('an overlay torn down mid-flight does not throw', (
+      tester,
+    ) async {
+      final overlay = await host(tester);
+
+      DeleteFlight.run(
+        overlay,
+        from: const Rect.fromLTWH(20, 300, 56, 56),
+        thumbnailUrl: null,
+      );
+      await tester.pump(NookMotion.slow ~/ 3);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.takeException(), isNull);
     });
   });
 }

@@ -25,9 +25,9 @@ class _RootShellState extends State<RootShell> {
 
   void _onSelect(int index) {
     if (index == NookTabs.add) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const AddMethodScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AddMethodScreen()));
       return;
     }
     setState(() {
@@ -45,7 +45,11 @@ class _RootShellState extends State<RootShell> {
     return ValueListenableBuilder<int>(
       valueListenable: _tabs,
       builder: (context, tab, _) => IndexedStack(
-        index: switch (tab) { NookTabs.home => 0, NookTabs.trips => 1, _ => 2 },
+        index: switch (tab) {
+          NookTabs.home => 0,
+          NookTabs.trips => 1,
+          _ => 2,
+        },
         children: [
           HomeScreen(
             nav: _nav,

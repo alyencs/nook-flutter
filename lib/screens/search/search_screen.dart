@@ -110,7 +110,8 @@ class _Browse extends StatelessWidget {
         StreamBuilder<Map<String, bool>>(
           stream: scope.settings.watchAll(),
           builder: (context, snapshot) {
-            final show = (snapshot.data ??
+            final show =
+                (snapshot.data ??
                 NookSettings.defaults)[NookSettings.categorySuggestions]!;
             if (!show) return const SizedBox.shrink();
 
@@ -151,7 +152,8 @@ class _Browse extends StatelessWidget {
                 child: NookEmptyState(
                   icon: Icons.search_rounded,
                   title: 'Nothing saved yet',
-                  message: 'Save your first find and it becomes searchable '
+                  message:
+                      'Save your first find and it becomes searchable '
                       'straight away.',
                   actionLabel: 'Save First Find',
                   onAction: () => Navigator.of(context).push(
@@ -205,7 +207,8 @@ class _Results extends StatelessWidget {
 
         return ListView.separated(
           itemCount: results.length + 1,
-          separatorBuilder: (_, _) => const SizedBox(height: NookSpacing.section),
+          separatorBuilder: (_, _) =>
+              const SizedBox(height: NookSpacing.section),
           itemBuilder: (context, index) {
             if (index == 0) {
               return Text(

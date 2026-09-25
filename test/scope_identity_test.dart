@@ -15,8 +15,9 @@ import 'package:nook/data/database.dart';
 /// and the resolved-model cache, and making `AppScope.updateShouldNotify`
 /// return true every time so that every dependent in the app rebuilt.
 void main() {
-  testWidgets('building the scope inside the builder churns the extractor',
-      (tester) async {
+  testWidgets('building the scope inside the builder churns the extractor', (
+    tester,
+  ) async {
     final db = NookDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
     final tab = ValueNotifier<int>(0);
@@ -24,25 +25,25 @@ void main() {
     var builderCalls = 0;
 
     Widget tree() => DevicePreview(
-          enabled: true,
-          storage: DevicePreviewStorage.none(),
-          builder: (context) {
-            builderCalls++;
-            // Exactly what main() does today.
-            final scope = AppScope(
-              db: db,
-              tab: tab,
-              // NookAi.createExtractor() with a key in .env returns a new
-              // GeminiExtractor every call; without one it returns a const
-              // SampleExtractor, which would hide the churn. The keyed path is
-              // the one the user runs.
-              extractor: GeminiExtractor(apiKey: 'k'),
-              child: const SizedBox.shrink(),
-            );
-            seen.add(scope.extractor);
-            return scope;
-          },
+      enabled: true,
+      storage: DevicePreviewStorage.none(),
+      builder: (context) {
+        builderCalls++;
+        // Exactly what main() does today.
+        final scope = AppScope(
+          db: db,
+          tab: tab,
+          // NookAi.createExtractor() with a key in .env returns a new
+          // GeminiExtractor every call; without one it returns a const
+          // SampleExtractor, which would hide the churn. The keyed path is
+          // the one the user runs.
+          extractor: GeminiExtractor(apiKey: 'k'),
+          child: const SizedBox.shrink(),
         );
+        seen.add(scope.extractor);
+        return scope;
+      },
+    );
 
     await tester.pumpWidget(tree());
     for (var i = 0; i < 5; i++) {
@@ -55,14 +56,21 @@ void main() {
     await tester.pump();
     addTearDown(tester.view.reset);
 
-    expect(builderCalls, greaterThan(1),
-        reason: 'DevicePreview reruns its builder; that is the premise');
-    expect(seen, hasLength(builderCalls),
-        reason: 'this is the bug: one extractor per rebuild');
+    expect(
+      builderCalls,
+      greaterThan(1),
+      reason: 'DevicePreview reruns its builder; that is the premise',
+    );
+    expect(
+      seen,
+      hasLength(builderCalls),
+      reason: 'this is the bug: one extractor per rebuild',
+    );
   });
 
-  testWidgets('hoisted above DevicePreview, the scope is built once',
-      (tester) async {
+  testWidgets('hoisted above DevicePreview, the scope is built once', (
+    tester,
+  ) async {
     final db = NookDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
     final tab = ValueNotifier<int>(0);
@@ -71,18 +79,18 @@ void main() {
 
     // The shape main() uses now.
     Widget tree() => AppScope(
-          db: db,
-          tab: tab,
-          extractor: extractor,
-          child: DevicePreview(
-            enabled: true,
-            storage: DevicePreviewStorage.none(),
-            builder: (context) {
-              builderCalls++;
-              return const SizedBox.shrink();
-            },
-          ),
-        );
+      db: db,
+      tab: tab,
+      extractor: extractor,
+      child: DevicePreview(
+        enabled: true,
+        storage: DevicePreviewStorage.none(),
+        builder: (context) {
+          builderCalls++;
+          return const SizedBox.shrink();
+        },
+      ),
+    );
 
     await tester.pumpWidget(tree());
     for (var i = 0; i < 5; i++) {
@@ -97,7 +105,10 @@ void main() {
     final scopes = tester.widgetList<AppScope>(find.byType(AppScope)).toList();
     expect(builderCalls, greaterThan(1), reason: 'same premise as above');
     expect(scopes, hasLength(1));
-    expect(scopes.single.extractor, same(extractor),
-        reason: 'the extractor survives every preview rebuild');
+    expect(
+      scopes.single.extractor,
+      same(extractor),
+      reason: 'the extractor survives every preview rebuild',
+    );
   });
 }

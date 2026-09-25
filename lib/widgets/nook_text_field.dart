@@ -35,9 +35,7 @@ class NookTextField extends StatelessWidget {
         if (label != null) ...[
           Text(
             label!,
-            style: NookType.caption.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
+            style: NookType.caption.copyWith(fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: NookSpacing.tight),
         ],
@@ -188,7 +186,11 @@ class NookSearchBar extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: NookSpacing.section),
-          const Icon(Icons.search_rounded, size: 24, color: NookColors.textPrimary),
+          const Icon(
+            Icons.search_rounded,
+            size: 24,
+            color: NookColors.textPrimary,
+          ),
           const SizedBox(width: NookSpacing.tight),
           Expanded(
             child: TextField(

@@ -65,16 +65,17 @@ class _AccountScreenState extends State<AccountScreen> {
     final bytes = await file.readAsBytes();
     if (!mounted) return;
     await AppScope.of(context).users.updateProfile(
-          id,
-          profilePicture: 'data:image/jpeg;base64,${base64Encode(bytes)}',
-        );
+      id,
+      profilePicture: 'data:image/jpeg;base64,${base64Encode(bytes)}',
+    );
   }
 
   Future<void> _deleteAccount() async {
     final confirmed = await showNookDialog(
       context,
       title: 'Delete your profile?',
-      message: 'This erases your profile, every saved post and every trip from '
+      message:
+          'This erases your profile, every saved post and every trip from '
           'this device. Nothing is stored anywhere else, so it cannot be '
           'recovered.',
       confirmLabel: 'Delete everything',
@@ -132,11 +133,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 onFocusChange: (hasFocus) {
                   if (!hasFocus) _saveField();
                 },
-                child: NookTextField(
-                  controller: _name,
-                  hint: 'Your name',
-
-                ),
+                child: NookTextField(controller: _name, hint: 'Your name'),
               ),
               const SizedBox(height: NookSpacing.tight),
               Text(

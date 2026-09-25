@@ -16,33 +16,36 @@ class NookDatabase extends _$NookDatabase {
   /// 2 added `app_settings` and the coordinate columns; 3 added the columns
   /// that keep a full extraction — caption, creator handle, source id, media
   /// type and the specific location parts; 4 added the places and highlights a
-  /// post mentions, and relaxed `users.email` now that nothing collects it.
+  /// post mentions, and relaxed `users.email` now that nothing collects it; 5
+  /// added `deleted_at` to posts and trips, which is what Recently Deleted is
+  /// built on.
   ///
   /// They were added at version 1 without bumping this, which is the bug behind
   /// "no such table: app_settings": drift creates the whole schema only for a
   /// database it creates itself, so every database that already existed stayed
   /// on the old shape and no migration ever ran.
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-          await seedDatabase(this);
-        },
-        onUpgrade: (m, from, to) async {
-          if (from < 2) await _upgradeToV2(m);
-          if (from < 3) await _upgradeToV3(m);
-          if (from < 4) await _upgradeToV4(m);
-        },
-        beforeOpen: (details) async {
-          // SQLite does not enforce foreign keys unless asked to. Without
-          // this, a post could keep pointing at a deleted trip, which is
-          // exactly the relationship the storage decision was made for.
-          await customStatement('PRAGMA foreign_keys = ON');
-        },
-      );
+    onCreate: (m) async {
+      await m.createAll();
+      await seedDatabase(this);
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) await _upgradeToV2(m);
+      if (from < 3) await _upgradeToV3(m);
+      if (from < 4) await _upgradeToV4(m);
+      if (from < 5) await _upgradeToV5(m);
+    },
+    beforeOpen: (details) async {
+      // SQLite does not enforce foreign keys unless asked to. Without
+      // this, a post could keep pointing at a deleted trip, which is
+      // exactly the relationship the storage decision was made for.
+      await customStatement('PRAGMA foreign_keys = ON');
+    },
+  );
 
   /// Adds what version 2 introduced, skipping anything already there.
   ///
@@ -110,6 +113,20 @@ class NookDatabase extends _$NookDatabase {
     // NULL constraint. It copies every existing row across.
     // ignore: experimental_member_use
     await m.alterTable(TableMigration(users));
+  }
+
+  /// Version 5: Recently Deleted.
+  ///
+  /// Two nullable timestamps, so every existing post and trip arrives with a
+  /// null — which is exactly what "not deleted" means — and nothing has to be
+  /// backfilled.
+  Future<void> _upgradeToV5(Migrator m) async {
+    if (!await _hasColumn('saved_posts', 'deleted_at')) {
+      await m.addColumn(savedPosts, savedPosts.deletedAt);
+    }
+    if (!await _hasColumn('trips', 'deleted_at')) {
+      await m.addColumn(trips, trips.deletedAt);
+    }
   }
 
   Future<bool> _hasTable(String name) async {

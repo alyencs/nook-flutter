@@ -29,7 +29,10 @@ class NookAppBar extends StatelessWidget {
           ),
           const SizedBox(width: NookSpacing.section),
           Expanded(child: Text(title, style: NookType.title)),
-          if (action != null) ...[const SizedBox(width: NookSpacing.tight), action!],
+          if (action != null) ...[
+            const SizedBox(width: NookSpacing.tight),
+            action!,
+          ],
         ],
       ),
     );

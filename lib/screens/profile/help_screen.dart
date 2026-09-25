@@ -39,10 +39,12 @@ class _HelpScreenState extends State<HelpScreen> {
     final topics = term.isEmpty
         ? _topics
         : _topics
-            .where((t) =>
-                t.title.toLowerCase().contains(term) ||
-                t.body.toLowerCase().contains(term))
-            .toList();
+              .where(
+                (t) =>
+                    t.title.toLowerCase().contains(term) ||
+                    t.body.toLowerCase().contains(term),
+              )
+              .toList();
 
     return NookScaffold(
       bottomNav: const SubScreenNav(),
@@ -59,7 +61,9 @@ class _HelpScreenState extends State<HelpScreen> {
           const SizedBox(height: NookSpacing.tight),
           if (topics.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: NookSpacing.section),
+              padding: const EdgeInsets.symmetric(
+                vertical: NookSpacing.section,
+              ),
               child: Text(
                 'No help articles match "$_term".',
                 style: NookType.body.copyWith(color: NookColors.textMuted),
@@ -140,8 +144,11 @@ class _HelpScreenState extends State<HelpScreen> {
                   );
                   if (!context.mounted) return;
                   Navigator.of(context).pop();
-                  NookToast.show(overlay, 'Link copied',
-                      icon: Icons.link_rounded);
+                  NookToast.show(
+                    overlay,
+                    'Link copied',
+                    icon: Icons.link_rounded,
+                  );
                 },
               ),
               const SizedBox(height: NookSpacing.tight),
@@ -224,7 +231,11 @@ class _HelpSearchField extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: NookSpacing.section),
-          const Icon(Icons.search_rounded, size: 20, color: NookColors.textMuted),
+          const Icon(
+            Icons.search_rounded,
+            size: 20,
+            color: NookColors.textMuted,
+          ),
           const SizedBox(width: NookSpacing.tight),
           Expanded(
             child: TextField(

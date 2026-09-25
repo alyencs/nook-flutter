@@ -75,8 +75,9 @@ void main() {
 
   tearDown(() => db.close());
 
-  testWidgets('Home shows the greeting, both sections and the tab bar',
-      (tester) async {
+  testWidgets('Home shows the greeting, both sections and the tab bar', (
+    tester,
+  ) async {
     // Home is only reached once a profile exists, so give it one.
     await UsersDao(db).saveProfile(name: 'Ali Sampang');
     await pumpApp(tester, db, const RootShell());
@@ -93,8 +94,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('tapping the search bar opens search inside the Home tab',
-      (tester) async {
+  testWidgets('tapping the search bar opens search inside the Home tab', (
+    tester,
+  ) async {
     await pumpApp(tester, db, const RootShell());
 
     await tester.tap(find.text('Search saved posts...'));
@@ -133,8 +135,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('opening a post shows its details and travel metadata',
-      (tester) async {
+  testWidgets('opening a post shows its details and travel metadata', (
+    tester,
+  ) async {
     await pumpApp(tester, db, const RootShell());
 
     await tester.tap(find.text('5 Hidden Cafes in Kyoto').first);
@@ -156,12 +159,11 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('an empty library shows the empty state, not a blank screen',
-      (tester) async {
+  testWidgets('an empty library shows the empty state, not a blank screen', (
+    tester,
+  ) async {
     await db.clearAll();
-    await db.into(db.users).insert(
-          UsersCompanion.insert(name: 'Ali Sampang'),
-        );
+    await db.into(db.users).insert(UsersCompanion.insert(name: 'Ali Sampang'));
 
     await pumpApp(tester, db, const RootShell());
 
@@ -184,29 +186,30 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('onboarding runs LA1-LA6 through to Set Up Profile',
-      (tester) async {
+  testWidgets('onboarding runs LA1-LA6 through to Set Up Profile', (
+    tester,
+  ) async {
     await pumpFullApp(tester, db);
 
-    await tester.tap(find.text('Continue'));         // LA1 splash
+    await tester.tap(find.text('Continue')); // LA1 splash
     await tester.pumpAndSettle();
-    expect(find.text('Save travel finds'), findsOneWidget);          // LA2
+    expect(find.text('Save travel finds'), findsOneWidget); // LA2
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
-    expect(find.text('AI organizes your trips'), findsOneWidget);    // LA3
+    expect(find.text('AI organizes your trips'), findsOneWidget); // LA3
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
-    expect(find.text('Organize by trip'), findsOneWidget);           // LA4
+    expect(find.text('Organize by trip'), findsOneWidget); // LA4
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
-    expect(find.text('Rediscover anything'), findsOneWidget);        // LA5
+    expect(find.text('Rediscover anything'), findsOneWidget); // LA5
 
     await tester.tap(find.text('Get Started'));
     await tester.pumpAndSettle();
-    expect(find.text('Welcome to Nook'), findsOneWidget);            // LA6
+    expect(find.text('Welcome to Nook'), findsOneWidget); // LA6
 
     await tester.tap(find.text('Get Started'));
     await tester.pumpAndSettle();
@@ -221,8 +224,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('finishing Set Up Profile opens Home with the seeded library',
-      (tester) async {
+  testWidgets('finishing Set Up Profile opens Home with the seeded library', (
+    tester,
+  ) async {
     await pumpFullApp(tester, db);
 
     await tester.tap(find.text('Continue'));
@@ -249,8 +253,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('Create Note has a note field, and the note is saved',
-      (tester) async {
+  testWidgets('Create Note has a note field, and the note is saved', (
+    tester,
+  ) async {
     // The note field used to collapse to nothing — an Expanded inside a Column
     // with unbounded height — so a note could not be typed at all.
     await pumpApp(tester, db, const CreateNoteScreen());
@@ -307,23 +312,26 @@ void main() {
   // of it is covered — coordinates in dao_test, the placeholder below — and the
   // rendered map is checked in the browser.
 
-  testWidgets('a post with no coordinates keeps the placeholder, and says why',
-      (tester) async {
-    // "Southeast Asia" is a region, not a point, so extraction returns no
-    // coordinates and the mockup's placeholder stands in.
-    final id = await postId(tester, 'Top 10 Hostels in Southeast Asia');
-    await pumpApp(tester, db, TravelDetailsScreen(postId: id));
-    await tester.pump(const Duration(milliseconds: 400));
+  testWidgets(
+    'a post with no coordinates keeps the placeholder, and says why',
+    (tester) async {
+      // "Southeast Asia" is a region, not a point, so extraction returns no
+      // coordinates and the mockup's placeholder stands in.
+      final id = await postId(tester, 'Top 10 Hostels in Southeast Asia');
+      await pumpApp(tester, db, TravelDetailsScreen(postId: id));
+      await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.byType(PostMapPlaceholder), findsOneWidget);
-    expect(find.byType(PostMap), findsNothing);
-    expect(find.textContaining('too broad to place'), findsOneWidget);
+      expect(find.byType(PostMapPlaceholder), findsOneWidget);
+      expect(find.byType(PostMap), findsNothing);
+      expect(find.textContaining('too broad to place'), findsOneWidget);
 
-    await unmount(tester);
-  });
+      await unmount(tester);
+    },
+  );
 
-  testWidgets('saving a pasted link completes without a framework assertion',
-      (tester) async {
+  testWidgets('saving a pasted link completes without a framework assertion', (
+    tester,
+  ) async {
     // Regression guard for "_dependents.isEmpty is not true": the save flow
     // used to read ScaffoldMessenger through a context whose element had just
     // been deactivated by popUntil, registering an inherited dependency that
@@ -354,7 +362,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));   // skip the note
+    await tester.tap(find.text('Continue')); // skip the note
     await tester.pumpAndSettle();
 
     expect(find.text('Review & Save'), findsOneWidget);
@@ -406,7 +414,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('no Material default colours leak into the theme', (tester) async {
+  testWidgets('no Material default colours leak into the theme', (
+    tester,
+  ) async {
     await pumpApp(tester, db, const RootShell());
 
     final theme = Theme.of(tester.element(find.byType(RootShell)));

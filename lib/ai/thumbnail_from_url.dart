@@ -51,8 +51,9 @@ abstract final class PostThumbnails {
   /// The sharper variant for a given thumbnail URL, or null if there is none.
   static String? sharperVariant(String? url) {
     if (url == null) return null;
-    final match = RegExp(r'img\.youtube\.com/vi/([^/]+)/mqdefault\.jpg')
-        .firstMatch(url);
+    final match = RegExp(
+      r'img\.youtube\.com/vi/([^/]+)/mqdefault\.jpg',
+    ).firstMatch(url);
     return match == null ? null : hd720(match.group(1)!);
   }
 
@@ -93,9 +94,10 @@ abstract final class PostThumbnails {
   /// Swaps YouTube's letterboxed 4:3 files for the 16:9 one.
   static String? _unletterboxed(String? url) {
     if (url == null || url.isEmpty) return null;
-    final match = RegExp(r'(img\.youtube\.com|i\.ytimg\.com)/vi/([^/]+)/'
-            r'(hqdefault|sddefault|default)\.jpg')
-        .firstMatch(url);
+    final match = RegExp(
+      r'(img\.youtube\.com|i\.ytimg\.com)/vi/([^/]+)/'
+      r'(hqdefault|sddefault|default)\.jpg',
+    ).firstMatch(url);
     return match == null ? url : mqDefault(match.group(2)!);
   }
 

@@ -24,50 +24,58 @@ abstract final class NookExport {
       'app': 'Nook',
       'format_version': 1,
       'profile': users
-          .map((u) => {
-                'name': u.name,
-                'email': u.email,
-                // The photo is a data URI and can be large; it is included so
-                // the export is genuinely everything, not almost everything.
-                'profile_picture': u.profilePicture,
-              })
+          .map(
+            (u) => {
+              'name': u.name,
+              'email': u.email,
+              // The photo is a data URI and can be large; it is included so
+              // the export is genuinely everything, not almost everything.
+              'profile_picture': u.profilePicture,
+            },
+          )
           .toList(),
       'trips': trips
-          .map((t) => {
-                'id': t.id,
-                'name': t.name,
-                'created_at': t.createdAt.toIso8601String(),
-              })
+          .map(
+            (t) => {
+              'id': t.id,
+              'name': t.name,
+              'created_at': t.createdAt.toIso8601String(),
+            },
+          )
           .toList(),
       'saved_posts': posts
-          .map((p) => {
-                'id': p.id,
-                'title': p.title,
-                'creator': p.creator,
-                'platform': p.platform,
-                'original_url': p.originalUrl,
-                'import_method': p.importMethod,
-                'thumbnail_url': p.thumbnailUrl,
-                'destination': p.aiDestination,
-                'country': p.aiCountry,
-                'category': p.aiCategory,
-                'summary': p.aiSummary,
-                'best_time': p.aiBestTime,
-                'budget_note': p.aiBudgetNote,
-                'latitude': p.aiLatitude,
-                'longitude': p.aiLongitude,
-                'trip_id': p.tripId,
-                'personal_note': p.personalNote,
-                'date_saved': p.dateSaved.toIso8601String(),
-                'last_viewed_at': p.lastViewedAt?.toIso8601String(),
-                'note_edited_at': p.noteEditedAt?.toIso8601String(),
-              })
+          .map(
+            (p) => {
+              'id': p.id,
+              'title': p.title,
+              'creator': p.creator,
+              'platform': p.platform,
+              'original_url': p.originalUrl,
+              'import_method': p.importMethod,
+              'thumbnail_url': p.thumbnailUrl,
+              'destination': p.aiDestination,
+              'country': p.aiCountry,
+              'category': p.aiCategory,
+              'summary': p.aiSummary,
+              'best_time': p.aiBestTime,
+              'budget_note': p.aiBudgetNote,
+              'latitude': p.aiLatitude,
+              'longitude': p.aiLongitude,
+              'trip_id': p.tripId,
+              'personal_note': p.personalNote,
+              'date_saved': p.dateSaved.toIso8601String(),
+              'last_viewed_at': p.lastViewedAt?.toIso8601String(),
+              'note_edited_at': p.noteEditedAt?.toIso8601String(),
+            },
+          )
           .toList(),
       'recent_searches': searches
-          .map((s) => {
-                'query': s.query,
-                'searched_at': s.searchedAt.toIso8601String(),
-              })
+          .map(
+            (s) => {
+              'query': s.query,
+              'searched_at': s.searchedAt.toIso8601String(),
+            },
+          )
           .toList(),
       'settings': settings,
     };

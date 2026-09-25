@@ -66,10 +66,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   Future<void> _continue() async {
     setState(() => _saving = true);
 
-    await AppScope.of(context).users.saveProfile(
-          name: _name.text.trim(),
-          profilePicture: _picture,
-        );
+    await AppScope.of(
+      context,
+    ).users.saveProfile(name: _name.text.trim(), profilePicture: _picture);
 
     if (!mounted) return;
     setState(() => _saving = false);
@@ -202,11 +201,8 @@ class ProfileAvatar extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
-        errorBuilder: (context, _, _) => Container(
-          width: size,
-          height: size,
-          color: NookColors.placeholder,
-        ),
+        errorBuilder: (context, _, _) =>
+            Container(width: size, height: size, color: NookColors.placeholder),
       ),
     );
   }

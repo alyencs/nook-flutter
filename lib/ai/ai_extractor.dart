@@ -93,7 +93,9 @@ class ExtractionResult {
   /// A country name is a true answer but not a place: dropping a marker on the
   /// middle of Japan claims a precision the source never had.
   bool get hasPreciseLocation =>
-      placeName != null || address != null || neighbourhood != null ||
+      placeName != null ||
+      address != null ||
+      neighbourhood != null ||
       city != null;
 
   /// True when this came from [SampleExtractor], so the UI can say so out loud
@@ -101,9 +103,33 @@ class ExtractionResult {
   final bool isSample;
 }
 
-/// Called as extraction moves through its steps, so the screen can say what is
-/// happening instead of showing an unexplained spinner.
-typedef ExtractionStage = void Function(String message);
+/// Where extraction has got to.
+///
+/// A phase, not a sentence. The screen used to be handed whatever string the
+/// extractor felt like — "Asking gemini-flash-latest", "Gemini is busy —
+/// retrying in 4s" — which put the name of a vendor, a model id and an HTTP
+/// retry schedule in front of someone who pasted a link. None of that is the
+/// user's problem, and none of it helps them decide anything.
+///
+/// The extractor now reports which of three things is happening and the screen
+/// chooses the words, so backend vocabulary cannot reach the UI even by
+/// accident.
+enum ExtractionPhase {
+  /// Fetching the post itself from its platform.
+  readingPost,
+
+  /// The model call, including any retry or move to another model. From the
+  /// outside these are one wait, and describing them separately only exposes
+  /// machinery.
+  analysing,
+
+  /// Turning the reply into something Nook can save.
+  finishing,
+}
+
+/// Called as extraction moves through its steps, so the screen can show
+/// progress instead of an unexplained spinner.
+typedef ExtractionStage = void Function(ExtractionPhase phase);
 
 /// One interface, two implementations, chosen at startup by whether a Gemini
 /// key is present. This is the proposal's own "one interface, two

@@ -33,6 +33,15 @@ class Trips extends Table {
   IntColumn get userId =>
       integer().customConstraint('NOT NULL REFERENCES users(id)')();
   DateTimeColumn get createdAt => dateTime()();
+
+  /// When this trip was moved to Recently Deleted, or null while it is live.
+  ///
+  /// Deleting a trip does not touch the posts in it — that was always true, and
+  /// is what the confirmation now says out loud. What changed is that the trip
+  /// row itself survives too, with its posts' `trip_id` left exactly as it was,
+  /// so restoring puts the same posts back in the same trip. Nothing is copied,
+  /// so nothing can be duplicated.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 class SavedPosts extends Table {
@@ -107,9 +116,9 @@ class SavedPosts extends Table {
   RealColumn get aiLatitude => real().nullable()();
   RealColumn get aiLongitude => real().nullable()();
 
-  IntColumn get tripId => integer()
-      .nullable()
-      .customConstraint('NULL REFERENCES trips(id) ON DELETE SET NULL')();
+  IntColumn get tripId => integer().nullable().customConstraint(
+    'NULL REFERENCES trips(id) ON DELETE SET NULL',
+  )();
   TextColumn get personalNote => text().nullable()();
   DateTimeColumn get dateSaved => dateTime()();
 
@@ -118,6 +127,13 @@ class SavedPosts extends Table {
 
   /// Drawn as "Last edited …" on the Personal Notes screen. See decision 7.
   DateTimeColumn get noteEditedAt => dateTime().nullable()();
+
+  /// When this post was moved to Recently Deleted, or null while it is live.
+  ///
+  /// Every query that feeds a screen filters on this, so a deleted post leaves
+  /// Home, search, its trip and the counts at once while the row — and its
+  /// extraction, its note, its trip membership — stays intact for restoring.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 @DataClassName('RecentSearch')

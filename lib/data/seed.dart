@@ -19,11 +19,13 @@ Future<void> seedDatabase(NookDatabase db) async {
   // The row exists so trips have a user to belong to, but it carries no
   // profile: the launch gate treats a nameless row as "not set up yet" and
   // runs the onboarding screens. Set Up Profile fills this same row in.
-  final userId = await db.into(db.users).insert(
-        UsersCompanion.insert(name: ''),
-      );
+  final userId = await db
+      .into(db.users)
+      .insert(UsersCompanion.insert(name: ''));
 
-  Future<int> trip(String name, int createdDaysAgo) => db.into(db.trips).insert(
+  Future<int> trip(String name, int createdDaysAgo) => db
+      .into(db.trips)
+      .insert(
         TripsCompanion.insert(
           name: name,
           userId: userId,
@@ -55,7 +57,9 @@ Future<void> seedDatabase(NookDatabase db) async {
     int? viewedDaysAgo,
     int? noteEditedDaysAgo,
   }) async {
-    await db.into(db.savedPosts).insert(
+    await db
+        .into(db.savedPosts)
+        .insert(
           SavedPostsCompanion.insert(
             title: title,
             creator: Value(creator),
@@ -64,7 +68,9 @@ Future<void> seedDatabase(NookDatabase db) async {
             importMethod: 'link',
             aiDestination: Value(destination),
             aiCity: Value(
-              destination.contains(',') ? destination.split(',').first.trim() : null,
+              destination.contains(',')
+                  ? destination.split(',').first.trim()
+                  : null,
             ),
             aiCountry: Value(country),
             creatorHandle: Value(creator.startsWith('@') ? creator : null),
@@ -82,10 +88,12 @@ Future<void> seedDatabase(NookDatabase db) async {
             tripId: Value(tripId),
             personalNote: Value(note),
             dateSaved: daysAgo(savedDaysAgo),
-            lastViewedAt:
-                Value(viewedDaysAgo == null ? null : daysAgo(viewedDaysAgo)),
-            noteEditedAt:
-                Value(noteEditedDaysAgo == null ? null : daysAgo(noteEditedDaysAgo)),
+            lastViewedAt: Value(
+              viewedDaysAgo == null ? null : daysAgo(viewedDaysAgo),
+            ),
+            noteEditedAt: Value(
+              noteEditedDaysAgo == null ? null : daysAgo(noteEditedDaysAgo),
+            ),
           ),
         );
   }
@@ -155,7 +163,8 @@ Future<void> seedDatabase(NookDatabase db) async {
   await post(
     title: 'Best Street Food in Bangkok',
     creator: '@bitesbytara',
-    url: 'https://www.tiktok.com/@bitesbytara/video/best-street-food-in-bangkok',
+    url:
+        'https://www.tiktok.com/@bitesbytara/video/best-street-food-in-bangkok',
     tripId: someday,
     destination: 'Bangkok, Thailand',
     country: 'Thailand',
@@ -210,7 +219,8 @@ Future<void> seedDatabase(NookDatabase db) async {
   await post(
     title: 'Top 10 Hostels in Southeast Asia',
     creator: '@budgetroamer',
-    url: 'https://www.tiktok.com/@budgetroamer/video/top-10-hostels-southeast-asia',
+    url:
+        'https://www.tiktok.com/@budgetroamer/video/top-10-hostels-southeast-asia',
     tripId: someday,
     destination: 'Southeast Asia',
     country: 'Multiple',
@@ -227,7 +237,8 @@ Future<void> seedDatabase(NookDatabase db) async {
   await post(
     title: 'Kyoto Cafe Guide for First-Timers',
     creator: '@wanderwithmia',
-    url: 'https://www.tiktok.com/@wanderwithmia/video/kyoto-cafe-guide-first-timers',
+    url:
+        'https://www.tiktok.com/@wanderwithmia/video/kyoto-cafe-guide-first-timers',
     tripId: japan,
     destination: 'Kyoto, Japan',
     country: 'Japan',
@@ -322,7 +333,9 @@ Future<void> seedDatabase(NookDatabase db) async {
     'budget Lisbon itinerary',
     'cafes in Kyoto',
   ].indexed) {
-    await db.into(db.recentSearches).insert(
+    await db
+        .into(db.recentSearches)
+        .insert(
           RecentSearchesCompanion.insert(
             query: query,
             searchedAt: daysAgo(index + 1),

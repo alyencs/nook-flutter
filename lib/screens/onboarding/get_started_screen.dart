@@ -20,9 +20,9 @@ class GetStartedScreen extends StatelessWidget {
     return NookScaffold(
       bottomBar: NookPrimaryButton(
         label: 'Get Started',
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ProfileSetupScreen()),
-        ),
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ProfileSetupScreen())),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -36,9 +36,7 @@ class GetStartedScreen extends StatelessWidget {
           const SizedBox(height: NookSpacing.tight),
           Text(
             'Your travel content, saved in one place',
-            style: NookType.body.copyWith(
-              color: NookColors.textMuted,
-              ),
+            style: NookType.body.copyWith(color: NookColors.textMuted),
             textAlign: TextAlign.center,
           ),
         ],

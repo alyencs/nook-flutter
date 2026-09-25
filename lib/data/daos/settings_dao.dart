@@ -59,7 +59,9 @@ class SettingsDao {
   Future<bool> isEnabled(String name) async => (await current())[name] ?? false;
 
   Future<void> set(String name, bool enabled) {
-    return _db.into(_db.appSettings).insertOnConflictUpdate(
+    return _db
+        .into(_db.appSettings)
+        .insertOnConflictUpdate(
           AppSettingsCompanion.insert(name: name, enabled: enabled),
         );
   }

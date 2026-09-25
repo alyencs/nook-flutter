@@ -22,10 +22,10 @@ abstract final class NookPlatform {
   }
 
   static String label(String platform) => switch (platform) {
-        tiktok => 'TikTok',
-        instagram => 'Instagram',
-        facebook => 'Facebook',
-        youtube => 'YouTube',
-        _ => 'Link',
-      };
+    tiktok => 'TikTok',
+    instagram => 'Instagram',
+    facebook => 'Facebook',
+    youtube => 'YouTube',
+    _ => 'Link',
+  };
 }

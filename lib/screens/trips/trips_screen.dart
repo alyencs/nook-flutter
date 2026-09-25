@@ -9,6 +9,7 @@ import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_empty_state.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/screen_title.dart';
 import '../../widgets/trip_card.dart';
 import '../add/add_method_screen.dart';
 import 'trip_details_screen.dart';
@@ -33,7 +34,7 @@ class TripsScreen extends StatelessWidget {
           const SizedBox(height: NookSpacing.section),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: NookSpacing.tight),
-            child: Text('Your Trips', style: NookType.display),
+            child: const ScreenTitle('Your Trips'),
           ),
           const Expanded(child: TripsBody()),
         ],
@@ -79,12 +80,13 @@ class TripsBody extends StatelessWidget {
           return NookEmptyState(
             icon: Icons.folder_outlined,
             title: 'No trips yet — save your first find',
-            message: 'Trips are made when you save a post. Paste a link to '
+            message:
+                'Trips are made when you save a post. Paste a link to '
                 'start your first one.',
             actionLabel: 'Save First Find',
-            onAction: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AddMethodScreen()),
-            ),
+            onAction: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const AddMethodScreen())),
           );
         }
 

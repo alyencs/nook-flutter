@@ -6,8 +6,10 @@ import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/screen_title.dart';
 import '../onboarding/profile_setup_screen.dart';
 import 'about_screen.dart';
+import 'recently_deleted_screen.dart';
 import 'account_screen.dart';
 import 'connected_platforms_screen.dart';
 import 'help_screen.dart';
@@ -33,7 +35,7 @@ class ProfileScreen extends StatelessWidget {
           return ListView(
             children: [
               const SizedBox(height: NookSpacing.section),
-              Text('Profile', style: NookType.title),
+              const ScreenTitle('Profile'),
               const SizedBox(height: NookSpacing.block),
               Center(child: ProfileAvatar(picture: user?.profilePicture)),
               const SizedBox(height: NookSpacing.section),
@@ -87,6 +89,10 @@ class ProfileScreen extends StatelessWidget {
                 onTap: () => _open(context, const ConnectedPlatformsScreen()),
               ),
               _ProfileRow(
+                label: 'Recently Deleted',
+                onTap: () => _open(context, const RecentlyDeletedScreen()),
+              ),
+              _ProfileRow(
                 label: 'About Nook',
                 onTap: () => _open(context, const AboutScreen()),
               ),
@@ -127,13 +133,14 @@ class _StatTile extends StatelessWidget {
             stream: stream,
             // The count in the editorial face. A figure is the one place the
             // accent earns its keep without a sentence around it.
-            builder: (context, snapshot) => Text(
-              '${snapshot.data ?? 0}',
-              style: NookType.figure,
-            ),
+            builder: (context, snapshot) =>
+                Text('${snapshot.data ?? 0}', style: NookType.figure),
           ),
           const SizedBox(height: 4),
-          Text(label, style: NookType.body.copyWith(color: NookColors.textMuted)),
+          Text(
+            label,
+            style: NookType.body.copyWith(color: NookColors.textMuted),
+          ),
         ],
       ),
     );
@@ -156,9 +163,7 @@ class _ProfileRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: NookSpacing.row),
             child: Row(
               children: [
-                Expanded(
-                  child: Text(label, style: NookType.body),
-                ),
+                Expanded(child: Text(label, style: NookType.body)),
                 const Icon(
                   Icons.chevron_right_rounded,
                   color: NookColors.textMuted,

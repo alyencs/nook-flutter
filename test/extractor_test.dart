@@ -16,12 +16,21 @@ void main() {
         NookPlatform.fromUrl('https://www.instagram.com/reel/abc'),
         NookPlatform.instagram,
       );
-      expect(NookPlatform.fromUrl('https://fb.watch/xyz'), NookPlatform.facebook);
-      expect(NookPlatform.fromUrl('https://youtu.be/abc'), NookPlatform.youtube);
+      expect(
+        NookPlatform.fromUrl('https://fb.watch/xyz'),
+        NookPlatform.facebook,
+      );
+      expect(
+        NookPlatform.fromUrl('https://youtu.be/abc'),
+        NookPlatform.youtube,
+      );
     });
 
     test('anything else is still savable, just labelled a link', () {
-      expect(NookPlatform.fromUrl('https://example.com/post'), NookPlatform.other);
+      expect(
+        NookPlatform.fromUrl('https://example.com/post'),
+        NookPlatform.other,
+      );
       expect(NookPlatform.label(NookPlatform.other), 'Link');
       expect(NookPlatform.label(NookPlatform.tiktok), 'TikTok');
     });
@@ -30,7 +39,7 @@ void main() {
   group('categories', () {
     test('the vocabulary is the union of both mockup lists', () {
       expect(NookCategories.all, hasLength(8));
-      expect(NookCategories.all, contains('Travel'));   // Search chips
+      expect(NookCategories.all, contains('Travel')); // Search chips
       expect(NookCategories.all, contains('Nightlife')); // Add chips
     });
 
@@ -91,18 +100,24 @@ void main() {
 
     test('is not live, and says so on every result', () async {
       expect(extractor.isLive, isFalse);
-      final result = await extractor.extract('https://www.tiktok.com/@a/video/b-c');
+      final result = await extractor.extract(
+        'https://www.tiktok.com/@a/video/b-c',
+      );
       expect(result.isSample, isTrue);
     });
 
-    test('is deterministic: the same link always extracts the same way', () async {
-      const url = 'https://www.tiktok.com/@someone/video/a-quiet-week-in-hanoi';
-      final first = await extractor.extract(url);
-      final second = await extractor.extract(url);
-      expect(first.title, second.title);
-      expect(first.destination, second.destination);
-      expect(first.category, second.category);
-    });
+    test(
+      'is deterministic: the same link always extracts the same way',
+      () async {
+        const url =
+            'https://www.tiktok.com/@someone/video/a-quiet-week-in-hanoi';
+        final first = await extractor.extract(url);
+        final second = await extractor.extract(url);
+        expect(first.title, second.title);
+        expect(first.destination, second.destination);
+        expect(first.category, second.category);
+      },
+    );
 
     test('prefers a fixture the link actually mentions', () async {
       final result = await extractor.extract(
@@ -152,7 +167,10 @@ void main() {
         () => extractor.extract('not a url'),
         throwsA(isA<ExtractionException>()),
       );
-      expect(() => extractor.extract('   '), throwsA(isA<ExtractionException>()));
+      expect(
+        () => extractor.extract('   '),
+        throwsA(isA<ExtractionException>()),
+      );
     });
   });
 }

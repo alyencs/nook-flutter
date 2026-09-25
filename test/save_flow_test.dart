@@ -79,25 +79,25 @@ void main() {
   }
 
   for (final withPreview in [false, true]) {
-    testWidgets(
-      'paste to save raises no assertion '
-      '(DevicePreview ${withPreview ? 'on' : 'off'})',
-      (tester) async {
-        await UsersDao(db).saveProfile(name: 'Ali Sampang');
-        await pump(tester, devicePreview: withPreview);
-        await walkSaveFlow(tester);
+    testWidgets('paste to save raises no assertion '
+        '(DevicePreview ${withPreview ? 'on' : 'off'})', (tester) async {
+      await UsersDao(db).saveProfile(name: 'Ali Sampang');
+      await pump(tester, devicePreview: withPreview);
+      await walkSaveFlow(tester);
 
-        expect(tester.takeException(), isNull);
-        final saved = await tester.runAsync(
-          () => PostsDao(db).search('Ramen Bars in Osaka').first,
-        );
-        expect(saved, hasLength(1));
+      expect(tester.takeException(), isNull);
+      final saved = await tester.runAsync(
+        () => PostsDao(db).search('Ramen Bars in Osaka').first,
+      );
+      expect(saved, hasLength(1));
 
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull,
-            reason: 'tearing the tree down must not assert either');
-      },
-    );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'tearing the tree down must not assert either',
+      );
+    });
   }
 }

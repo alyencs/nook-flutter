@@ -62,7 +62,9 @@ class ConnectedPlatformsScreen extends StatelessWidget {
           ],
           const SizedBox(height: NookSpacing.section),
           Text(
-            'Connect platforms to enable automatic saving when you share links.',
+            'Connecting accounts would enable automatic saving. Pasting a '
+            'link already works for all four — what differs is how much of a '
+            'post each platform lets Nook read without an account.',
             style: NookType.body.copyWith(color: NookColors.textMuted),
           ),
         ],
@@ -70,6 +72,24 @@ class ConnectedPlatformsScreen extends StatelessWidget {
     );
   }
 }
+
+/// What Nook can actually read from a pasted link on this platform.
+///
+/// Stated per platform rather than left implied, because the four are genuinely
+/// not equivalent: two serve public oEmbed and two withdrew theirs in 2020.
+String _extractionNote(String platform) => switch (platform) {
+  NookPlatform.youtube =>
+    'Title, channel and cover read from the link. Add a YouTube API key for '
+        'the description too.',
+  NookPlatform.tiktok => 'Caption, author and cover read from the link.',
+  NookPlatform.instagram =>
+    'Caption and author need a Meta app token — public access ended in 2020. '
+        'Without one, the link alone.',
+  NookPlatform.facebook =>
+    'Post text and author need a Meta app token — public access ended in 2020. '
+        'Without one, the link alone.',
+  _ => 'Read from the link.',
+};
 
 class _PlatformRow extends StatelessWidget {
   const _PlatformRow({required this.platform});
@@ -90,10 +110,7 @@ class _PlatformRow extends StatelessWidget {
               children: [
                 Text(NookPlatform.label(platform), style: NookType.bodyStrong),
                 const SizedBox(height: 2),
-                Text(
-                  'Not connected',
-                  style: NookType.caption,
-                ),
+                Text(_extractionNote(platform), style: NookType.caption),
               ],
             ),
           ),

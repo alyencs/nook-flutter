@@ -62,9 +62,9 @@ class _LaunchGateState extends State<_LaunchGate> {
     final url = _shared;
     if (url == null) return;
     _shared = null;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => PasteLinkScreen(sharedUrl: url)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PasteLinkScreen(sharedUrl: url)));
   }
 
   @override
@@ -85,8 +85,9 @@ class _LaunchGateState extends State<_LaunchGate> {
         // first-ever launch waits behind onboarding rather than dropping the
         // person into a save flow before they have told Nook their name.
         if (_shared != null) {
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => mounted ? _openShared() : null);
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => mounted ? _openShared() : null,
+          );
         }
         return const RootShell();
       },

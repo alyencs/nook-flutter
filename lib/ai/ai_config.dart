@@ -30,6 +30,10 @@ abstract final class NookAi {
       // Optional. Without it a YouTube post reaches the model as a title; with
       // it, the description comes too, which is where the detail lives.
       youTubeApiKey: _env('YOUTUBE_API_KEY'),
+      // Optional, and the only way Instagram and Facebook post text can be
+      // read at all: their public oEmbed was withdrawn in 2020. Format is
+      // `APP_ID|CLIENT_TOKEN` from a Meta app with oEmbed Read.
+      facebookToken: _env('FACEBOOK_TOKEN'),
     );
   }
 

@@ -17,8 +17,11 @@ class SampleExtractor implements AiExtractor {
   bool get isLive => false;
 
   @override
-  Future<ExtractionResult> extract(String url, {ExtractionStage? onStage}) async {
-    onStage?.call('Reading the link');
+  Future<ExtractionResult> extract(
+    String url, {
+    ExtractionStage? onStage,
+  }) async {
+    onStage?.call(ExtractionPhase.readingPost);
 
     final trimmed = url.trim();
     if (trimmed.isEmpty || Uri.tryParse(trimmed)?.host.isEmpty != false) {
@@ -29,7 +32,7 @@ class SampleExtractor implements AiExtractor {
 
     // Prefer a fixture whose subject the link actually mentions, so pasting a
     // Kyoto link gets the Kyoto result rather than an arbitrary one.
-    onStage?.call('Preparing sample details');
+    onStage?.call(ExtractionPhase.finishing);
     final thumbnailUrl = await PostThumbnails.resolve(trimmed);
 
     final haystack = trimmed.toLowerCase();
@@ -75,9 +78,11 @@ class SampleExtractor implements AiExtractor {
       return words
           .asMap()
           .entries
-          .map((e) => e.key > 0 && small.contains(e.value.toLowerCase())
-              ? e.value.toLowerCase()
-              : e.value[0].toUpperCase() + e.value.substring(1))
+          .map(
+            (e) => e.key > 0 && small.contains(e.value.toLowerCase())
+                ? e.value.toLowerCase()
+                : e.value[0].toUpperCase() + e.value.substring(1),
+          )
           .join(' ');
     }
     return null;
@@ -128,22 +133,22 @@ class _Fixture {
   }
 
   ExtractionResult toResult({String? thumbnailUrl}) => ExtractionResult(
-        title: title,
-        creator: creator,
-        creatorHandle: creator.startsWith('@') ? creator : null,
-        destination: destination,
-        city: _city,
-        country: country,
-        category: NookCategories.normalise(category),
-        summary: summary,
-        bestTime: bestTime,
-        budgetNote: budgetNote,
-        latitude: latitude,
-        longitude: longitude,
-        thumbnailUrl: thumbnailUrl,
-        mediaType: PostMediaType.video,
-        isSample: true,
-      );
+    title: title,
+    creator: creator,
+    creatorHandle: creator.startsWith('@') ? creator : null,
+    destination: destination,
+    city: _city,
+    country: country,
+    category: NookCategories.normalise(category),
+    summary: summary,
+    bestTime: bestTime,
+    budgetNote: budgetNote,
+    latitude: latitude,
+    longitude: longitude,
+    thumbnailUrl: thumbnailUrl,
+    mediaType: PostMediaType.video,
+    isSample: true,
+  );
 }
 
 /// The same fictional library the app seeds itself with, so a link pasted on
