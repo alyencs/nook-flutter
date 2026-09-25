@@ -8,7 +8,10 @@ import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../widgets/delete_flight.dart';
 import '../../widgets/nook_dialog.dart';
+import '../../widgets/nook_toast.dart';
+import '../../widgets/post_thumbnail.dart';
 import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
@@ -28,6 +31,9 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
   int? _selected;
   bool _loaded = false;
 
+  /// The thumbnail in the header, so the delete flight knows where to start.
+  final _thumbKey = GlobalKey();
+
   Future<void> _save() async {
     final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
@@ -46,21 +52,48 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
     final confirmed = await showNookDialog(
       context,
       title: 'Delete this post?',
-      message: 'It will be removed from your library and from its trip. This '
-          'cannot be undone.',
+      message:
+          'It moves to Recently Deleted, where you can restore it — '
+          'including its note and its trip.',
       confirmLabel: 'Delete Post',
       destructive: true,
     );
     if (!confirmed || !mounted) return;
 
-    await posts.deletePost(widget.postId);
-    if (!mounted) return;
+    // Read while the card is still on screen, before anything pops.
+    final thumbnail = _thumbnailUrl;
+    final box = _thumbKey.currentContext?.findRenderObject() as RenderBox?;
+    final from = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+
     // Back past the detail screen too: the post it was showing is gone.
     navigator
       ..pop()
       ..pop();
-    showToastAfterPop(overlay, 'Post deleted');
+
+    // The card leaves for Profile — where Recently Deleted lives — and only
+    // then is the row marked, so the two read as cause and effect rather than
+    // the list twitching under a card that is still sitting there.
+    //
+    // Wrapped, because a delete that depends on an animation finishing is a
+    // delete that can be lost. If the flight throws, the write still happens.
+    if (from != null) {
+      try {
+        await DeleteFlight.run(overlay, from: from, thumbnailUrl: thumbnail);
+      } catch (_) {
+        // The post still has to go.
+      }
+    }
+
+    await posts.deletePost(widget.postId);
+    NookToast.show(
+      overlay,
+      'Moved to Recently Deleted',
+      icon: Icons.restore_from_trash_outlined,
+    );
   }
+
+  /// Captured on each build so `_delete` can read it after the route has gone.
+  String? _thumbnailUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -76,12 +109,15 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
           _selected = post.tripId;
           _loaded = true;
         }
+        _thumbnailUrl = post.thumbnailUrl;
 
         return StreamBuilder<List<TripSummary>>(
           stream: scope.trips.watchTripSummaries(),
           builder: (context, tripSnapshot) {
             final trips = tripSnapshot.data ?? const <TripSummary>[];
-            final current = trips.where((t) => t.trip.id == _selected).firstOrNull;
+            final current = trips
+                .where((t) => t.trip.id == _selected)
+                .firstOrNull;
             final others = trips.where((t) => t.trip.id != _selected);
 
             return NookScaffold(
@@ -108,6 +144,31 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                 children: [
                   const NookAppBar(title: 'Manage Post'),
                   const SizedBox(height: NookSpacing.section),
+                  // Which post this is about. The screen used to open straight
+                  // onto a trip picker with nothing naming the post being
+                  // moved — and it is also where the delete animation starts
+                  // from, so the card you are looking at is the one that flies.
+                  Row(
+                    children: [
+                      PostThumbnail(
+                        key: _thumbKey,
+                        url: post.thumbnailUrl,
+                        width: 56,
+                        height: 56,
+                        showGlyph: false,
+                      ),
+                      const SizedBox(width: NookSpacing.section),
+                      Expanded(
+                        child: Text(
+                          post.title,
+                          style: NookType.bodyStrong,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: NookSpacing.block),
                   // The label's own trailing slot, not a Row around it: a
                   // RuledLabel stretches its rule with an Expanded, which needs
                   // a bounded width, and a Row gives its children unbounded.

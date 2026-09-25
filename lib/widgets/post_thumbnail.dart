@@ -51,8 +51,9 @@ class PostThumbnail extends StatelessWidget {
       width: width,
       height: height,
       fit: BoxFit.cover,
-      webHtmlElementStrategy:
-          kIsWeb ? WebHtmlElementStrategy.prefer : WebHtmlElementStrategy.never,
+      webHtmlElementStrategy: kIsWeb
+          ? WebHtmlElementStrategy.prefer
+          : WebHtmlElementStrategy.never,
       errorBuilder: (context, _, _) => placeholder,
       // Fades from the placeholder to the image rather than snapping. A grid of
       // cards popping in one by one is the most visible jank on Home.
@@ -73,9 +74,6 @@ class PostThumbnail extends StatelessWidget {
       image = AspectRatio(aspectRatio: aspectRatio!, child: image);
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: image,
-    );
+    return ClipRRect(borderRadius: BorderRadius.circular(radius), child: image);
   }
 }

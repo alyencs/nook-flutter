@@ -30,8 +30,9 @@ class DetectedScreen extends StatefulWidget {
 }
 
 class _DetectedScreenState extends State<DetectedScreen> {
-  late final TextEditingController _destination =
-      TextEditingController(text: widget.draft.destination ?? '');
+  late final TextEditingController _destination = TextEditingController(
+    text: widget.draft.destination ?? '',
+  );
   late String _category = widget.draft.category ?? NookCategories.fallback;
 
   @override
@@ -53,8 +54,9 @@ class _DetectedScreenState extends State<DetectedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final others =
-        NookCategories.all.where((c) => c != _category).toList(growable: false);
+    final others = NookCategories.all
+        .where((c) => c != _category)
+        .toList(growable: false);
 
     return NookScaffold(
       bottomBar: NookPrimaryButton(label: 'Continue', onPressed: _continue),
@@ -79,7 +81,8 @@ class _DetectedScreenState extends State<DetectedScreen> {
             StreamBuilder<Map<String, bool>>(
               stream: AppScope.of(context).settings.watchAll(),
               builder: (context, snapshot) {
-                final show = (snapshot.data ??
+                final show =
+                    (snapshot.data ??
                     NookSettings.defaults)[NookSettings.categorySuggestions]!;
                 if (!show) return const SizedBox.shrink();
 
@@ -188,9 +191,7 @@ class _SampleNotice extends StatelessWidget {
               'Sample data — this build ships without an AI key, so the '
               'details above are illustrative. Running Nook locally with a '
               'Gemini key extracts them for real.',
-              style: NookType.caption.copyWith(
-                color: NookColors.textPrimary,
-              ),
+              style: NookType.caption.copyWith(color: NookColors.textPrimary),
             ),
           ),
         ],

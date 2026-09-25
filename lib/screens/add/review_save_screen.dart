@@ -14,6 +14,7 @@ import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/screen_title.dart';
 import '../../widgets/post_thumbnail.dart';
 import '../../widgets/save_flight.dart';
 import 'post_draft.dart';
@@ -132,7 +133,7 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
           children: [
             const NookAppBar(title: 'Review'),
             const SizedBox(height: NookSpacing.section),
-            Text('Review & Save', style: NookType.display),
+            const ScreenTitle('Review & Save'),
             const SizedBox(height: NookSpacing.block),
             Container(
               padding: const EdgeInsets.all(NookSpacing.section),

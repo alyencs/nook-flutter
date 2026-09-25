@@ -51,12 +51,7 @@ class NookRule extends StatelessWidget {
 /// as the start of a section rather than as a caption belonging to the thing
 /// above it.
 class RuledLabel extends StatelessWidget {
-  const RuledLabel(
-    this.label, {
-    super.key,
-    this.trailing,
-    this.color,
-  });
+  const RuledLabel(this.label, {super.key, this.trailing, this.color});
 
   final String label;
 

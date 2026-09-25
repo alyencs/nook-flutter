@@ -16,9 +16,9 @@ class SplashScreen extends StatelessWidget {
     return NookScaffold(
       bottomBar: NookPrimaryButton(
         label: 'Continue',
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-        ),
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const OnboardingScreen())),
       ),
       child: Center(
         child: Column(

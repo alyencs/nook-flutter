@@ -59,10 +59,17 @@ class NookToast {
   }
 
   /// Convenience for the common case, where the screen is still mounted.
-  static void of(BuildContext context, String message,
-          {IconData icon = Icons.check_rounded, bool isError = false}) =>
-      show(Overlay.of(context, rootOverlay: true), message,
-          icon: icon, isError: isError);
+  static void of(
+    BuildContext context,
+    String message, {
+    IconData icon = Icons.check_rounded,
+    bool isError = false,
+  }) => show(
+    Overlay.of(context, rootOverlay: true),
+    message,
+    icon: icon,
+    isError: isError,
+  );
 
   static void dismiss() {
     _entry?.remove();

@@ -365,8 +365,25 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, name, userId, createdAt];
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    userId,
+    createdAt,
+    deletedAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -406,6 +423,12 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -431,6 +454,10 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -445,11 +472,21 @@ class Trip extends DataClass implements Insertable<Trip> {
   final String name;
   final int userId;
   final DateTime createdAt;
+
+  /// When this trip was moved to Recently Deleted, or null while it is live.
+  ///
+  /// Deleting a trip does not touch the posts in it — that was always true, and
+  /// is what the confirmation now says out loud. What changed is that the trip
+  /// row itself survives too, with its posts' `trip_id` left exactly as it was,
+  /// so restoring puts the same posts back in the same trip. Nothing is copied,
+  /// so nothing can be duplicated.
+  final DateTime? deletedAt;
   const Trip({
     required this.id,
     required this.name,
     required this.userId,
     required this.createdAt,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -458,6 +495,9 @@ class Trip extends DataClass implements Insertable<Trip> {
     map['name'] = Variable<String>(name);
     map['user_id'] = Variable<int>(userId);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -467,6 +507,9 @@ class Trip extends DataClass implements Insertable<Trip> {
       name: Value(name),
       userId: Value(userId),
       createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -480,6 +523,7 @@ class Trip extends DataClass implements Insertable<Trip> {
       name: serializer.fromJson<String>(json['name']),
       userId: serializer.fromJson<int>(json['userId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -490,22 +534,30 @@ class Trip extends DataClass implements Insertable<Trip> {
       'name': serializer.toJson<String>(name),
       'userId': serializer.toJson<int>(userId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
-  Trip copyWith({int? id, String? name, int? userId, DateTime? createdAt}) =>
-      Trip(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        userId: userId ?? this.userId,
-        createdAt: createdAt ?? this.createdAt,
-      );
+  Trip copyWith({
+    int? id,
+    String? name,
+    int? userId,
+    DateTime? createdAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => Trip(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    userId: userId ?? this.userId,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
   Trip copyWithCompanion(TripsCompanion data) {
     return Trip(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       userId: data.userId.present ? data.userId.value : this.userId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -515,13 +567,14 @@ class Trip extends DataClass implements Insertable<Trip> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('userId: $userId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, userId, createdAt);
+  int get hashCode => Object.hash(id, name, userId, createdAt, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -529,7 +582,8 @@ class Trip extends DataClass implements Insertable<Trip> {
           other.id == this.id &&
           other.name == this.name &&
           other.userId == this.userId &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
 }
 
 class TripsCompanion extends UpdateCompanion<Trip> {
@@ -537,17 +591,20 @@ class TripsCompanion extends UpdateCompanion<Trip> {
   final Value<String> name;
   final Value<int> userId;
   final Value<DateTime> createdAt;
+  final Value<DateTime?> deletedAt;
   const TripsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.userId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   });
   TripsCompanion.insert({
     this.id = const Value.absent(),
     required String name,
     required int userId,
     required DateTime createdAt,
+    this.deletedAt = const Value.absent(),
   }) : name = Value(name),
        userId = Value(userId),
        createdAt = Value(createdAt);
@@ -556,12 +613,14 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     Expression<String>? name,
     Expression<int>? userId,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? deletedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (userId != null) 'user_id': userId,
       if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
     });
   }
 
@@ -570,12 +629,14 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     Value<String>? name,
     Value<int>? userId,
     Value<DateTime>? createdAt,
+    Value<DateTime?>? deletedAt,
   }) {
     return TripsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -594,6 +655,9 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     return map;
   }
 
@@ -603,7 +667,8 @@ class TripsCompanion extends UpdateCompanion<Trip> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('userId: $userId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -953,6 +1018,17 @@ class $SavedPostsTable extends SavedPosts
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -986,6 +1062,7 @@ class $SavedPostsTable extends SavedPosts
     dateSaved,
     lastViewedAt,
     noteEditedAt,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1232,6 +1309,12 @@ class $SavedPostsTable extends SavedPosts
         ),
       );
     }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -1365,6 +1448,10 @@ class $SavedPostsTable extends SavedPosts
         DriftSqlType.dateTime,
         data['${effectivePrefix}note_edited_at'],
       ),
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -1443,6 +1530,13 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
 
   /// Drawn as "Last edited …" on the Personal Notes screen. See decision 7.
   final DateTime? noteEditedAt;
+
+  /// When this post was moved to Recently Deleted, or null while it is live.
+  ///
+  /// Every query that feeds a screen filters on this, so a deleted post leaves
+  /// Home, search, its trip and the counts at once while the row — and its
+  /// extraction, its note, its trip membership — stays intact for restoring.
+  final DateTime? deletedAt;
   const SavedPost({
     required this.id,
     required this.title,
@@ -1475,6 +1569,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     required this.dateSaved,
     this.lastViewedAt,
     this.noteEditedAt,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1561,6 +1656,9 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     }
     if (!nullToAbsent || noteEditedAt != null) {
       map['note_edited_at'] = Variable<DateTime>(noteEditedAt);
+    }
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     return map;
   }
@@ -1650,6 +1748,9 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       noteEditedAt: noteEditedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(noteEditedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -1690,6 +1791,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       dateSaved: serializer.fromJson<DateTime>(json['dateSaved']),
       lastViewedAt: serializer.fromJson<DateTime?>(json['lastViewedAt']),
       noteEditedAt: serializer.fromJson<DateTime?>(json['noteEditedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -1727,6 +1829,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       'dateSaved': serializer.toJson<DateTime>(dateSaved),
       'lastViewedAt': serializer.toJson<DateTime?>(lastViewedAt),
       'noteEditedAt': serializer.toJson<DateTime?>(noteEditedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -1762,6 +1865,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     DateTime? dateSaved,
     Value<DateTime?> lastViewedAt = const Value.absent(),
     Value<DateTime?> noteEditedAt = const Value.absent(),
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => SavedPost(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -1800,6 +1904,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     dateSaved: dateSaved ?? this.dateSaved,
     lastViewedAt: lastViewedAt.present ? lastViewedAt.value : this.lastViewedAt,
     noteEditedAt: noteEditedAt.present ? noteEditedAt.value : this.noteEditedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   SavedPost copyWithCompanion(SavedPostsCompanion data) {
     return SavedPost(
@@ -1866,6 +1971,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       noteEditedAt: data.noteEditedAt.present
           ? data.noteEditedAt.value
           : this.noteEditedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -1902,7 +2008,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           ..write('personalNote: $personalNote, ')
           ..write('dateSaved: $dateSaved, ')
           ..write('lastViewedAt: $lastViewedAt, ')
-          ..write('noteEditedAt: $noteEditedAt')
+          ..write('noteEditedAt: $noteEditedAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -1940,6 +2047,7 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     dateSaved,
     lastViewedAt,
     noteEditedAt,
+    deletedAt,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -1975,7 +2083,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           other.personalNote == this.personalNote &&
           other.dateSaved == this.dateSaved &&
           other.lastViewedAt == this.lastViewedAt &&
-          other.noteEditedAt == this.noteEditedAt);
+          other.noteEditedAt == this.noteEditedAt &&
+          other.deletedAt == this.deletedAt);
 }
 
 class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
@@ -2010,6 +2119,7 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
   final Value<DateTime> dateSaved;
   final Value<DateTime?> lastViewedAt;
   final Value<DateTime?> noteEditedAt;
+  final Value<DateTime?> deletedAt;
   const SavedPostsCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -2042,6 +2152,7 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.dateSaved = const Value.absent(),
     this.lastViewedAt = const Value.absent(),
     this.noteEditedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   });
   SavedPostsCompanion.insert({
     this.id = const Value.absent(),
@@ -2075,6 +2186,7 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     required DateTime dateSaved,
     this.lastViewedAt = const Value.absent(),
     this.noteEditedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
   }) : title = Value(title),
        platform = Value(platform),
        importMethod = Value(importMethod),
@@ -2111,6 +2223,7 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Expression<DateTime>? dateSaved,
     Expression<DateTime>? lastViewedAt,
     Expression<DateTime>? noteEditedAt,
+    Expression<DateTime>? deletedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2144,6 +2257,7 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       if (dateSaved != null) 'date_saved': dateSaved,
       if (lastViewedAt != null) 'last_viewed_at': lastViewedAt,
       if (noteEditedAt != null) 'note_edited_at': noteEditedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
     });
   }
 
@@ -2179,6 +2293,7 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Value<DateTime>? dateSaved,
     Value<DateTime?>? lastViewedAt,
     Value<DateTime?>? noteEditedAt,
+    Value<DateTime?>? deletedAt,
   }) {
     return SavedPostsCompanion(
       id: id ?? this.id,
@@ -2212,6 +2327,7 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       dateSaved: dateSaved ?? this.dateSaved,
       lastViewedAt: lastViewedAt ?? this.lastViewedAt,
       noteEditedAt: noteEditedAt ?? this.noteEditedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 
@@ -2311,6 +2427,9 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     if (noteEditedAt.present) {
       map['note_edited_at'] = Variable<DateTime>(noteEditedAt.value);
     }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     return map;
   }
 
@@ -2347,7 +2466,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
           ..write('personalNote: $personalNote, ')
           ..write('dateSaved: $dateSaved, ')
           ..write('lastViewedAt: $lastViewedAt, ')
-          ..write('noteEditedAt: $noteEditedAt')
+          ..write('noteEditedAt: $noteEditedAt, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -3123,6 +3243,7 @@ typedef $$TripsTableCreateCompanionBuilder =
       required String name,
       required int userId,
       required DateTime createdAt,
+      Value<DateTime?> deletedAt,
     });
 typedef $$TripsTableUpdateCompanionBuilder =
     TripsCompanion Function({
@@ -3130,6 +3251,7 @@ typedef $$TripsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<int> userId,
       Value<DateTime> createdAt,
+      Value<DateTime?> deletedAt,
     });
 
 final class $$TripsTableReferences
@@ -3192,6 +3314,11 @@ class $$TripsTableFilterComposer extends Composer<_$NookDatabase, $TripsTable> {
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3268,6 +3395,11 @@ class $$TripsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$UsersTableOrderingComposer get userId {
     final $$UsersTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -3309,6 +3441,9 @@ class $$TripsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   $$UsersTableAnnotationComposer get userId {
     final $$UsersTableAnnotationComposer composer = $composerBuilder(
@@ -3391,11 +3526,13 @@ class $$TripsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<int> userId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => TripsCompanion(
                 id: id,
                 name: name,
                 userId: userId,
                 createdAt: createdAt,
+                deletedAt: deletedAt,
               ),
           createCompanionCallback:
               ({
@@ -3403,11 +3540,13 @@ class $$TripsTableTableManager
                 required String name,
                 required int userId,
                 required DateTime createdAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => TripsCompanion.insert(
                 id: id,
                 name: name,
                 userId: userId,
                 createdAt: createdAt,
+                deletedAt: deletedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -3519,6 +3658,7 @@ typedef $$SavedPostsTableCreateCompanionBuilder =
       required DateTime dateSaved,
       Value<DateTime?> lastViewedAt,
       Value<DateTime?> noteEditedAt,
+      Value<DateTime?> deletedAt,
     });
 typedef $$SavedPostsTableUpdateCompanionBuilder =
     SavedPostsCompanion Function({
@@ -3553,6 +3693,7 @@ typedef $$SavedPostsTableUpdateCompanionBuilder =
       Value<DateTime> dateSaved,
       Value<DateTime?> lastViewedAt,
       Value<DateTime?> noteEditedAt,
+      Value<DateTime?> deletedAt,
     });
 
 final class $$SavedPostsTableReferences
@@ -3734,6 +3875,11 @@ class $$SavedPostsTableFilterComposer
 
   ColumnFilters<DateTime> get noteEditedAt => $composableBuilder(
     column: $table.noteEditedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3920,6 +4066,11 @@ class $$SavedPostsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$TripsTableOrderingComposer get tripId {
     final $$TripsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -4075,6 +4226,9 @@ class $$SavedPostsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
   $$TripsTableAnnotationComposer get tripId {
     final $$TripsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -4158,6 +4312,7 @@ class $$SavedPostsTableTableManager
                 Value<DateTime> dateSaved = const Value.absent(),
                 Value<DateTime?> lastViewedAt = const Value.absent(),
                 Value<DateTime?> noteEditedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => SavedPostsCompanion(
                 id: id,
                 title: title,
@@ -4190,6 +4345,7 @@ class $$SavedPostsTableTableManager
                 dateSaved: dateSaved,
                 lastViewedAt: lastViewedAt,
                 noteEditedAt: noteEditedAt,
+                deletedAt: deletedAt,
               ),
           createCompanionCallback:
               ({
@@ -4224,6 +4380,7 @@ class $$SavedPostsTableTableManager
                 required DateTime dateSaved,
                 Value<DateTime?> lastViewedAt = const Value.absent(),
                 Value<DateTime?> noteEditedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
               }) => SavedPostsCompanion.insert(
                 id: id,
                 title: title,
@@ -4256,6 +4413,7 @@ class $$SavedPostsTableTableManager
                 dateSaved: dateSaved,
                 lastViewedAt: lastViewedAt,
                 noteEditedAt: noteEditedAt,
+                deletedAt: deletedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -57,7 +57,8 @@ class TripDetailsScreen extends StatelessWidget {
                       return const NookEmptyState(
                         icon: Icons.folder_open_outlined,
                         title: 'Nothing saved here yet',
-                        message: 'Posts you add to this trip will show up here.',
+                        message:
+                            'Posts you add to this trip will show up here.',
                       );
                     }
 
@@ -108,7 +109,9 @@ class TripDetailsScreen extends StatelessWidget {
       context: context,
       backgroundColor: NookColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(NookRadius.md)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NookRadius.md),
+        ),
       ),
       builder: (sheetContext) => SafeArea(
         child: Column(
@@ -125,8 +128,10 @@ class TripDetailsScreen extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline_rounded,
-                  color: NookColors.error),
+              leading: const Icon(
+                Icons.delete_outline_rounded,
+                color: NookColors.error,
+              ),
               title: Text(
                 'Delete trip',
                 style: NookType.body.copyWith(color: NookColors.error),
@@ -136,8 +141,11 @@ class TripDetailsScreen extends StatelessWidget {
                 final confirmed = await showNookDialog(
                   context,
                   title: 'Delete this trip?',
-                  message: 'The posts saved in it are kept — they just stop '
-                      'belonging to a trip.',
+                  message:
+                      'The posts inside it will not be deleted. They stay '
+                      'in your library and simply stop belonging to a trip.\n\n'
+                      'The trip goes to Recently Deleted, where you can put it '
+                      'back.',
                   confirmLabel: 'Delete Trip',
                   destructive: true,
                 );

@@ -10,11 +10,7 @@ import '../../widgets/sub_screen_nav.dart';
 /// A heading and some prose. Behind the rows on About Nook and Help & Support,
 /// so every chevron leads somewhere real instead of doing nothing.
 class ContentScreen extends StatelessWidget {
-  const ContentScreen({
-    super.key,
-    required this.title,
-    required this.sections,
-  });
+  const ContentScreen({super.key, required this.title, required this.sections});
 
   final String title;
 

@@ -21,7 +21,8 @@ import 'package:nook/screens/add/post_draft.dart';
 /// belongs. Both are asserted here at every stage they have to survive.
 
 const _url = 'https://www.youtube.com/watch?v=Sf9ihvL0Usk';
-const _title = 'Rainy Day in Osaka City 🌧️ hidden gem cafe in '
+const _title =
+    'Rainy Day in Osaka City 🌧️ hidden gem cafe in '
     'Nakazakicho 🌿 walk around Osaka station';
 const _description =
     'Today I walked around Osaka station in the rain and found a tiny '
@@ -29,35 +30,35 @@ const _description =
     '¥600. Best visited in autumn when the streets are quiet.';
 
 String get _oEmbed => jsonEncode({
-      'title': _title,
-      'author_name': 'Sweet Rain',
-      'author_url': 'https://www.youtube.com/@sweetrain',
-      'type': 'video',
-      'thumbnail_url': 'https://i.ytimg.com/vi/Sf9ihvL0Usk/hqdefault.jpg',
-    });
+  'title': _title,
+  'author_name': 'Sweet Rain',
+  'author_url': 'https://www.youtube.com/@sweetrain',
+  'type': 'video',
+  'thumbnail_url': 'https://i.ytimg.com/vi/Sf9ihvL0Usk/hqdefault.jpg',
+});
 
 String get _models => jsonEncode({
-      'models': [
-        {
-          'name': 'models/gemini-3.8-flash',
-          'supportedGenerationMethods': ['generateContent'],
-        },
-      ],
-    });
+  'models': [
+    {
+      'name': 'models/gemini-3.8-flash',
+      'supportedGenerationMethods': ['generateContent'],
+    },
+  ],
+});
 
 /// What a model that has actually read the description comes back with.
 String _reply(Map<String, Object?> fields) => jsonEncode({
-      'candidates': [
-        {
-          'finishReason': 'STOP',
-          'content': {
-            'parts': [
-              {'text': jsonEncode(fields)},
-            ],
-          },
-        },
-      ],
-    });
+  'candidates': [
+    {
+      'finishReason': 'STOP',
+      'content': {
+        'parts': [
+          {'text': jsonEncode(fields)},
+        ],
+      },
+    },
+  ],
+});
 
 final _osakaFields = <String, Object?>{
   'title': _title,
@@ -80,43 +81,52 @@ final _osakaFields = <String, Object?>{
 /// Answers the oEmbed lookup, the model list and the generate call.
 class _Pipeline {
   _Pipeline({String? oEmbed, Map<String, Object?>? fields})
-      : _oEmbedBody = oEmbed,
-        _fields = fields ?? _osakaFields;
+    : _oEmbedBody = oEmbed,
+      _fields = fields ?? _osakaFields;
 
   final String? _oEmbedBody;
   final Map<String, Object?> _fields;
   final requests = <http.Request>[];
 
   http.Client get client => MockClient((request) async {
-        requests.add(request);
-        final url = request.url.toString();
-        if (!request.url.host.contains('generativelanguage')) {
-          return _oEmbedBody == null
-              ? http.Response('not found', 404)
-              : http.Response(_oEmbedBody, 200,
-                  headers: {'content-type': 'application/json'});
-        }
-        if (!url.contains(':generateContent')) {
-          return http.Response(_models, 200,
-              headers: {'content-type': 'application/json'});
-        }
-        return http.Response(_reply(_fields), 200,
-            headers: {'content-type': 'application/json'});
-      });
+    requests.add(request);
+    final url = request.url.toString();
+    if (!request.url.host.contains('generativelanguage')) {
+      return _oEmbedBody == null
+          ? http.Response('not found', 404)
+          : http.Response(
+              _oEmbedBody,
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+    }
+    if (!url.contains(':generateContent')) {
+      return http.Response(
+        _models,
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    }
+    return http.Response(
+      _reply(_fields),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+  });
 
   http.Request get generateRequest =>
       requests.firstWhere((r) => r.url.path.contains(':generateContent'));
 }
 
 GeminiExtractor _extractor(_Pipeline pipeline) => GeminiExtractor(
-      apiKey: 'k',
-      httpClient: pipeline.client,
-      retry: const RetryPolicy(
-        maxAttempts: 2,
-        baseDelay: Duration(milliseconds: 2),
-        deadline: Duration(seconds: 5),
-      ),
-    );
+  apiKey: 'k',
+  httpClient: pipeline.client,
+  retry: const RetryPolicy(
+    maxAttempts: 2,
+    baseDelay: Duration(milliseconds: 2),
+    deadline: Duration(seconds: 5),
+  ),
+);
 
 void main() {
   group('the model is given the post, not just the link', () {
@@ -125,12 +135,18 @@ void main() {
       await _extractor(pipeline).extract(_url);
 
       final body = pipeline.generateRequest.body;
-      expect(body, contains('Nakazakicho'),
-          reason: 'the district is in the title; the model must see it');
+      expect(
+        body,
+        contains('Nakazakicho'),
+        reason: 'the district is in the title; the model must see it',
+      );
       expect(body, contains('Osaka'));
       expect(body, contains('Sweet Rain'));
-      expect(body, contains('Sf9ihvL0Usk'),
-          reason: 'the id is given as SOURCE_ID, as metadata');
+      expect(
+        body,
+        contains('Sf9ihvL0Usk'),
+        reason: 'the id is given as SOURCE_ID, as metadata',
+      );
     });
 
     test('the lookup happens before the model call', () async {
@@ -144,12 +160,16 @@ void main() {
 
     test('a platform that publishes nothing tells the model so', () async {
       final pipeline = _Pipeline(oEmbed: null);
-      await _extractor(pipeline).extract(
-        'https://www.instagram.com/p/C8xK2pAbCdE/',
-      );
+      await _extractor(
+        pipeline,
+      ).extract('https://www.instagram.com/p/C8xK2pAbCdE/');
 
-      expect(pipeline.generateRequest.body,
-          contains('no post text could be retrieved'));
+      // Instagram's public oEmbed ended in 2020, so with no Meta token there
+      // is nothing to read. The prompt has to say that, and say not to guess.
+      final body = pipeline.generateRequest.body;
+      expect(body, contains('could not be read'));
+      expect(body, contains('2020'));
+      expect(body.toLowerCase(), contains('do not guess'));
     });
   });
 
@@ -238,29 +258,34 @@ void main() {
 
   group('nothing is invented', () {
     test('a country-only answer gets no map pin', () async {
-      final pipeline = _Pipeline(fields: {
-        'title': 'A trip to Japan',
-        'category': 'Travel',
-        'country': 'Japan',
-        // A model that returns the centre of the country anyway.
-        'latitude': 36.2048,
-        'longitude': 138.2529,
-      });
+      final pipeline = _Pipeline(
+        fields: {
+          'title': 'A trip to Japan',
+          'category': 'Travel',
+          'country': 'Japan',
+          // A model that returns the centre of the country anyway.
+          'latitude': 36.2048,
+          'longitude': 138.2529,
+        },
+      );
       final result = await _extractor(pipeline).extract(_url);
 
       expect(result.country, 'Japan');
       expect(result.hasPreciseLocation, isFalse);
-      expect(result.hasCoordinates, isFalse,
-          reason: 'a pin in the middle of Japan is a precision the post '
-              'never had');
+      expect(
+        result.hasCoordinates,
+        isFalse,
+        reason:
+            'a pin in the middle of Japan is a precision the post '
+            'never had',
+      );
       expect(result.destination, 'Japan');
     });
 
     test('a post with no location at all stays empty', () async {
-      final pipeline = _Pipeline(fields: {
-        'title': 'Packing tips',
-        'category': 'Other',
-      });
+      final pipeline = _Pipeline(
+        fields: {'title': 'Packing tips', 'category': 'Other'},
+      );
       final result = await _extractor(pipeline).extract(_url);
 
       expect(result.destination, isNull);
@@ -271,15 +296,17 @@ void main() {
     });
 
     test('a neighbourhood is precise enough to pin', () async {
-      final pipeline = _Pipeline(fields: {
-        'title': 'Walking Nakazakicho',
-        'category': 'Scenery',
-        'neighbourhood': 'Nakazakicho',
-        'city': 'Osaka',
-        'country': 'Japan',
-        'latitude': 34.7055,
-        'longitude': 135.5062,
-      });
+      final pipeline = _Pipeline(
+        fields: {
+          'title': 'Walking Nakazakicho',
+          'category': 'Scenery',
+          'neighbourhood': 'Nakazakicho',
+          'city': 'Osaka',
+          'country': 'Japan',
+          'latitude': 34.7055,
+          'longitude': 135.5062,
+        },
+      );
       final result = await _extractor(pipeline).extract(_url);
 
       expect(result.hasPreciseLocation, isTrue);
@@ -290,14 +317,18 @@ void main() {
 
   group('media type is read, not assumed', () {
     test('an Instagram photo post is a photo', () async {
-      final pipeline = _Pipeline(oEmbed: null, fields: {
-        'title': 'Sunset at Nacpan',
-        'category': 'Scenery',
-        'city': 'El Nido',
-        'country': 'Philippines',
-      });
-      final result = await _extractor(pipeline)
-          .extract('https://www.instagram.com/p/C8xK2pAbCdE/');
+      final pipeline = _Pipeline(
+        oEmbed: null,
+        fields: {
+          'title': 'Sunset at Nacpan',
+          'category': 'Scenery',
+          'city': 'El Nido',
+          'country': 'Philippines',
+        },
+      );
+      final result = await _extractor(
+        pipeline,
+      ).extract('https://www.instagram.com/p/C8xK2pAbCdE/');
 
       expect(result.mediaType, PostMediaType.image);
       expect(result.mediaType.label, 'Photo');
@@ -305,12 +336,13 @@ void main() {
     });
 
     test('a Facebook post is not called a video', () async {
-      final pipeline = _Pipeline(oEmbed: null, fields: {
-        'title': 'Cafe hopping in Pampanga',
-        'category': 'Food',
-      });
-      final result = await _extractor(pipeline)
-          .extract('https://www.facebook.com/somepage/posts/12345');
+      final pipeline = _Pipeline(
+        oEmbed: null,
+        fields: {'title': 'Cafe hopping in Pampanga', 'category': 'Food'},
+      );
+      final result = await _extractor(
+        pipeline,
+      ).extract('https://www.facebook.com/somepage/posts/12345');
 
       expect(result.mediaType, PostMediaType.unknown);
       expect(result.mediaType.label, 'Preview');
@@ -325,10 +357,10 @@ void main() {
 
   group('the title is never an id', () {
     test('even when the lookup fails and the model offers nothing', () async {
-      final pipeline = _Pipeline(oEmbed: null, fields: {
-        'title': 'Sf9ihvL0Usk',
-        'category': 'Other',
-      });
+      final pipeline = _Pipeline(
+        oEmbed: null,
+        fields: {'title': 'Sf9ihvL0Usk', 'category': 'Other'},
+      );
       final result = await _extractor(pipeline).extract(_url);
 
       // The model echoed the id. That is what it was given, and it is still
@@ -340,38 +372,47 @@ void main() {
 
     test('a real title from the lookup wins over the model', () async {
       // A model that paraphrases instead of copying.
-      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
-        'title': 'Osaka cafe walk',
-        'category': 'Food',
-        'city': 'Osaka',
-        'country': 'Japan',
-      });
+      final pipeline = _Pipeline(
+        oEmbed: _oEmbed,
+        fields: {
+          'title': 'Osaka cafe walk',
+          'category': 'Food',
+          'city': 'Osaka',
+          'country': 'Japan',
+        },
+      );
       final result = await _extractor(pipeline).extract(_url);
 
-      expect(result.title, _title,
-          reason: 'the platform stated it; that is a fact, not a paraphrase');
+      expect(
+        result.title,
+        _title,
+        reason: 'the platform stated it; that is a fact, not a paraphrase',
+      );
     });
   });
 
   group('more than a title: the places a post names', () {
     test('five cafes come back as five places, not one city', () async {
-      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
-        'title': '5 Cafes in Kyoto',
-        'category': 'Food',
-        'city': 'Kyoto',
-        'country': 'Japan',
-        'places': [
-          {'name': '% Arabica', 'kind': 'cafe', 'area': 'Arashiyama'},
-          {'name': 'Weekenders Coffee', 'kind': 'cafe', 'area': 'Nakagyo'},
-          {'name': 'Kurasu Kyoto', 'kind': 'cafe', 'area': 'Shimogyo'},
-          {'name': 'Walden Woods', 'kind': 'cafe'},
-          {'name': 'Vermillion Cafe', 'kind': 'cafe', 'area': 'Fushimi'},
-        ],
-        'highlights': [
-          'Go early — most open at 8am and fill by 10',
-          'Walden Woods has no seating upstairs',
-        ],
-      });
+      final pipeline = _Pipeline(
+        oEmbed: _oEmbed,
+        fields: {
+          'title': '5 Cafes in Kyoto',
+          'category': 'Food',
+          'city': 'Kyoto',
+          'country': 'Japan',
+          'places': [
+            {'name': '% Arabica', 'kind': 'cafe', 'area': 'Arashiyama'},
+            {'name': 'Weekenders Coffee', 'kind': 'cafe', 'area': 'Nakagyo'},
+            {'name': 'Kurasu Kyoto', 'kind': 'cafe', 'area': 'Shimogyo'},
+            {'name': 'Walden Woods', 'kind': 'cafe'},
+            {'name': 'Vermillion Cafe', 'kind': 'cafe', 'area': 'Fushimi'},
+          ],
+          'highlights': [
+            'Go early — most open at 8am and fill by 10',
+            'Walden Woods has no seating upstairs',
+          ],
+        },
+      );
 
       final result = await _extractor(pipeline).extract(_url);
 
@@ -390,15 +431,18 @@ void main() {
       final db = NookDatabase.forTesting(NativeDatabase.memory());
       addTearDown(db.close);
 
-      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
-        'title': '5 Cafes in Kyoto',
-        'category': 'Food',
-        'city': 'Kyoto',
-        'places': [
-          {'name': 'Kurasu Kyoto', 'kind': 'cafe', 'area': 'Shimogyo'},
-        ],
-        'highlights': ['Go early'],
-      });
+      final pipeline = _Pipeline(
+        oEmbed: _oEmbed,
+        fields: {
+          'title': '5 Cafes in Kyoto',
+          'category': 'Food',
+          'city': 'Kyoto',
+          'places': [
+            {'name': 'Kurasu Kyoto', 'kind': 'cafe', 'area': 'Shimogyo'},
+          ],
+          'highlights': ['Go early'],
+        },
+      );
       final result = await _extractor(pipeline).extract(_url);
       final draft = PostDraft.fromLink(url: _url, result: result);
 
@@ -424,13 +468,16 @@ void main() {
     });
 
     test('a post that names no venue stores none', () async {
-      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
-        'title': 'We visited a cafe in Osaka',
-        'category': 'Food',
-        'city': 'Osaka',
-        'country': 'Japan',
-        'places': <Object>[],
-      });
+      final pipeline = _Pipeline(
+        oEmbed: _oEmbed,
+        fields: {
+          'title': 'We visited a cafe in Osaka',
+          'category': 'Food',
+          'city': 'Osaka',
+          'country': 'Japan',
+          'places': <Object>[],
+        },
+      );
 
       final result = await _extractor(pipeline).extract(_url);
 
@@ -442,16 +489,19 @@ void main() {
     });
 
     test('malformed place entries are dropped, not guessed at', () async {
-      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
-        'title': 'Kyoto',
-        'category': 'Food',
-        'places': [
-          {'kind': 'cafe'},
-          'just a string',
-          {'name': '   '},
-          {'name': 'Kurasu Kyoto'},
-        ],
-      });
+      final pipeline = _Pipeline(
+        oEmbed: _oEmbed,
+        fields: {
+          'title': 'Kyoto',
+          'category': 'Food',
+          'places': [
+            {'kind': 'cafe'},
+            'just a string',
+            {'name': '   '},
+            {'name': 'Kurasu Kyoto'},
+          ],
+        },
+      );
 
       final result = await _extractor(pipeline).extract(_url);
       expect(result.places.map((p) => p.name), ['Kurasu Kyoto']);

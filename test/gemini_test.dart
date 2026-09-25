@@ -30,8 +30,7 @@ const _fast = RetryPolicy(
   deadline: Duration(seconds: 5),
 );
 
-String _errorBody(int code, String status, String message,
-        {String? reason}) =>
+String _errorBody(int code, String status, String message, {String? reason}) =>
     jsonEncode({
       'error': {
         'code': code,
@@ -39,55 +38,58 @@ String _errorBody(int code, String status, String message,
         'status': status,
         if (reason != null)
           'details': [
-            {'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': reason},
+            {
+              '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+              'reason': reason,
+            },
           ],
       },
     });
 
 /// The 503 the user actually saw, verbatim in shape.
 String get _overloaded => _errorBody(
-      503,
-      'UNAVAILABLE',
-      'This model is currently experiencing high demand. Spikes in demand are '
-          'usually temporary. Please try again later.',
-    );
+  503,
+  'UNAVAILABLE',
+  'This model is currently experiencing high demand. Spikes in demand are '
+      'usually temporary. Please try again later.',
+);
 
 String _extraction({String title = '5 Hidden Cafes in Kyoto'}) => jsonEncode({
-      'candidates': [
-        {
-          'finishReason': 'STOP',
-          'content': {
-            'parts': [
-              {
-                'text': jsonEncode({
-                  'title': title,
-                  'creator': '@wanderwithmia',
-                  'place_name': 'Kissa Master',
-                  'neighbourhood': 'Gion',
-                  'city': 'Kyoto',
-                  'country': 'Japan',
-                  'category': 'Food',
-                  'summary': 'Six cafes within a short walk of each other.',
-                  'best_time': 'March-May',
-                  'budget_note': '~JPY3,000/day',
-                  'latitude': 35.0116,
-                  'longitude': 135.7681,
-                }),
-              },
-            ],
+  'candidates': [
+    {
+      'finishReason': 'STOP',
+      'content': {
+        'parts': [
+          {
+            'text': jsonEncode({
+              'title': title,
+              'creator': '@wanderwithmia',
+              'place_name': 'Kissa Master',
+              'neighbourhood': 'Gion',
+              'city': 'Kyoto',
+              'country': 'Japan',
+              'category': 'Food',
+              'summary': 'Six cafes within a short walk of each other.',
+              'best_time': 'March-May',
+              'budget_note': '~JPY3,000/day',
+              'latitude': 35.0116,
+              'longitude': 135.7681,
+            }),
           },
-        },
-      ],
-    });
+        ],
+      },
+    },
+  ],
+});
 
 String get _modelList => jsonEncode({
-      'models': [
-        {
-          'name': 'models/gemini-2.5-flash-lite',
-          'supportedGenerationMethods': ['generateContent'],
-        },
-      ],
-    });
+  'models': [
+    {
+      'name': 'models/gemini-2.5-flash-lite',
+      'supportedGenerationMethods': ['generateContent'],
+    },
+  ],
+});
 
 /// Records every request, and answers from a script.
 ///
@@ -111,49 +113,55 @@ class _Server {
   final at = <DateTime>[];
 
   http.Client get client => MockClient((request) async {
-        requests.add(request);
-        at.add(DateTime.now());
-        if (!request.url.host.contains('generativelanguage')) {
-          return http.Response(oEmbed, 200,
-              headers: {'content-type': 'application/json'});
-        }
-        final index = min(geminiCalls.length - 1, script.length - 1);
-        return script[index](request);
-      });
+    requests.add(request);
+    at.add(DateTime.now());
+    if (!request.url.host.contains('generativelanguage')) {
+      return http.Response(
+        oEmbed,
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    }
+    final index = min(geminiCalls.length - 1, script.length - 1);
+    return script[index](request);
+  });
 
   int get calls => requests.length;
-  List<http.Request> get geminiCalls => requests
-      .where((r) => r.url.host.contains('generativelanguage'))
-      .toList();
+  List<http.Request> get geminiCalls =>
+      requests.where((r) => r.url.host.contains('generativelanguage')).toList();
   List<http.Request> get generateCalls =>
       requests.where((r) => r.url.path.contains(':generateContent')).toList();
 }
 
-http.Response Function(http.Request) _reply(int status, String body,
-        {Map<String, String>? headers}) =>
-    (_) => http.Response(body, status,
-        headers: {'content-type': 'application/json', ...?headers});
+http.Response Function(http.Request) _reply(
+  int status,
+  String body, {
+  Map<String, String>? headers,
+}) =>
+    (_) => http.Response(
+      body,
+      status,
+      headers: {'content-type': 'application/json', ...?headers},
+    );
 
 /// Answers ListModels normally, then runs [script] for the generate calls.
 List<http.Response Function(http.Request)> _withModelList(
   List<http.Response Function(http.Request)> script,
-) =>
-    [_reply(200, _modelList), ...script];
+) => [_reply(200, _modelList), ...script];
 
 GeminiExtractor _extractor(_Server server, {String? model}) => GeminiExtractor(
-      apiKey: 'test-key',
-      model: model,
-      httpClient: server.client,
-      retry: _fast,
-    );
+  apiKey: 'test-key',
+  model: model,
+  httpClient: server.client,
+  retry: _fast,
+);
 
 void main() {
   group('a 503 is retried, not surfaced', () {
     test('one 503 then a result: the user sees the result', () async {
-      final server = _Server(_withModelList([
-        _reply(503, _overloaded),
-        _reply(200, _extraction()),
-      ]));
+      final server = _Server(
+        _withModelList([_reply(503, _overloaded), _reply(200, _extraction())]),
+      );
 
       final result = await _extractor(server).extract(_url);
 
@@ -165,12 +173,14 @@ void main() {
     });
 
     test('three 503s then a result still succeeds', () async {
-      final server = _Server(_withModelList([
-        _reply(503, _overloaded),
-        _reply(503, _overloaded),
-        _reply(503, _overloaded),
-        _reply(200, _extraction()),
-      ]));
+      final server = _Server(
+        _withModelList([
+          _reply(503, _overloaded),
+          _reply(503, _overloaded),
+          _reply(503, _overloaded),
+          _reply(200, _extraction()),
+        ]),
+      );
 
       final result = await _extractor(server).extract(_url);
 
@@ -183,11 +193,13 @@ void main() {
 
       await expectLater(
         _extractor(server).extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('overloaded'), contains('retried')),
-        )),
+        throwsA(
+          isA<ExtractionException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('tried a few times'), contains('try again')),
+          ),
+        ),
       );
 
       // Four tries, and no fifth: a failing call must not become a loop.
@@ -215,8 +227,11 @@ void main() {
 
       expect(gaps, hasLength(3));
       for (final gap in gaps) {
-        expect(gap, greaterThan(Duration.zero),
-            reason: 'a retry must never be immediate');
+        expect(
+          gap,
+          greaterThan(Duration.zero),
+          reason: 'a retry must never be immediate',
+        );
       }
       // Equal jitter halves each delay at worst, so growth is asserted across
       // the span rather than between adjacent pairs.
@@ -227,10 +242,12 @@ void main() {
   group('every failure mode the API can raise', () {
     for (final status in [500, 502, 503, 504, 429, 408]) {
       test('$status is treated as transient and retried', () async {
-        final server = _Server(_withModelList([
-          _reply(status, _errorBody(status, 'UNAVAILABLE', 'busy')),
-          _reply(200, _extraction()),
-        ]));
+        final server = _Server(
+          _withModelList([
+            _reply(status, _errorBody(status, 'UNAVAILABLE', 'busy')),
+            _reply(200, _extraction()),
+          ]),
+        );
 
         await _extractor(server).extract(_url);
         expect(server.generateCalls, hasLength(2));
@@ -238,46 +255,63 @@ void main() {
     }
 
     test('a rejected key fails at once, with no retries', () async {
-      final server = _Server(_withModelList([
-        _reply(
-          400,
-          _errorBody(400, 'INVALID_ARGUMENT', 'API key not valid.',
-              reason: 'API_KEY_INVALID'),
-        ),
-      ]));
+      final server = _Server(
+        _withModelList([
+          _reply(
+            400,
+            _errorBody(
+              400,
+              'INVALID_ARGUMENT',
+              'API key not valid.',
+              reason: 'API_KEY_INVALID',
+            ),
+          ),
+        ]),
+      );
 
       await expectLater(
         _extractor(server).extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          contains('GEMINI_API_KEY'),
-        )),
+        throwsA(
+          isA<ExtractionException>().having(
+            (e) => e.message,
+            'message',
+            contains('GEMINI_API_KEY'),
+          ),
+        ),
       );
-      expect(server.generateCalls, hasLength(1),
-          reason: 'a bad key will still be bad on the next try');
+      expect(
+        server.generateCalls,
+        hasLength(1),
+        reason: 'a bad key will still be bad on the next try',
+      );
     });
 
     test('a rate limit says so, and does not blame the key', () async {
-      final server = _Server(_withModelList([
-        _reply(429, _errorBody(429, 'RESOURCE_EXHAUSTED', 'Quota exceeded.')),
-      ]));
+      final server = _Server(
+        _withModelList([
+          _reply(429, _errorBody(429, 'RESOURCE_EXHAUSTED', 'Quota exceeded.')),
+        ]),
+      );
 
       await expectLater(
         _extractor(server).extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          contains('rate limit'),
-        )),
+        throwsA(
+          isA<ExtractionException>().having(
+            (e) => e.message,
+            'message',
+            contains("today's limit"),
+          ),
+        ),
       );
     });
 
     test('Retry-After from the server is honoured', () async {
-      final server = _Server(_withModelList([
-        _reply(503, _overloaded, headers: {'retry-after': '1'}),
-        _reply(200, _extraction()),
-      ]));
+      final server = _Server(
+        _withModelList([
+          _reply(503, _overloaded, headers: {'retry-after': '1'}),
+          _reply(200, _extraction()),
+        ]),
+      );
 
       final started = DateTime.now();
       await _extractor(server).extract(_url);
@@ -307,11 +341,13 @@ void main() {
 
       await expectLater(
         extractor.extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          contains('could not be reached'),
-        )),
+        throwsA(
+          isA<ExtractionException>().having(
+            (e) => e.message,
+            'message',
+            contains("couldn't analyse this post"),
+          ),
+        ),
       );
       // Four tries against the pinned model, and no catalogue lookup: a
       // network that is down cannot answer that question either.
@@ -319,9 +355,9 @@ void main() {
     });
 
     test('a 200 that is not JSON is not retried forever', () async {
-      final server = _Server(_withModelList([
-        _reply(200, '<html>proxy sign-in</html>'),
-      ]));
+      final server = _Server(
+        _withModelList([_reply(200, '<html>proxy sign-in</html>')]),
+      );
 
       await expectLater(
         _extractor(server).extract(_url),
@@ -330,65 +366,77 @@ void main() {
       expect(server.generateCalls, hasLength(1));
     });
 
-    test('a reply with no candidates is reported, not returned empty',
-        () async {
-      final server = _Server(_withModelList([_reply(200, jsonEncode({}))]));
+    test(
+      'a reply with no candidates is reported, not returned empty',
+      () async {
+        final server = _Server(_withModelList([_reply(200, jsonEncode({}))]));
 
-      await expectLater(
-        _extractor(server).extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          contains('no result'),
-        )),
+        await expectLater(
+          _extractor(server).extract(_url),
+          throwsA(
+            isA<ExtractionException>().having(
+              (e) => e.message,
+              'message',
+              contains("couldn't analyse this post"),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('a blocked prompt is reported without the filter category', () async {
+      final server = _Server(
+        _withModelList([
+          _reply(
+            200,
+            jsonEncode({
+              'promptFeedback': {'blockReason': 'SAFETY'},
+            }),
+          ),
+        ]),
       );
-    });
-
-    test('a blocked prompt says it was blocked', () async {
-      final server = _Server(_withModelList([
-        _reply(
-          200,
-          jsonEncode({
-            'promptFeedback': {'blockReason': 'SAFETY'},
-          }),
-        ),
-      ]));
 
       await expectLater(
         _extractor(server).extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          contains('SAFETY'),
-        )),
+        throwsA(
+          isA<ExtractionException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('Try a different link'), isNot(contains('SAFETY'))),
+          ),
+        ),
       );
     });
 
     test('model JSON that is not JSON is reported, not half-parsed', () async {
-      final server = _Server(_withModelList([
-        _reply(
-          200,
-          jsonEncode({
-            'candidates': [
-              {
-                'content': {
-                  'parts': [
-                    {'text': 'Sorry, I cannot do that.'},
-                  ],
+      final server = _Server(
+        _withModelList([
+          _reply(
+            200,
+            jsonEncode({
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'Sorry, I cannot do that.'},
+                    ],
+                  },
                 },
-              },
-            ],
-          }),
-        ),
-      ]));
+              ],
+            }),
+          ),
+        ]),
+      );
 
       await expectLater(
         _extractor(server).extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          contains("couldn't be read"),
-        )),
+        throwsA(
+          isA<ExtractionException>().having(
+            (e) => e.message,
+            'message',
+            contains("couldn't be read"),
+          ),
+        ),
       );
     });
   });
@@ -437,18 +485,22 @@ void main() {
       expect(server.generateCalls[0].url.path, contains('gemini-2.5-flash'));
     });
 
-    test('when no model works the message names what was tried', () async {
-      final server = _Server(_withModelList([
-        _reply(404, _errorBody(404, 'NOT_FOUND', 'model not found')),
-      ]));
+    test('when no model works the message says what to change', () async {
+      final server = _Server(
+        _withModelList([
+          _reply(404, _errorBody(404, 'NOT_FOUND', 'model not found')),
+        ]),
+      );
 
       await expectLater(
         _extractor(server).extract(_url),
-        throwsA(isA<ExtractionException>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('GEMINI_MODEL'), contains('gemini-2.5-flash-lite')),
-        )),
+        throwsA(
+          isA<ExtractionException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('GEMINI_MODEL'), isNot(contains('gemini-2.5'))),
+          ),
+        ),
       );
     });
   });
@@ -499,40 +551,53 @@ void main() {
       );
     });
 
-    test('an explicit GEMINI_MODEL is used without listing the catalogue',
-        () async {
-      final server = _Server([_reply(200, _extraction())]);
+    test(
+      'an explicit GEMINI_MODEL is used without listing the catalogue',
+      () async {
+        final server = _Server([_reply(200, _extraction())]);
 
-      await _extractor(server, model: 'gemini-flash-latest').extract(_url);
+        await _extractor(server, model: 'gemini-flash-latest').extract(_url);
 
-      expect(
-        server.generateCalls.single.url.path,
-        contains('gemini-flash-latest'),
-      );
-      // Pinning a model is an answer, not a question: confirming it against the
-      // catalogue would be a round trip whose result we would ignore.
-      expect(server.requests.where((r) => r.url.path.endsWith('/models')),
-          isEmpty);
-    });
+        expect(
+          server.generateCalls.single.url.path,
+          contains('gemini-flash-latest'),
+        );
+        // Pinning a model is an answer, not a question: confirming it against the
+        // catalogue would be a round trip whose result we would ignore.
+        expect(
+          server.requests.where((r) => r.url.path.endsWith('/models')),
+          isEmpty,
+        );
+      },
+    );
 
-    test('a pinned model that no longer exists falls back to a real one',
-        () async {
-      final server = _Server([
-        // The pinned id is gone...
-        _reply(404, _errorBody(404, 'NOT_FOUND', 'model not found')),
-        // ...so now the catalogue is worth asking for.
-        _reply(200, _modelList),
-        _reply(200, _extraction()),
-      ]);
+    test(
+      'a pinned model that no longer exists falls back to a real one',
+      () async {
+        final server = _Server([
+          // The pinned id is gone...
+          _reply(404, _errorBody(404, 'NOT_FOUND', 'model not found')),
+          // ...so now the catalogue is worth asking for.
+          _reply(200, _modelList),
+          _reply(200, _extraction()),
+        ]);
 
-      final result =
-          await _extractor(server, model: 'gemini-2.0-flash').extract(_url);
+        final result = await _extractor(
+          server,
+          model: 'gemini-2.0-flash',
+        ).extract(_url);
 
-      expect(result.city, 'Kyoto');
-      expect(server.generateCalls.first.url.path, contains('gemini-2.0-flash'));
-      expect(server.generateCalls.last.url.path,
-          contains('gemini-2.5-flash-lite'));
-    });
+        expect(result.city, 'Kyoto');
+        expect(
+          server.generateCalls.first.url.path,
+          contains('gemini-2.0-flash'),
+        );
+        expect(
+          server.generateCalls.last.url.path,
+          contains('gemini-2.5-flash-lite'),
+        );
+      },
+    );
 
     test('a failed model list falls back to the rolling aliases', () async {
       final server = _Server([
@@ -575,47 +640,52 @@ void main() {
 
       final result = await _extractor(server).extract(_url);
 
-      expect(result.thumbnailUrl,
-          'https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg');
+      expect(
+        result.thumbnailUrl,
+        'https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg',
+      );
     });
 
-    test('coordinates outside the real ranges are dropped, not stored',
-        () async {
-      final server = _Server(_withModelList([
-        _reply(
-          200,
-          jsonEncode({
-            'candidates': [
-              {
-                'content': {
-                  'parts': [
-                    {
-                      'text': jsonEncode({
-                        'title': 'Somewhere',
-                        'category': 'Other',
-                        'latitude': 999,
-                        'longitude': 12,
-                      }),
+    test(
+      'coordinates outside the real ranges are dropped, not stored',
+      () async {
+        final server = _Server(
+          _withModelList([
+            _reply(
+              200,
+              jsonEncode({
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [
+                        {
+                          'text': jsonEncode({
+                            'title': 'Somewhere',
+                            'category': 'Other',
+                            'latitude': 999,
+                            'longitude': 12,
+                          }),
+                        },
+                      ],
                     },
-                  ],
-                },
-              },
-            ],
-          }),
-        ),
-      ]));
+                  },
+                ],
+              }),
+            ),
+          ]),
+        );
 
-      final result = await _extractor(server).extract(_url);
-      expect(result.hasCoordinates, isFalse);
-    });
+        final result = await _extractor(server).extract(_url);
+        expect(result.hasCoordinates, isFalse);
+      },
+    );
   });
 
   group('no duplicate work', () {
     test('two analyses of the same link share one request', () async {
-      final server = _Server(_withModelList([
-        _reply(503, _overloaded),
-        _reply(200, _extraction()),
-      ]));
+      final server = _Server(
+        _withModelList([_reply(503, _overloaded), _reply(200, _extraction())]),
+      );
       final extractor = _extractor(server);
 
       final results = await Future.wait([
@@ -625,8 +695,11 @@ void main() {
       ]);
 
       expect(results.map((r) => r.title).toSet(), hasLength(1));
-      expect(server.generateCalls, hasLength(2),
-          reason: 'one call plus its retry, not three calls plus three retries');
+      expect(
+        server.generateCalls,
+        hasLength(2),
+        reason: 'one call plus its retry, not three calls plus three retries',
+      );
     });
 
     test('a second link after the first finishes does run', () async {
@@ -654,35 +727,39 @@ void main() {
   });
 
   group('it never hangs', () {
-    test('a server that never answers ends in an error, not a spinner',
-        () async {
-      final client = MockClient((request) async {
-        if (!request.url.host.contains('generativelanguage')) {
-          return http.Response('not found', 404);
-        }
-        await Future<void>.delayed(const Duration(seconds: 30));
-        return http.Response('{}', 200);
-      });
-      final extractor = GeminiExtractor(
-        apiKey: 'k',
-        model: 'gemini-flash-latest',
-        httpClient: client,
-        retry: const RetryPolicy(
-          maxAttempts: 2,
-          baseDelay: Duration(milliseconds: 5),
-          attemptTimeout: Duration(milliseconds: 120),
-          deadline: Duration(seconds: 2),
-        ),
-      );
+    test(
+      'a server that never answers ends in an error, not a spinner',
+      () async {
+        final client = MockClient((request) async {
+          if (!request.url.host.contains('generativelanguage')) {
+            return http.Response('not found', 404);
+          }
+          await Future<void>.delayed(const Duration(seconds: 30));
+          return http.Response('{}', 200);
+        });
+        final extractor = GeminiExtractor(
+          apiKey: 'k',
+          model: 'gemini-flash-latest',
+          httpClient: client,
+          retry: const RetryPolicy(
+            maxAttempts: 2,
+            baseDelay: Duration(milliseconds: 5),
+            attemptTimeout: Duration(milliseconds: 120),
+            deadline: Duration(seconds: 2),
+          ),
+        );
 
-      final started = DateTime.now();
-      await expectLater(
-        extractor.extract(_url),
-        throwsA(isA<ExtractionException>()),
-      );
-      expect(DateTime.now().difference(started),
-          lessThan(const Duration(seconds: 3)));
-    });
+        final started = DateTime.now();
+        await expectLater(
+          extractor.extract(_url),
+          throwsA(isA<ExtractionException>()),
+        );
+        expect(
+          DateTime.now().difference(started),
+          lessThan(const Duration(seconds: 3)),
+        );
+      },
+    );
 
     test('the deadline stops retries even when attempts remain', () async {
       final server = _Server(_withModelList([_reply(503, _overloaded)]));
@@ -706,33 +783,244 @@ void main() {
     });
   });
 
-  group('the stage messages tell the truth', () {
-    test('a retry is announced to the screen', () async {
-      final server = _Server(_withModelList([
-        _reply(503, _overloaded),
-        _reply(200, _extraction()),
-      ]));
-      final stages = <String>[];
+  group('the screen is told the phase, not the machinery', () {
+    test('progress is reported as phases, in order', () async {
+      final server = _Server(
+        _withModelList([_reply(503, _overloaded), _reply(200, _extraction())]),
+      );
+      final phases = <ExtractionPhase>[];
 
-      await _extractor(server).extract(_url, onStage: stages.add);
+      await _extractor(server).extract(_url, onStage: phases.add);
 
-      expect(stages.first, 'Reading the post');
-      expect(stages.any((s) => s.contains('busy')), isTrue);
-      expect(stages.any((s) => s.contains('attempt 2 of 4')), isTrue);
-      expect(stages.last, 'Reading the reply');
+      expect(phases.first, ExtractionPhase.readingPost);
+      expect(phases, contains(ExtractionPhase.analysing));
+      expect(phases.last, ExtractionPhase.finishing);
     });
 
-    test('a joined duplicate is told so rather than shown a fresh spinner',
-        () async {
-      final server = _Server(_withModelList([_reply(200, _extraction())]));
+    test(
+      'a retry stays inside one phase rather than narrating itself',
+      () async {
+        // The screen used to be handed "Gemini is busy — retrying in 4s
+        // (attempt 2 of 4)". A retry is part of the wait, not an event.
+        final server = _Server(
+          _withModelList([
+            _reply(503, _overloaded),
+            _reply(200, _extraction()),
+          ]),
+        );
+        final phases = <ExtractionPhase>[];
+
+        await _extractor(server).extract(_url, onStage: phases.add);
+
+        final analysing = phases.where((p) => p == ExtractionPhase.analysing);
+        expect(analysing, isNotEmpty);
+        expect(
+          phases.toSet(),
+          everyElement(isIn(ExtractionPhase.values)),
+          reason: 'a phase is the whole vocabulary the UI receives',
+        );
+      },
+    );
+
+    test(
+      'a second tap joins the run in flight and still reports progress',
+      () async {
+        final server = _Server(_withModelList([_reply(200, _extraction())]));
+        final extractor = _extractor(server);
+        final phases = <ExtractionPhase>[];
+
+        final first = extractor.extract(_url);
+        extractor.extract(_url, onStage: phases.add);
+        await first;
+
+        // The joiner sees the work already under way rather than a fresh
+        // spinner that implies a second request was sent.
+        expect(phases, contains(ExtractionPhase.analysing));
+      },
+    );
+  });
+
+  group('a busy model moves to another one', () {
+    /// The shared list has a single model, which cannot show a fallback. These
+    /// need two so there is somewhere to fall back to.
+    String twoModels() => jsonEncode({
+      'models': [
+        {
+          'name': 'models/gemini-2.5-flash',
+          'supportedGenerationMethods': ['generateContent'],
+        },
+        {
+          'name': 'models/gemini-2.5-flash-lite',
+          'supportedGenerationMethods': ['generateContent'],
+        },
+      ],
+    });
+
+    test('a persistently overloaded model falls back and succeeds', () async {
+      // Four 503s exhaust the retry budget on the first model. Before this,
+      // that was the end and the user saw "Server Error [503]". Now the next
+      // candidate — a different serving pool — is tried.
+      final server = _Server([
+        _reply(200, twoModels()),
+        _reply(503, _overloaded),
+        _reply(503, _overloaded),
+        _reply(503, _overloaded),
+        _reply(503, _overloaded),
+        _reply(200, _extraction()),
+      ]);
+
+      final result = await _extractor(server).extract(_url);
+
+      expect(result.destination, isNotNull);
+      final models = server.generateCalls.map((c) => c.url.path).toSet();
+      expect(
+        models.length,
+        greaterThan(1),
+        reason: 'it did not sit on the same overloaded model',
+      );
+    });
+
+    test('a rate limit does not fan out across models', () async {
+      // 429 is the key's quota, and every model shares it. Trying the whole
+      // candidate list would turn one failure into several.
+      final server = _Server([
+        _reply(200, twoModels()),
+        _reply(429, _errorBody(429, 'RESOURCE_EXHAUSTED', 'quota')),
+      ]);
+
+      await expectLater(
+        _extractor(server).extract(_url),
+        throwsA(isA<ExtractionException>()),
+      );
+
+      final models = server.generateCalls.map((c) => c.url.path).toSet();
+      expect(models.length, 1, reason: 'one quota, shared by every model');
+    });
+
+    test('an overloaded model is not retired, because it recovers', () async {
+      final server = _Server([
+        _reply(200, twoModels()),
+        _reply(503, _overloaded),
+        _reply(503, _overloaded),
+        _reply(503, _overloaded),
+        _reply(503, _overloaded),
+        _reply(200, _extraction()),
+      ]);
       final extractor = _extractor(server);
-      final stages = <String>[];
 
-      final first = extractor.extract(_url);
-      extractor.extract(_url, onStage: stages.add);
-      await first;
+      await extractor.extract(_url);
+      final second = await extractor.extract('${_url}2');
 
-      expect(stages, contains('Already analysing this link'));
+      expect(second.destination, isNotNull);
+    });
+  });
+
+  group('nothing the user reads names the machinery', () {
+    /// Every message a person can end up looking at, from every failure the
+    /// API can produce. None of them may mention the vendor, a model id, or
+    /// an HTTP status — that was the whole complaint.
+    const forbidden = [
+      'gemini',
+      'http',
+      '503',
+      '500',
+      '502',
+      '504',
+      '429',
+      'unavailable',
+      'resource_exhausted',
+      'overloaded',
+      'safety',
+      'token',
+      'json',
+    ];
+
+    Future<String> messageFrom(_Server server) async {
+      try {
+        await _extractor(server).extract(_url);
+        return '';
+      } on ExtractionException catch (e) {
+        return e.message;
+      }
+    }
+
+    test(
+      'no failure mode leaks a vendor name, a model id or a status code',
+      () async {
+        final cases = <String, _Server>{
+          'overload': _Server(
+            _withModelList(List.filled(12, _reply(503, _overloaded))),
+          ),
+          'rate limit': _Server(
+            _withModelList([
+              _reply(429, _errorBody(429, 'RESOURCE_EXHAUSTED', 'quota')),
+            ]),
+          ),
+          'bad key': _Server(
+            _withModelList([
+              _reply(
+                400,
+                _errorBody(
+                  400,
+                  'INVALID_ARGUMENT',
+                  'API key not valid',
+                  reason: 'API_KEY_INVALID',
+                ),
+              ),
+            ]),
+          ),
+          'blocked': _Server(
+            _withModelList([
+              _reply(
+                200,
+                jsonEncode({
+                  'promptFeedback': {'blockReason': 'SAFETY'},
+                }),
+              ),
+            ]),
+          ),
+          'no candidates': _Server(
+            _withModelList([
+              _reply(200, jsonEncode({'candidates': []})),
+            ]),
+          ),
+          'unreadable reply': _Server(
+            _withModelList([_reply(200, 'not json at all')]),
+          ),
+        };
+
+        for (final entry in cases.entries) {
+          final message = await messageFrom(entry.value);
+          expect(
+            message,
+            isNotEmpty,
+            reason: '${entry.key} produced no message',
+          );
+          final lower = message.toLowerCase();
+          for (final word in forbidden) {
+            // GEMINI_API_KEY and GEMINI_MODEL are the two exceptions: they name
+            // a setting in the developer's own .env, which is the only place
+            // that instruction can usefully live.
+            if (word == 'gemini' && message.contains('GEMINI_')) continue;
+            expect(
+              lower,
+              isNot(contains(word)),
+              reason: '${entry.key} leaked "$word": $message',
+            );
+          }
+        }
+      },
+    );
+
+    test('every message tells the person what they can do next', () async {
+      final server = _Server(
+        _withModelList(List.filled(12, _reply(503, _overloaded))),
+      );
+      final message = await messageFrom(server);
+      expect(
+        message.toLowerCase(),
+        anyOf(contains('try again'), contains('yourself')),
+      );
     });
   });
 }

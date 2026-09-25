@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'shared_link_io.dart'
-    if (dart.library.js_interop) 'shared_link_web.dart' as platform;
+    if (dart.library.js_interop) 'shared_link_web.dart'
+    as platform;
 
 /// A link handed to Nook by another app.
 ///
@@ -35,8 +36,9 @@ abstract final class SharedLink {
   /// found inside the sentence around it.
   static String? firstLinkIn(String? text) {
     if (text == null || text.trim().isEmpty) return null;
-    final match =
-        RegExp(r'https?://[^\s<>"]+').firstMatch(text.replaceAll('\n', ' '));
+    final match = RegExp(
+      r'https?://[^\s<>"]+',
+    ).firstMatch(text.replaceAll('\n', ' '));
     if (match == null) return null;
     // Trailing punctuation belongs to the sentence, not the link.
     return match.group(0)!.replaceAll(RegExp(r'[),.\]]+$'), '');

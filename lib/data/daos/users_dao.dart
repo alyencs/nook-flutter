@@ -27,7 +27,9 @@ class UsersDao {
   }) async {
     final existing = await currentUser();
     if (existing == null) {
-      return _db.into(_db.users).insert(
+      return _db
+          .into(_db.users)
+          .insert(
             UsersCompanion.insert(
               name: name,
               email: Value(email),

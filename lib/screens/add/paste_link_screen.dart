@@ -10,7 +10,7 @@ import '../../data/daos/settings_dao.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
-import '../../theme/nook_motion.dart';
+import '../../widgets/analysing_indicator.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
@@ -45,7 +45,7 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
 
   /// What extraction is doing right now, and for how long, so a slow call is
   /// visibly working rather than indistinguishable from a frozen screen.
-  String? _stage;
+  ExtractionPhase _phase = ExtractionPhase.readingPost;
   Timer? _ticker;
   int _elapsed = 0;
 
@@ -114,7 +114,6 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   void _stopProgress() {
     _ticker?.cancel();
     _ticker = null;
-    _stage = null;
   }
 
   /// Abandons the current run. The request itself cannot be recalled, but its
@@ -141,7 +140,7 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
     setState(() {
       _busy = true;
       _error = null;
-      _stage = 'Starting';
+      _phase = ExtractionPhase.readingPost;
       _startProgress();
     });
 
@@ -160,8 +159,8 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
     try {
       final result = await extractor.extract(
         url,
-        onStage: (message) {
-          if (mounted && attempt == _attempt) setState(() => _stage = message);
+        onStage: (phase) {
+          if (mounted && attempt == _attempt) setState(() => _phase = phase);
         },
       );
       if (!mounted || attempt != _attempt) return;
@@ -190,7 +189,9 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
       setState(() {
         _busy = false;
         _stopProgress();
-        _error = 'Something went wrong reading that link: $e';
+        _error =
+            "We couldn't analyse this post right now. Please try again, "
+            'or enter the details yourself.';
       });
     }
   }
@@ -243,8 +244,8 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
             ),
             if (_busy) ...[
               const SizedBox(height: NookSpacing.section),
-              _AnalysisProgress(
-                stage: _stage ?? 'Working',
+              AnalysingIndicator(
+                phase: _phase,
                 seconds: _elapsed,
                 onCancel: _cancel,
               ),
@@ -285,86 +286,6 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   }
 }
 
-/// What extraction is doing, and for how long.
-///
-/// A bare spinner cannot be told apart from a frozen screen, and neither can be
-/// escaped. This names the step, counts the seconds, and offers a way out.
-class _AnalysisProgress extends StatelessWidget {
-  const _AnalysisProgress({
-    required this.stage,
-    required this.seconds,
-    required this.onCancel,
-  });
-
-  final String stage;
-  final int seconds;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(NookSpacing.section),
-      decoration: BoxDecoration(
-        color: NookColors.surface,
-        borderRadius: BorderRadius.circular(NookRadius.md),
-        border: Border.all(color: NookColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(NookColors.primary),
-                ),
-              ),
-              const SizedBox(width: NookSpacing.tight),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: NookMotion.fast,
-                  // Keyed on the text, so each new stage cross-fades with the
-                  // one before instead of the label changing under you.
-                  child: Text(
-                    '$stage…',
-                    key: ValueKey(stage),
-                    style: NookType.bodyStrong,
-                  ),
-                ),
-              ),
-              Text('${seconds}s', style: NookType.caption),
-            ],
-          ),
-          const SizedBox(height: NookSpacing.tight),
-          const ClipRRect(
-            borderRadius: BorderRadius.all(Radius.circular(2)),
-            child: LinearProgressIndicator(
-              minHeight: 3,
-              backgroundColor: NookColors.placeholder,
-              valueColor: AlwaysStoppedAnimation(NookColors.primary),
-            ),
-          ),
-          const SizedBox(height: NookSpacing.tight),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: onCancel,
-              child: Text(
-                'Cancel',
-                style: NookType.body.copyWith(color: NookColors.primary),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Says which extractor will run, before a link is spent finding out.
 class _SampleModeNote extends StatelessWidget {
   const _SampleModeNote();
 

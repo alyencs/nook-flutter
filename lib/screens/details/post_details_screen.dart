@@ -11,7 +11,6 @@ import '../../widgets/metadata_chip.dart';
 import '../../widgets/platform_badge.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
-import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/open_original.dart';
 import '../../widgets/section_header.dart';
@@ -24,9 +23,9 @@ import 'travel_details_screen.dart';
 /// "Recently Viewed" section on Home.
 void openPostDetails(BuildContext context, int postId) {
   AppScope.of(context).posts.markViewed(postId);
-  Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => PostDetailsScreen(postId: postId)),
-  );
+  Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => PostDetailsScreen(postId: postId)));
 }
 
 /// S1.
@@ -61,18 +60,24 @@ class PostDetailsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: NookSpacing.tight),
-              NookSquareAction(
-                icon: Icons.open_in_new_rounded,
-                semanticLabel: OpenOriginal.labelFor(
-                  post.originalUrl,
-                  post.platform,
+              // The one way to open the source. There used to be a second,
+              // a ruled row further down the same screen, which offered the
+              // identical action twice. A note has no source at all, so this
+              // is absent rather than present and failing.
+              if (OpenOriginal.isAvailable(post.originalUrl)) ...[
+                const SizedBox(width: NookSpacing.tight),
+                NookSquareAction(
+                  icon: Icons.open_in_new_rounded,
+                  semanticLabel: OpenOriginal.labelFor(
+                    post.originalUrl,
+                    post.platform,
+                  ),
+                  onTap: () => OpenOriginal.open(
+                    Overlay.of(context, rootOverlay: true),
+                    post.originalUrl,
+                  ),
                 ),
-                onTap: () => OpenOriginal.open(
-                  Overlay.of(context, rootOverlay: true),
-                  post.originalUrl,
-                ),
-              ),
+              ],
             ],
           ),
           child: ListView(
@@ -138,8 +143,9 @@ class PostDetailsScreen extends StatelessWidget {
                           if (post.creatorHandle != null)
                             Text(
                               post.creatorHandle!,
-                              style: NookType.caption
-                                  .copyWith(color: NookColors.textMuted),
+                              style: NookType.caption.copyWith(
+                                color: NookColors.textMuted,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -164,19 +170,6 @@ class PostDetailsScreen extends StatelessWidget {
                     MetadataChip(post.aiCategory!, icon: Icons.sell_outlined),
                 ],
               ),
-              if (OpenOriginal.isAvailable(post.originalUrl)) ...[
-                const SizedBox(height: NookSpacing.block),
-                RuledRow(
-                  icon: Icons.play_circle_outline_rounded,
-                  label: OpenOriginal.labelFor(post.originalUrl, post.platform),
-                  value: _hostOf(post.originalUrl),
-                  valueStyle: NookType.caption,
-                  onTap: () => OpenOriginal.open(
-                    Overlay.of(context, rootOverlay: true),
-                    post.originalUrl,
-                  ),
-                ),
-              ],
               if (post.caption != null) ...[
                 const SizedBox(height: NookSpacing.block),
                 const OverlineLabel('Caption'),
@@ -238,13 +231,6 @@ class PostDetailsScreen extends StatelessWidget {
   }
 }
 
-/// The bare host, so the row shows where the link goes without the query
-/// string that makes a share URL unreadable.
-String _hostOf(String? url) {
-  final host = Uri.tryParse(url ?? '')?.host ?? '';
-  return host.startsWith('www.') ? host.substring(4) : host;
-}
-
 /// What the badge over the preview says.
 ///
 /// Read from the stored media type rather than assumed. Posts saved before
@@ -283,10 +269,8 @@ class _TripTile extends StatelessWidget {
           else
             StreamBuilder<Trip?>(
               stream: scope.trips.watchTrip(tripId!),
-              builder: (context, snapshot) => Text(
-                snapshot.data?.name ?? '—',
-                style: NookType.bodyStrong,
-              ),
+              builder: (context, snapshot) =>
+                  Text(snapshot.data?.name ?? '—', style: NookType.bodyStrong),
             ),
         ],
       ),

@@ -31,20 +31,28 @@ class GeminiExtractor implements AiExtractor {
     required String apiKey,
     String? model,
     String? youTubeApiKey,
+    String? facebookToken,
     http.Client? httpClient,
     RetryPolicy retry = const RetryPolicy(),
-  })  : _override = _clean(model),
-        _youTubeApiKey = _clean(youTubeApiKey),
-        _sourceClient = httpClient,
-        _client = GeminiClient(
-          apiKey: apiKey,
-          httpClient: httpClient,
-          retry: retry,
-        );
+  }) : _override = _clean(model),
+       _youTubeApiKey = _clean(youTubeApiKey),
+       _facebookToken = _clean(facebookToken),
+       _sourceClient = httpClient,
+       _client = GeminiClient(
+         apiKey: apiKey,
+         httpClient: httpClient,
+         retry: retry,
+       );
 
   /// A pinned id from `GEMINI_MODEL`, or null to ask the API what it has.
   final String? _override;
   final String? _youTubeApiKey;
+
+  /// `APP_ID|CLIENT_TOKEN` for Meta's Graph API, which is the only way to read
+  /// an Instagram or Facebook post's text since their public oEmbed was
+  /// withdrawn. Optional: without it those two extract from the URL alone, and
+  /// the prompt says so rather than letting the model fill the gap.
+  final String? _facebookToken;
   final GeminiClient _client;
 
   /// Shared with the Gemini client so a test can script both the oEmbed lookup
@@ -84,7 +92,7 @@ class GeminiExtractor implements AiExtractor {
     final key = url.trim();
     final existing = _inFlight[key];
     if (existing != null) {
-      onStage?.call('Already analysing this link');
+      onStage?.call(ExtractionPhase.analysing);
       return existing;
     }
 
@@ -93,8 +101,11 @@ class GeminiExtractor implements AiExtractor {
     return future.whenComplete(() => _inFlight.remove(key));
   }
 
-  Future<ExtractionResult> _extract(String url, ExtractionStage? onStage) async {
-    onStage?.call('Reading the post');
+  Future<ExtractionResult> _extract(
+    String url,
+    ExtractionStage? onStage,
+  ) async {
+    onStage?.call(ExtractionPhase.readingPost);
 
     // The post itself, before the model sees anything. This is the step that
     // was missing: without it the model received a bare URL and could only
@@ -103,10 +114,8 @@ class GeminiExtractor implements AiExtractor {
       url,
       client: _sourceClient,
       youTubeApiKey: _youTubeApiKey,
+      facebookToken: _facebookToken,
     );
-    if (source.hasText) {
-      onStage?.call('Read "${_shorten(source.title ?? '')}"');
-    }
 
     // Started before the model call and awaited after it. The thumbnail lookup
     // can reach out to a platform that never answers, and it has nothing to do
@@ -115,7 +124,7 @@ class GeminiExtractor implements AiExtractor {
 
     final json = await _generate(url, source, onStage);
 
-    onStage?.call('Reading the reply');
+    onStage?.call(ExtractionPhase.finishing);
     return _resultFrom(
       json,
       url: url,
@@ -123,9 +132,6 @@ class GeminiExtractor implements AiExtractor {
       thumbnailUrl: await thumbnail,
     );
   }
-
-  static String _shorten(String value) =>
-      value.length <= 40 ? value : '${value.substring(0, 39)}…';
 
   /// Asks each candidate model in turn until one answers.
   ///
@@ -148,23 +154,40 @@ class GeminiExtractor implements AiExtractor {
 
     Future<Map<String, dynamic>?> attempt(String model) async {
       tried.add(model);
-      onStage?.call('Asking $model');
+      onStage?.call(ExtractionPhase.analysing);
       try {
         return await _client.generateContent(
           model: model,
           body: _requestBody(source),
-          onRetry: (attempt, of, wait) => onStage?.call(
-            'Gemini is busy — retrying in ${_seconds(wait)}s '
-            '(attempt $attempt of $of)',
-          ),
+          // Still one phase from the outside. A retry is part of the wait, not
+          // a separate thing worth narrating.
+          onRetry: (attempt, of, wait) =>
+              onStage?.call(ExtractionPhase.analysing),
         );
       } on GeminiApiException catch (e) {
         last = e;
-        // Only "no such model" is worth moving on from. Everything else would
-        // fail identically against the next model, so stop and report it.
-        if (!e.isModelUnavailable) throw ExtractionException(_friendly(e, tried));
-        _retired.add(model);
-        return null;
+
+        // A model that no longer exists is gone for this session.
+        if (e.isModelUnavailable) {
+          _retired.add(model);
+          return null;
+        }
+
+        // This is the fix for the 503s. An overloaded model means *that
+        // model's* capacity right now, and the client has already retried it
+        // with backoff. Retrying it further is waiting on the same queue;
+        // another model is a different pool and usually answers immediately.
+        // Not retired, because it will be fine again shortly.
+        //
+        // Narrower than `isTransient` on purpose: a 429 is the key's quota and
+        // a null status never reached a server, so neither is worth trying a
+        // second model for — that would turn one failure into five.
+        if (e.isModelOverloaded) return null;
+
+        // A rejected key, a blocked prompt, an exhausted quota: these fail
+        // identically against every model, so stop rather than work through
+        // the list producing the same error four times.
+        throw ExtractionException(_friendly(e, tried));
       }
     }
 
@@ -172,7 +195,6 @@ class GeminiExtractor implements AiExtractor {
     if (pinned != null && !_retired.contains(pinned)) {
       final answer = await attempt(pinned);
       if (answer != null) return answer;
-      onStage?.call('$pinned is unavailable — looking for another model');
     }
 
     final candidates = (await _resolveCandidates())
@@ -182,8 +204,8 @@ class GeminiExtractor implements AiExtractor {
 
     if (candidates.isEmpty && tried.isEmpty) {
       throw const ExtractionException(
-        'No Gemini model on this key can run an extraction. Check that the '
-        'Generative Language API is enabled for the key in GEMINI_API_KEY.',
+        'Nook could not reach a working AI model. Check that the Generative '
+        'Language API is enabled for the key in GEMINI_API_KEY.',
       );
     }
 
@@ -194,9 +216,6 @@ class GeminiExtractor implements AiExtractor {
 
     throw ExtractionException(_friendly(last!, tried));
   }
-
-  static String _seconds(Duration wait) =>
-      (wait.inMilliseconds / 1000).toStringAsFixed(1);
 
   /// The candidate models, best first, resolved once per session.
   ///
@@ -217,21 +236,24 @@ class GeminiExtractor implements AiExtractor {
   }
 
   Map<String, Object?> _requestBody(SourceMetadata source) => {
-        'contents': [
+    'contents': [
+      {
+        'role': 'user',
+        'parts': [
           {
-            'role': 'user',
-            'parts': [
-              {'text': '$_instructions\n\n--- SOURCE ---\n'
-                  '${source.toPromptBlock()}--- END SOURCE ---'},
-            ],
+            'text':
+                '$_instructions\n\n--- SOURCE ---\n'
+                '${source.toPromptBlock()}--- END SOURCE ---',
           },
         ],
-        'generationConfig': {
-          'temperature': 0.2,
-          'responseMimeType': 'application/json',
-          'responseSchema': _responseSchema,
-        },
-      };
+      },
+    ],
+    'generationConfig': {
+      'temperature': 0.2,
+      'responseMimeType': 'application/json',
+      'responseSchema': _responseSchema,
+    },
+  };
 
   /// A response schema, so the reply is JSON of a known shape rather than prose
   /// that has to be guessed at. Written as a plain map because that is what the
@@ -245,13 +267,15 @@ class GeminiExtractor implements AiExtractor {
     'properties': {
       'title': {
         'type': 'STRING',
-        'description': 'The post\'s real human title or caption, copied from '
+        'description':
+            'The post\'s real human title or caption, copied from '
             'the source. Never an id, a URL or a filename.',
       },
       'caption': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'The post\'s own description or caption text, kept as '
+        'description':
+            'The post\'s own description or caption text, kept as '
             'written. Null if the source carries none.',
       },
       'creator': {
@@ -267,7 +291,8 @@ class GeminiExtractor implements AiExtractor {
       'place_name': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'The specific cafe, restaurant, shop, hotel or landmark '
+        'description':
+            'The specific cafe, restaurant, shop, hotel or landmark '
             'the post is about, if it names one.',
       },
       'address': {'type': 'STRING', 'nullable': true},
@@ -287,7 +312,8 @@ class GeminiExtractor implements AiExtractor {
       'summary': {
         'type': 'STRING',
         'nullable': true,
-        'description': 'Two or three sentences about what a traveller finds, '
+        'description':
+            'Two or three sentences about what a traveller finds, '
             'drawn only from the source.',
       },
       'best_time': {
@@ -303,7 +329,8 @@ class GeminiExtractor implements AiExtractor {
       'latitude': {
         'type': 'NUMBER',
         'nullable': true,
-        'description': 'Decimal degrees for the specific place or '
+        'description':
+            'Decimal degrees for the specific place or '
             'neighbourhood. Null unless the location is specific enough to '
             'have a single point.',
       },
@@ -311,7 +338,8 @@ class GeminiExtractor implements AiExtractor {
       'places': {
         'type': 'ARRAY',
         'nullable': true,
-        'description': 'Every specific place the source names — each cafe, '
+        'description':
+            'Every specific place the source names — each cafe, '
             'restaurant, bar, shop, hotel or landmark it actually mentions. '
             'Empty when the source names none. Never invent one.',
         'items': {
@@ -321,7 +349,8 @@ class GeminiExtractor implements AiExtractor {
             'kind': {
               'type': 'STRING',
               'nullable': true,
-              'description': 'cafe, restaurant, bar, hotel, shop, landmark, '
+              'description':
+                  'cafe, restaurant, bar, hotel, shop, landmark, '
                   'viewpoint, or other.',
             },
             'area': {
@@ -341,7 +370,8 @@ class GeminiExtractor implements AiExtractor {
       'highlights': {
         'type': 'ARRAY',
         'nullable': true,
-        'description': 'Activities, recommendations and practical tips the '
+        'description':
+            'Activities, recommendations and practical tips the '
             'source gives, one short line each. Empty when it gives none.',
         'items': {'type': 'STRING'},
       },
@@ -403,30 +433,37 @@ Return JSON only, matching the schema.
   }) {
     final blockReason = (response['promptFeedback'] as Map?)?['blockReason'];
     if (blockReason != null) {
-      throw ExtractionException(
-        'Gemini declined to read that link ($blockReason). Enter the details '
-        'yourself, or try a different link.',
+      // The reason code is a safety-filter category, not something anyone
+      // pasting a link can act on.
+      throw const ExtractionException(
+        "Nook couldn't analyse this post. Try a different link, or enter the "
+        'details yourself.',
       );
     }
 
     final candidates = response['candidates'];
     if (candidates is! List || candidates.isEmpty) {
-      throw const ExtractionException('Gemini returned no result for that link.');
+      throw const ExtractionException(
+        "We couldn't analyse this post right now. Please try again, or enter "
+        'the details yourself.',
+      );
     }
 
     final candidate = candidates.first as Map;
     final finish = candidate['finishReason'];
     if (finish is String && finish != 'STOP' && finish != 'MAX_TOKENS') {
-      throw ExtractionException('Gemini stopped early ($finish). Try again.');
+      throw const ExtractionException(
+        "We couldn't finish analysing this post. Please try again.",
+      );
     }
 
     final parts = (candidate['content'] as Map?)?['parts'];
     final text = parts is List
         ? parts
-            .whereType<Map>()
-            .map((part) => part['text'])
-            .whereType<String>()
-            .join()
+              .whereType<Map>()
+              .map((part) => part['text'])
+              .whereType<String>()
+              .join()
         : '';
     if (text.trim().isEmpty) {
       throw const ExtractionException('The extraction came back empty.');
@@ -446,7 +483,9 @@ Return JSON only, matching the schema.
       final value = json[key];
       if (value is! String) return null;
       final trimmed = value.trim();
-      return trimmed.isEmpty || trimmed.toLowerCase() == 'null' ? null : trimmed;
+      return trimmed.isEmpty || trimmed.toLowerCase() == 'null'
+          ? null
+          : trimmed;
     }
 
     double? number(String key) {
@@ -459,7 +498,8 @@ Return JSON only, matching the schema.
     // Coordinates are only useful as a pair, and only inside the real ranges.
     final latitude = number('latitude');
     final longitude = number('longitude');
-    final placeable = latitude != null &&
+    final placeable =
+        latitude != null &&
         longitude != null &&
         latitude.abs() <= 90 &&
         longitude.abs() <= 180 &&
@@ -470,8 +510,8 @@ Return JSON only, matching the schema.
 
     // A post can name a venue in its list without filling place_name; the first
     // place it names is the one the post is about.
-    final placeName = string('place_name') ??
-        (places.isNotEmpty ? places.first.name : null);
+    final placeName =
+        string('place_name') ?? (places.isNotEmpty ? places.first.name : null);
     final neighbourhood = string('neighbourhood');
     final city = string('city');
     final region = string('region');
@@ -488,8 +528,10 @@ Return JSON only, matching the schema.
     // of Japan claims a precision the post never had — Travel Details shows the
     // placeholder and says why instead.
     final specific =
-        placeName != null || neighbourhood != null || city != null ||
-            string('address') != null;
+        placeName != null ||
+        neighbourhood != null ||
+        city != null ||
+        string('address') != null;
 
     return ExtractionResult(
       title: title,
@@ -565,32 +607,37 @@ Return JSON only, matching the schema.
     return parts.take(2).join(', ');
   }
 
-  /// Turns an API failure into something worth reading, and — where the user
-  /// can do something about it — says what.
+  /// What the person reads when extraction cannot finish.
+  ///
+  /// Deliberately free of vendor names, model ids and HTTP status codes.
+  /// "Server Error [503]: UNAVAILABLE" told someone pasting a TikTok link
+  /// nothing they could act on. The rule here is: say what happened in their
+  /// terms, and say what they can do — retry, wait, or type it in themselves.
+  ///
+  /// The two configuration failures are the exception. A rejected key and a
+  /// disabled API are the developer's to fix, cannot be retried past, and the
+  /// message is the only place that instruction can live — but even those name
+  /// the `.env` setting rather than the service behind it.
   String _friendly(GeminiApiException e, List<String> tried) {
     if (e.isAuthFailure) {
-      return 'That Gemini API key was rejected (${e.reason ?? e.status}). '
-          'Check GEMINI_API_KEY in your .env, and that the Generative Language '
-          'API is enabled for it.';
+      return 'Nook could not authenticate with its AI service. Check '
+          'GEMINI_API_KEY in your .env file.';
     }
     if (e.status == 429 || e.code == 'RESOURCE_EXHAUSTED') {
-      return "You've hit the rate limit on this Gemini key. It resets on its "
-          'own — wait a minute and retry, or enter the details yourself.';
+      return "Nook has hit today's limit for analysing posts. It resets on its "
+          'own — try again in a little while, or enter the details yourself.';
     }
     if (e.isModelUnavailable) {
-      return 'None of the models this key can reach accepted the request '
-          '(tried ${tried.join(', ')}). Set GEMINI_MODEL in .env to one your '
-          'key supports.';
+      return 'Nook could not reach a working AI model. Check GEMINI_MODEL in '
+          'your .env file, or leave it blank to let Nook choose.';
     }
     if (e.isTransient) {
-      final what = e.status == null
-          ? 'Gemini could not be reached'
-          : 'Gemini is overloaded (HTTP ${e.status})';
-      return '$what. Nook retried this a few times with a growing wait and it '
-          'stayed unavailable. This is on their side and usually clears in a '
-          'few minutes — retry, or enter the details yourself.';
+      return "We couldn't analyse this post right now. Nook tried a few times "
+          'and the service stayed busy. Please try again in a moment, or '
+          'enter the details yourself.';
     }
-    return 'Extraction failed: ${e.message}';
+    return "We couldn't analyse this post right now. Please try again, or "
+        'enter the details yourself.';
   }
 
   /// Last resort so a post is never saved with an empty title.

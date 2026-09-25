@@ -10,7 +10,7 @@ class MetadataChip extends StatelessWidget {
 
   /// Outlined variant: the suggestion chips on the Search screen.
   const MetadataChip.outlined(this.label, {super.key, this.icon})
-      : _outlined = true;
+    : _outlined = true;
 
   final String label;
   final IconData? icon;
@@ -45,7 +45,7 @@ class MetadataChip extends StatelessWidget {
               style: NookType.caption.copyWith(
                 color: NookColors.primary,
                 fontWeight: FontWeight.w600,
-                ),
+              ),
             ),
           ),
         ],

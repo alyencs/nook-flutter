@@ -39,7 +39,9 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
     final navigator = Navigator.of(context);
 
     setState(() => _saving = true);
-    await AppScope.of(context).posts.updateNote(widget.postId, _note.text.trim());
+    await AppScope.of(
+      context,
+    ).posts.updateNote(widget.postId, _note.text.trim());
     if (!mounted) return;
     setState(() => _saving = false);
     navigator.pop();
@@ -87,10 +89,7 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            post.title,
-                            style: NookType.bodyStrong,
-                          ),
+                          Text(post.title, style: NookType.bodyStrong),
                           const SizedBox(height: 2),
                           Text(
                             post.creator ?? '—',

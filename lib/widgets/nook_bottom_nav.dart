@@ -33,8 +33,16 @@ class NookBottomNav extends StatelessWidget {
 
   static const _items = [
     (icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
-    (icon: Icons.folder_outlined, activeIcon: Icons.folder_rounded, label: 'Trips'),
-    (icon: Icons.add_circle_outline, activeIcon: Icons.add_circle, label: 'Add'),
+    (
+      icon: Icons.folder_outlined,
+      activeIcon: Icons.folder_rounded,
+      label: 'Trips',
+    ),
+    (
+      icon: Icons.add_circle_outline,
+      activeIcon: Icons.add_circle,
+      label: 'Add',
+    ),
     (icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile'),
   ];
 
@@ -88,7 +96,11 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(selected ? item.activeIcon : item.icon, size: 26, color: colour),
+            Icon(
+              selected ? item.activeIcon : item.icon,
+              size: 26,
+              color: colour,
+            ),
             const SizedBox(height: 4),
             Text(
               item.label,

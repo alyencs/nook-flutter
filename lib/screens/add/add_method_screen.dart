@@ -5,6 +5,7 @@ import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/screen_title.dart';
 import 'create_note_screen.dart';
 import 'paste_link_screen.dart';
 
@@ -20,14 +21,16 @@ class AddMethodScreen extends StatelessWidget {
         children: [
           const NookAppBar(title: 'Add Post'),
           const SizedBox(height: NookSpacing.section),
+          const ScreenTitle('Add a post'),
+          const SizedBox(height: NookSpacing.block),
           _MethodTile(
             icon: Icons.link_rounded,
             title: 'Paste Link',
             subtitle: 'Save a post from social media',
             emphasised: true,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PasteLinkScreen()),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const PasteLinkScreen())),
           ),
           const SizedBox(height: NookSpacing.section),
           _MethodTile(
@@ -35,9 +38,9 @@ class AddMethodScreen extends StatelessWidget {
             title: 'Create Note',
             subtitle: 'Write a personal note',
             emphasised: false,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CreateNoteScreen()),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const CreateNoteScreen())),
           ),
         ],
       ),

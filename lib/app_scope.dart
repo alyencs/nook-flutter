@@ -20,12 +20,11 @@ class AppScope extends InheritedWidget {
     required this.extractor,
     required this.tab,
     required super.child,
-  })
-      : posts = PostsDao(db),
-        trips = TripsDao(db),
-        users = UsersDao(db),
-        searches = SearchesDao(db),
-        settings = SettingsDao(db);
+  }) : posts = PostsDao(db),
+       trips = TripsDao(db),
+       users = UsersDao(db),
+       searches = SearchesDao(db),
+       settings = SettingsDao(db);
 
   final NookDatabase db;
   final AiExtractor extractor;
@@ -50,5 +49,7 @@ class AppScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(AppScope oldWidget) =>
-      db != oldWidget.db || extractor != oldWidget.extractor || tab != oldWidget.tab;
+      db != oldWidget.db ||
+      extractor != oldWidget.extractor ||
+      tab != oldWidget.tab;
 }

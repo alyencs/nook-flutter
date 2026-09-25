@@ -83,7 +83,8 @@ class AboutScreen extends StatelessWidget {
     await showNookDialog(
       context,
       title: 'Not on a store yet',
-      message: 'Nook is a student project and is not published to the App '
+      message:
+          'Nook is a student project and is not published to the App '
           'Store or Google Play, so there is nowhere to leave a rating. The '
           'repository linked from Help & Support is the place for feedback.',
       confirmLabel: 'Got it',

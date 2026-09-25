@@ -15,18 +15,18 @@ enum PostMediaType {
   unknown;
 
   static PostMediaType parse(String? value) => switch (value) {
-        'video' => video,
-        'image' => image,
-        'carousel' => carousel,
-        _ => unknown,
-      };
+    'video' => video,
+    'image' => image,
+    'carousel' => carousel,
+    _ => unknown,
+  };
 
   String get label => switch (this) {
-        video => 'Video',
-        image => 'Photo',
-        carousel => 'Gallery',
-        unknown => 'Preview',
-      };
+    video => 'Video',
+    image => 'Photo',
+    carousel => 'Gallery',
+    unknown => 'Preview',
+  };
 }
 
 /// Everything the app can legitimately learn about a link before asking Gemini.
@@ -109,19 +109,61 @@ class SourceMetadata {
     }
     if (title != null) buffer.writeln('TITLE:\n$title');
     if (description != null) buffer.writeln('DESCRIPTION:\n$description');
-    if (!fetched) {
-      buffer.writeln(
-        'NOTE: no post text could be retrieved for this platform. Only the URL '
-        'is available. Do not guess at content you cannot see.',
-      );
-    } else if (description == null) {
-      buffer.writeln(
-        'NOTE: only the title was available for this post; there is no '
-        'description or transcript. Extract what the title supports and leave '
-        'the rest null.',
-      );
-    }
+    buffer.writeln(_sourceNote());
     return buffer.toString();
+  }
+
+  /// What the model should understand about this kind of source.
+  ///
+  /// Each platform carries its travel detail somewhere different — a YouTube
+  /// description holds addresses and timestamps, a TikTok caption holds
+  /// hashtags and a place name, an Instagram caption is often the whole guide —
+  /// and each has a different ceiling on what can be read at all. Saying which
+  /// is which, per post, is what stops the model treating a bare URL as licence
+  /// to invent and stops it ignoring a description that is full of specifics.
+  String _sourceNote() {
+    if (!fetched) {
+      return switch (platform) {
+        NookPlatform.instagram || NookPlatform.facebook =>
+          'NOTE: this post could not be read. Instagram and Facebook stopped '
+              'serving post text publicly in 2020, and this build has no Meta '
+              'app token configured, so only the URL is available. Extract '
+              'only what the URL itself supports — often nothing beyond the '
+              'platform and the account name. Leave everything else null. Do '
+              'not guess at the caption, the place, or the content.',
+        _ =>
+          'NOTE: no post text could be retrieved. Only the URL is available. '
+              'Do not guess at content you cannot see.',
+      };
+    }
+
+    final where = switch (platform) {
+      NookPlatform.youtube =>
+        'This is a YouTube video. The description often lists the exact places '
+            'visited, with addresses, opening hours, prices and chapter '
+            'timestamps. Read it closely; it is usually more specific than the '
+            'title.',
+      NookPlatform.tiktok =>
+        'This is a TikTok. The caption is short and often carries the place '
+            'name and hashtags; hashtags naming a city or venue are real '
+            'signal, but a generic one like #fyp or #travel is not.',
+      NookPlatform.instagram =>
+        'This is an Instagram post. The caption is frequently the whole guide — '
+            'a numbered list of cafes, a set of tips — so read all of it. A '
+            'carousel means several images of the same subject, not several '
+            'subjects.',
+      NookPlatform.facebook =>
+        'This is a Facebook post. The text may be a long write-up or a single '
+            'line; treat it as the post body rather than a title.',
+      _ => 'Read whatever text is present.',
+    };
+
+    if (description == null) {
+      return 'NOTE: $where Only the title or caption was available for this '
+          'post — there is no fuller description and no transcript. Extract '
+          'what it supports and leave the rest null.';
+    }
+    return 'NOTE: $where';
   }
 }
 
@@ -147,32 +189,39 @@ abstract final class SourceMetadataFetcher {
   /// directly as a slower analysis.
   static const timeout = Duration(seconds: 6);
 
-  /// Reads the fuller record where a key allows it.
+  /// Reads each platform through the mechanism that platform actually offers.
   ///
-  /// oEmbed gives a title and a channel and stops there — it has no description
-  /// field at all. A YouTube description is where the detail actually lives:
-  /// the cafe names, the addresses, the prices, the chapter list. The Data API
-  /// returns it for `part=snippet`, so when `YOUTUBE_API_KEY` is set in `.env`
-  /// that call is made and its description is handed to the model.
+  /// The four are not equivalent, and pretending they are is how three of them
+  /// end up as an afterthought:
   ///
-  /// Without a key the app still works on the title alone, which is why this is
-  /// optional rather than required.
+  /// * **YouTube** — public oEmbed for the title and channel, with no key. With
+  ///   `YOUTUBE_API_KEY`, the Data API also returns the description and tags,
+  ///   which is where the cafe names, addresses and prices live.
+  /// * **TikTok** — public oEmbed, no key. Gives the caption as the title, the
+  ///   author, and the cover image.
+  /// * **Instagram** and **Facebook** — oEmbed stopped being public in October
+  ///   2020. Both now live behind the Graph API and need an app id and client
+  ///   token, which [facebookToken] carries. With it, the caption, author and
+  ///   thumbnail come back; without it, only what the URL itself says.
+  ///
+  /// Nothing here guesses. A platform that returns nothing produces a source
+  /// marked `fetched: false`, and the prompt block says so, so the model works
+  /// from the URL knowing that is all it has.
   static Future<SourceMetadata> fetch(
     String url, {
     http.Client? client,
     String? youTubeApiKey,
+    String? facebookToken,
   }) async {
     final trimmed = url.trim();
     final platform = NookPlatform.fromUrl(trimmed);
     final fallback = SourceMetadata.fromUrlOnly(trimmed);
 
-    final endpoint = switch (platform) {
-      NookPlatform.youtube =>
-        'https://www.youtube.com/oembed?format=json&url=${Uri.encodeComponent(trimmed)}',
-      NookPlatform.tiktok =>
-        'https://www.tiktok.com/oembed?url=${Uri.encodeComponent(trimmed)}',
-      _ => null,
-    };
+    final endpoint = endpointFor(
+      trimmed,
+      platform,
+      facebookToken: facebookToken,
+    );
     if (endpoint == null) return fallback;
 
     SourceMetadata result = fallback;
@@ -201,6 +250,50 @@ abstract final class SourceMetadataFetcher {
     }
     return result;
   }
+
+  /// The oEmbed endpoint for a link, or null when the platform offers none that
+  /// this build can reach.
+  ///
+  /// Separated out so the routing is testable without a network: which platform
+  /// goes where, and which ones need configuration, is the part worth pinning
+  /// down.
+  static String? endpointFor(
+    String url,
+    String platform, {
+    String? facebookToken,
+  }) {
+    final encoded = Uri.encodeComponent(url.trim());
+    final hasToken = facebookToken != null && facebookToken.trim().isNotEmpty;
+    final token = hasToken ? Uri.encodeComponent(facebookToken.trim()) : null;
+
+    return switch (platform) {
+      // Keyless and CORS-enabled, both of them.
+      NookPlatform.youtube =>
+        'https://www.youtube.com/oembed?format=json&url=$encoded',
+      NookPlatform.tiktok => 'https://www.tiktok.com/oembed?url=$encoded',
+      // Meta's two need an app token. `instagram_oembed` and `oembed_post` are
+      // the endpoints that replaced the public ones.
+      NookPlatform.instagram when hasToken =>
+        'https://graph.facebook.com/v21.0/instagram_oembed'
+            '?url=$encoded&omitscript=true&access_token=$token',
+      NookPlatform.facebook when hasToken =>
+        'https://graph.facebook.com/v21.0/oembed_post'
+            '?url=$encoded&omitscript=true&access_token=$token',
+      _ => null,
+    };
+  }
+
+  /// Whether this build can read anything beyond the URL for [platform].
+  ///
+  /// Drives the Connected Platforms screen, so the app can say which of the
+  /// four are fully wired rather than implying all four behave alike.
+  static bool canReadPostText(String platform, {String? facebookToken}) =>
+      endpointFor(
+        'https://example.com/x',
+        platform,
+        facebookToken: facebookToken,
+      ) !=
+      null;
 
   /// Adds the description, and the channel if oEmbed did not supply one.
   static Future<SourceMetadata> _withYouTubeSnippet(
@@ -264,7 +357,8 @@ abstract final class SourceMetadataFetcher {
     }
 
     final authorUrl = text('author_url');
-    final handle = text('author_unique_id') ??
+    final handle =
+        text('author_unique_id') ??
         _handleFromAuthorUrl(authorUrl) ??
         fallback.creatorHandle;
 
@@ -304,7 +398,19 @@ abstract final class SourceIds {
       NookPlatform.youtube => _youTubeId(uri),
       NookPlatform.tiktok => _afterSegment(uri, 'video'),
       NookPlatform.instagram =>
-        _afterSegment(uri, 'p') ?? _afterSegment(uri, 'reel'),
+        _afterSegment(uri, 'p') ??
+            _afterSegment(uri, 'reel') ??
+            _afterSegment(uri, 'tv'),
+      // facebook.com/<page>/posts/<id>, /videos/<id>, /reel/<id>,
+      // /watch/?v=<id>, and fb.watch/<code>.
+      NookPlatform.facebook =>
+        _afterSegment(uri, 'posts') ??
+            _afterSegment(uri, 'videos') ??
+            _afterSegment(uri, 'reel') ??
+            uri.queryParameters['v'] ??
+            (uri.host.contains('fb.watch') && uri.pathSegments.isNotEmpty
+                ? uri.pathSegments.first
+                : null),
       _ => null,
     };
   }
@@ -349,8 +455,20 @@ abstract final class SourceIds {
   }
 
   static const _reserved = {
-    'p', 'reel', 'reels', 'tv', 'stories', 'explore', 'watch', 'share',
-    'permalink.php', 'photo.php', 'posts', 'video', 'groups', 'pages',
+    'p',
+    'reel',
+    'reels',
+    'tv',
+    'stories',
+    'explore',
+    'watch',
+    'share',
+    'permalink.php',
+    'photo.php',
+    'posts',
+    'video',
+    'groups',
+    'pages',
   };
 
   static String? _youTubeId(Uri uri) {

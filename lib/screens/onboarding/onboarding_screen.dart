@@ -25,25 +25,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _pages = [
     (
       title: 'Save travel finds',
-      body: 'Save travel tips, itineraries, and recommendations from TikTok, '
+      body:
+          'Save travel tips, itineraries, and recommendations from TikTok, '
           'Instagram, and YouTube — all in one place.',
       icon: Icons.bookmark_add_outlined,
     ),
     (
       title: 'AI organizes your trips',
-      body: 'Nook detects destinations and categories from your saved travel '
+      body:
+          'Nook detects destinations and categories from your saved travel '
           'content automatically.',
       icon: Icons.auto_awesome_outlined,
     ),
     (
       title: 'Organize by trip',
-      body: 'Group your saved travel content into trips — Japan 2027, Weekend '
+      body:
+          'Group your saved travel content into trips — Japan 2027, Weekend '
           'in Paris, and more.',
       icon: Icons.folder_copy_outlined,
     ),
     (
       title: 'Rediscover anything',
-      body: 'Search across all your saved travel content instantly. Never lose '
+      body:
+          'Search across all your saved travel content instantly. Never lose '
           'a great find again.',
       icon: Icons.search_rounded,
     ),
@@ -118,7 +122,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         page.body,
                         style: NookType.body.copyWith(
                           color: NookColors.textMuted,
-                          ),
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -138,9 +142,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   height: 9,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: i == _page
-                        ? NookColors.primary
-                        : NookColors.border,
+                    color: i == _page ? NookColors.primary : NookColors.border,
                   ),
                 ),
             ],

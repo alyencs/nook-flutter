@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/nook_spacing.dart';
-import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/screen_title.dart';
 import '../../widgets/nook_text_field.dart';
 import 'choose_trip_screen.dart';
 import 'post_draft.dart';
@@ -42,9 +42,9 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
       title: _title.text.trim(),
       note: _note.text.trim().isEmpty ? null : _note.text.trim(),
     );
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChooseTripScreen(draft: draft)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ChooseTripScreen(draft: draft)));
   }
 
   @override
@@ -60,7 +60,7 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
           children: [
             const NookAppBar(title: 'Create Note'),
             const SizedBox(height: NookSpacing.section),
-            Text('Write a note', style: NookType.display),
+            const ScreenTitle('Write a note'),
             const SizedBox(height: NookSpacing.block),
             NookTextField(
               controller: _title,

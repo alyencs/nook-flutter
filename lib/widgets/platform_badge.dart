@@ -18,20 +18,20 @@ abstract final class PlatformBranding {
   /// Null for a link from anywhere else, which falls back to a plain link
   /// glyph rather than pretending to be a platform it is not.
   static FaIconData? brandIcon(String platform) => switch (platform) {
-        NookPlatform.tiktok => FontAwesomeIcons.tiktok,
-        NookPlatform.instagram => FontAwesomeIcons.instagram,
-        NookPlatform.facebook => FontAwesomeIcons.facebook,
-        NookPlatform.youtube => FontAwesomeIcons.youtube,
-        _ => null,
-      };
+    NookPlatform.tiktok => FontAwesomeIcons.tiktok,
+    NookPlatform.instagram => FontAwesomeIcons.instagram,
+    NookPlatform.facebook => FontAwesomeIcons.facebook,
+    NookPlatform.youtube => FontAwesomeIcons.youtube,
+    _ => null,
+  };
 
   static Color colour(String platform) => switch (platform) {
-        NookPlatform.tiktok => const Color(0xFF010101),
-        NookPlatform.instagram => const Color(0xFFC13584),
-        NookPlatform.facebook => const Color(0xFF1877F2),
-        NookPlatform.youtube => const Color(0xFFFF0000),
-        _ => NookColors.textMuted,
-      };
+    NookPlatform.tiktok => const Color(0xFF010101),
+    NookPlatform.instagram => const Color(0xFFC13584),
+    NookPlatform.facebook => const Color(0xFF1877F2),
+    NookPlatform.youtube => const Color(0xFFFF0000),
+    _ => NookColors.textMuted,
+  };
 }
 
 /// The mark for one platform, at any size.
@@ -39,7 +39,12 @@ abstract final class PlatformBranding {
 /// Brand icons are not square, so they need [FaIcon] rather than [Icon] — the
 /// latter wraps them in a square box and clips them.
 class PlatformIcon extends StatelessWidget {
-  const PlatformIcon(this.platform, {super.key, required this.size, this.color});
+  const PlatformIcon(
+    this.platform, {
+    super.key,
+    required this.size,
+    this.color,
+  });
 
   final String platform;
   final double size;

@@ -6,12 +6,7 @@ import 'dart:convert';
 /// whole post collapsed to `Kyoto`, because there was one destination field and
 /// five cafes to put in it.
 class PostPlace {
-  const PostPlace({
-    required this.name,
-    this.kind,
-    this.area,
-    this.note,
-  });
+  const PostPlace({required this.name, this.kind, this.area, this.note});
 
   /// The place itself: "Taiyo no Tou", "Fushimi Inari".
   final String name;
@@ -38,11 +33,11 @@ class PostPlace {
   }
 
   Map<String, Object?> toJson() => {
-        'name': name,
-        if (kind != null) 'kind': kind,
-        if (area != null) 'area': area,
-        if (note != null) 'note': note,
-      };
+    'name': name,
+    if (kind != null) 'kind': kind,
+    if (area != null) 'area': area,
+    if (note != null) 'note': note,
+  };
 
   /// The line a card shows: "Taiyo no Tou · Nakazakicho".
   String get summary => area == null ? name : '$name · $area';
@@ -70,8 +65,9 @@ class PostPlace {
 
   /// Encodes for storage. An empty list is stored as null, not `[]`, so that
   /// "nothing was found" and "nobody has looked" read the same to every screen.
-  static String? encode(List<PostPlace> places) =>
-      places.isEmpty ? null : jsonEncode(places.map((p) => p.toJson()).toList());
+  static String? encode(List<PostPlace> places) => places.isEmpty
+      ? null
+      : jsonEncode(places.map((p) => p.toJson()).toList());
 }
 
 /// Activities, recommendations and tips, as the source gave them.
