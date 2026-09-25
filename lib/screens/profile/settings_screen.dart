@@ -7,6 +7,7 @@ import '../../data/export_service.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
+import '../../theme/nook_motion.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';

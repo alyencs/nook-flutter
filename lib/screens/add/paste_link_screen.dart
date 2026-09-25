@@ -10,6 +10,7 @@ import '../../data/daos/settings_dao.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
+import '../../theme/nook_motion.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
@@ -240,10 +241,17 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
             ),
             if (_busy) ...[
               const SizedBox(height: NookSpacing.section),
-              _AnalysisProgress(
-                stage: _stage ?? 'Working',
-                seconds: _elapsed,
-                onCancel: _cancel,
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: NookMotion.fast,
+                  // Keyed on the text, so each new stage cross-fades with the
+                  // one before instead of the label changing under you.
+                  child: Text(
+                    '$stage…',
+                    key: ValueKey(stage),
+                    style: NookType.bodyStrong,
+                  ),
+                ),
               ),
             ],
             if (_error != null) ...[

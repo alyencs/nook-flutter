@@ -12,6 +12,7 @@ import '../../widgets/nook_text_field.dart';
 import '../../widgets/saved_post_card.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/trip_card.dart';
+import '../../widgets/entrance.dart';
 import '../add/add_method_screen.dart';
 import '../details/post_details_screen.dart';
 import '../search/search_screen.dart';
@@ -187,9 +188,12 @@ class _RecentSaves extends StatelessWidget {
             clipBehavior: Clip.none,
             itemCount: posts.length,
             separatorBuilder: (_, _) => const SizedBox(width: NookSpacing.section),
-            itemBuilder: (context, index) => SavedPostGridCard(
-              post: posts[index],
-              onTap: () => openPostDetails(context, posts[index].id),
+            itemBuilder: (context, index) => Entrance(
+              index: index,
+              child: SavedPostCard(
+                post: posts[index],
+                onTap: () => openPostDetails(context, posts[index].id),              
+              ),
             ),
           ),
         ),

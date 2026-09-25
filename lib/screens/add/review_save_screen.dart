@@ -15,6 +15,7 @@ import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/post_thumbnail.dart';
+import '../../widgets/save_flight.dart';
 import 'post_draft.dart';
 
 /// A6. Everything the flow gathered, on one screen, before anything is written.
@@ -32,6 +33,8 @@ class ReviewSaveScreen extends StatefulWidget {
 
 class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
   bool _saving = false;
+    /// The thumbnail's position, so the flight knows where to start.
+  final _thumbKey = GlobalKey();
 
   Future<void> _save() async {
     final draft = widget.draft;
@@ -95,7 +98,17 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
     if (!mounted) return;
     // Back to whichever tab the flow started from. Home is watching the same
     // stream, so the new post is already there.
+    // The rect is read before the pop, while the widget is still on screen.
+    final box = _thumbKey.currentContext?.findRenderObject() as RenderBox?;
+    final from = box == null
+        ? null
+        : box.localToGlobal(Offset.zero) & box.size;
+
     navigator.popUntil((route) => route.isFirst);
+
+    if (from != null) {
+      SaveFlight.run(overlay, from: from, thumbnailUrl: draft.thumbnailUrl);
+    }
     showToastAfterPop(overlay, 'Saved "${draft.title}"');
   }
 
@@ -130,6 +143,7 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       PostThumbnail(
+                        key: _thumbKey,
                         url: draft.thumbnailUrl,
                         width: 72,
                         height: 72,

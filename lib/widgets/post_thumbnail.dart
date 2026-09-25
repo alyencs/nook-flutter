@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../theme/nook_spacing.dart';
+import '../theme/nook_motion.dart';
 import 'thumb_placeholder.dart';
 
 /// A saved post's preview image, or the drawn placeholder when there is none.
@@ -53,6 +54,17 @@ class PostThumbnail extends StatelessWidget {
       webHtmlElementStrategy:
           kIsWeb ? WebHtmlElementStrategy.prefer : WebHtmlElementStrategy.never,
       errorBuilder: (context, _, _) => placeholder,
+      // Fades from the placeholder to the image rather than snapping. A grid of
+      // cards popping in one by one is the most visible jank on Home.
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded) return child;
+        return AnimatedOpacity(
+          opacity: frame == null ? 0 : 1,
+          duration: NookMotion.normal,
+          curve: NookMotion.enter,
+          child: child,
+        );
+      },
       loadingBuilder: (context, child, progress) =>
           progress == null ? child : placeholder,
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/press_effect.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
@@ -29,7 +30,9 @@ class NookPrimaryButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       label: label,
-      child: DecoratedBox(
+      child: PressEffect(
+        enabled: enabled,
+        child: DecoratedBox(
         // Gradient and glow measured off the mockup: a horizontal sweep left to
         // right, over a warm halo. A disabled button drops both — a glowing
         // button that does nothing reads as broken rather than unavailable.
@@ -94,6 +97,7 @@ class NookPrimaryButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

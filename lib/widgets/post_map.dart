@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
+import '../theme/nook_motion.dart';
 import 'metadata_chip.dart';
 import 'thumb_placeholder.dart';
 
@@ -119,18 +120,40 @@ class PostMap extends StatelessWidget {
   }
 }
 
-class _Pin extends StatelessWidget {
+class _Pin extends StatefulWidget {
   const _Pin();
 
   @override
+  State<_Pin> createState() => _PinState();
+}
+
+class _PinState extends State<_Pin> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: NookMotion.slow,
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Icon(
-      Icons.location_on,
-      size: 40,
-      color: NookColors.primary,
-      shadows: [
-        Shadow(color: Color(0x552E2E2E), blurRadius: 6, offset: Offset(0, 2)),
-      ],
+    // elasticOut on the way down only: the pin falls in and settles, which
+    // draws the eye to the location without the map itself moving.
+    final drop = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
+    return AnimatedBuilder(
+      animation: drop,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, -26 * (1 - drop.value)),
+        child: Opacity(
+          opacity: _controller.value.clamp(0.0, 1.0),
+          child: child,
+        ),
+      ),
+      child: /* the existing _Pin build() body goes here, unchanged */,
     );
   }
 }
