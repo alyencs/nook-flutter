@@ -7,6 +7,8 @@ import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../ai/post_place.dart';
+import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/post_map.dart';
@@ -102,6 +104,41 @@ class TravelDetailsScreen extends StatelessWidget {
                   label: 'Region',
                   value: post.aiRegion,
                 ),
+              // Every venue the post named, as a list. This is what "5 Cafes
+              // in Kyoto" actually is, and before there was nowhere to put it.
+              if (PostPlace.decode(post.aiPlaces).isNotEmpty) ...[
+                const SizedBox(height: NookSpacing.block),
+                RuledLabel(
+                  '${PostPlace.decode(post.aiPlaces).length} places mentioned',
+                ),
+                const SizedBox(height: NookSpacing.tight),
+                for (final place in PostPlace.decode(post.aiPlaces))
+                  _PlaceRow(place: place),
+                const SizedBox(height: NookSpacing.tight),
+              ],
+              if (PostHighlights.decode(post.aiHighlights).isNotEmpty) ...[
+                const SizedBox(height: NookSpacing.block),
+                const RuledLabel('Worth knowing'),
+                const SizedBox(height: NookSpacing.tight),
+                for (final line in PostHighlights.decode(post.aiHighlights))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 7, right: 10),
+                          child: SizedBox(
+                            width: 14,
+                            child: NookRule(opacity: 0.9),
+                          ),
+                        ),
+                        Expanded(child: Text(line, style: NookType.body)),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: NookSpacing.tight),
+              ],
               _MetaRow(
                 icon: Icons.public_rounded,
                 label: 'Country',
@@ -163,6 +200,56 @@ class TravelDetailsScreen extends StatelessWidget {
     final parts = destination.split(',');
     return parts.length < 2 ? null : parts.last.trim();
   }
+}
+
+/// One named venue: what it is called, and what the post said about it.
+class _PlaceRow extends StatelessWidget {
+  const _PlaceRow({required this.place});
+
+  final PostPlace place;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: NookSpacing.row),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Icon(
+              _iconFor(place.kind),
+              size: 16,
+              color: NookColors.primary,
+            ),
+          ),
+          const SizedBox(width: NookSpacing.tight),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(place.summary, style: NookType.bodyStrong),
+                if (place.note != null) ...[
+                  const SizedBox(height: 2),
+                  Text(place.note!, style: NookType.caption),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconFor(String? kind) => switch (kind) {
+        'cafe' => Icons.local_cafe_outlined,
+        'restaurant' => Icons.restaurant_outlined,
+        'bar' => Icons.wine_bar_outlined,
+        'hotel' => Icons.hotel_outlined,
+        'shop' => Icons.shopping_bag_outlined,
+        'viewpoint' => Icons.landscape_outlined,
+        _ => Icons.place_outlined,
+      };
 }
 
 class _MetaRow extends StatelessWidget {

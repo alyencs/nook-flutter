@@ -114,6 +114,12 @@ class SourceMetadata {
         'NOTE: no post text could be retrieved for this platform. Only the URL '
         'is available. Do not guess at content you cannot see.',
       );
+    } else if (description == null) {
+      buffer.writeln(
+        'NOTE: only the title was available for this post; there is no '
+        'description or transcript. Extract what the title supports and leave '
+        'the rest null.',
+      );
     }
     return buffer.toString();
   }
@@ -141,7 +147,21 @@ abstract final class SourceMetadataFetcher {
   /// directly as a slower analysis.
   static const timeout = Duration(seconds: 6);
 
-  static Future<SourceMetadata> fetch(String url, {http.Client? client}) async {
+  /// Reads the fuller record where a key allows it.
+  ///
+  /// oEmbed gives a title and a channel and stops there — it has no description
+  /// field at all. A YouTube description is where the detail actually lives:
+  /// the cafe names, the addresses, the prices, the chapter list. The Data API
+  /// returns it for `part=snippet`, so when `YOUTUBE_API_KEY` is set in `.env`
+  /// that call is made and its description is handed to the model.
+  ///
+  /// Without a key the app still works on the title alone, which is why this is
+  /// optional rather than required.
+  static Future<SourceMetadata> fetch(
+    String url, {
+    http.Client? client,
+    String? youTubeApiKey,
+  }) async {
     final trimmed = url.trim();
     final platform = NookPlatform.fromUrl(trimmed);
     final fallback = SourceMetadata.fromUrlOnly(trimmed);
@@ -155,6 +175,7 @@ abstract final class SourceMetadataFetcher {
     };
     if (endpoint == null) return fallback;
 
+    SourceMetadata result = fallback;
     try {
       final http.Response response;
       final uri = Uri.parse(endpoint);
@@ -166,12 +187,65 @@ abstract final class SourceMetadataFetcher {
       if (response.statusCode != 200) return fallback;
 
       final json = jsonDecode(utf8.decode(response.bodyBytes));
-      if (json is! Map<String, dynamic>) return fallback;
-      return _fromOEmbed(json, fallback);
+      if (json is Map<String, dynamic>) result = _fromOEmbed(json, fallback);
     } catch (_) {
       // Offline, CORS, rate-limited, or the shape changed. The extraction still
       // runs; it just has less to go on.
-      return fallback;
+    }
+
+    if (platform == NookPlatform.youtube &&
+        youTubeApiKey != null &&
+        youTubeApiKey.isNotEmpty &&
+        result.sourceId != null) {
+      result = await _withYouTubeSnippet(result, youTubeApiKey, client);
+    }
+    return result;
+  }
+
+  /// Adds the description, and the channel if oEmbed did not supply one.
+  static Future<SourceMetadata> _withYouTubeSnippet(
+    SourceMetadata source,
+    String apiKey,
+    http.Client? client,
+  ) async {
+    final uri = Uri.parse(
+      'https://www.googleapis.com/youtube/v3/videos'
+      '?part=snippet&id=${source.sourceId}&key=$apiKey',
+    );
+    try {
+      final response = client != null
+          ? await client.get(uri).timeout(timeout)
+          : await http.get(uri).timeout(timeout);
+      if (response.statusCode != 200) return source;
+
+      final json = jsonDecode(utf8.decode(response.bodyBytes));
+      if (json is! Map) return source;
+      final items = json['items'];
+      if (items is! List || items.isEmpty) return source;
+      final snippet = (items.first as Map)['snippet'];
+      if (snippet is! Map) return source;
+
+      String? text(String key) {
+        final value = snippet[key];
+        if (value is! String) return null;
+        final trimmed = value.trim();
+        return trimmed.isEmpty ? null : trimmed;
+      }
+
+      return SourceMetadata(
+        platform: source.platform,
+        url: source.url,
+        sourceId: source.sourceId,
+        title: text('title') ?? source.title,
+        description: text('description') ?? source.description,
+        creator: text('channelTitle') ?? source.creator,
+        creatorHandle: source.creatorHandle,
+        thumbnailUrl: source.thumbnailUrl,
+        mediaType: source.mediaType,
+        fetched: true,
+      );
+    } catch (_) {
+      return source;
     }
   }
 

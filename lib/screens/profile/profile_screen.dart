@@ -38,16 +38,20 @@ class ProfileScreen extends StatelessWidget {
               Center(child: ProfileAvatar(picture: user?.profilePicture)),
               const SizedBox(height: NookSpacing.section),
               Center(
-                child: Text(
-                  user?.name ?? '',
-                  style: NookType.display,
+                child: NookHeadline(
+                  '*${user?.name ?? ''}*',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
                 ),
               ),
               const SizedBox(height: 4),
+              // No email. Nook keeps everything on the device, so there was
+              // never an address to show here — what identifies you to Nook is
+              // the name you chose and the picture beside it.
               Center(
                 child: Text(
-                  user?.email ?? '',
-                  style: NookType.body.copyWith(color: NookColors.textMuted),
+                  'Everything below stays on this device',
+                  style: NookType.caption,
                 ),
               ),
               const SizedBox(height: NookSpacing.block),
@@ -121,9 +125,11 @@ class _StatTile extends StatelessWidget {
         children: [
           StreamBuilder<int>(
             stream: stream,
+            // The count in the editorial face. A figure is the one place the
+            // accent earns its keep without a sentence around it.
             builder: (context, snapshot) => Text(
               '${snapshot.data ?? 0}',
-              style: NookType.display,
+              style: NookType.figure,
             ),
           ),
           const SizedBox(height: 4),

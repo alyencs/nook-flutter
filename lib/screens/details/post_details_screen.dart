@@ -11,7 +11,9 @@ import '../../widgets/metadata_chip.dart';
 import '../../widgets/platform_badge.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/open_original.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/post_thumbnail.dart';
 import 'manage_post_screen.dart';
@@ -61,10 +63,14 @@ class PostDetailsScreen extends StatelessWidget {
               ),
               const SizedBox(width: NookSpacing.tight),
               NookSquareAction(
-                icon: Icons.ios_share_rounded,
-                semanticLabel: 'Share',
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sharing is not in this build.')),
+                icon: Icons.open_in_new_rounded,
+                semanticLabel: OpenOriginal.labelFor(
+                  post.originalUrl,
+                  post.platform,
+                ),
+                onTap: () => OpenOriginal.open(
+                  Overlay.of(context, rootOverlay: true),
+                  post.originalUrl,
                 ),
               ),
             ],
@@ -158,6 +164,19 @@ class PostDetailsScreen extends StatelessWidget {
                     MetadataChip(post.aiCategory!, icon: Icons.sell_outlined),
                 ],
               ),
+              if (OpenOriginal.isAvailable(post.originalUrl)) ...[
+                const SizedBox(height: NookSpacing.block),
+                RuledRow(
+                  icon: Icons.play_circle_outline_rounded,
+                  label: OpenOriginal.labelFor(post.originalUrl, post.platform),
+                  value: _hostOf(post.originalUrl),
+                  valueStyle: NookType.caption,
+                  onTap: () => OpenOriginal.open(
+                    Overlay.of(context, rootOverlay: true),
+                    post.originalUrl,
+                  ),
+                ),
+              ],
               if (post.caption != null) ...[
                 const SizedBox(height: NookSpacing.block),
                 const OverlineLabel('Caption'),
@@ -217,6 +236,13 @@ class PostDetailsScreen extends StatelessWidget {
       },
     );
   }
+}
+
+/// The bare host, so the row shows where the link goes without the query
+/// string that makes a share URL unreadable.
+String _hostOf(String? url) {
+  final host = Uri.tryParse(url ?? '')?.host ?? '';
+  return host.startsWith('www.') ? host.substring(4) : host;
 }
 
 /// What the badge over the preview says.

@@ -117,14 +117,15 @@ class _Greeting extends StatelessWidget {
           children: [
             Text(
               'Good $part,',
-              style: NookType.body.copyWith(
-                color: NookColors.textMuted,
-              ),
+              style: NookType.body.copyWith(color: NookColors.textMuted),
             ),
             const SizedBox(height: 2),
-            Text(
-              snapshot.data?.name ?? '',
-              style: NookType.display,
+            // The one editorial moment on Home. The name is the most personal
+            // word on the screen, so it is the word that gets the accent face —
+            // and having exactly one of them is what keeps it an accent.
+            NookHeadline(
+              '*${snapshot.data?.name ?? ''}*',
+              maxLines: 1,
             ),
           ],
         );

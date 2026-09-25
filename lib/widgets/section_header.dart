@@ -3,8 +3,14 @@ import 'package:flutter/material.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
+import 'nook_rule.dart';
 
-/// A bold charcoal title with an optional Burnt Orange "See All" action.
+/// A section title with a rule carrying the eye across to its action.
+///
+/// The rule is the editorial device: it ties "Recent Saves" on the left to
+/// "See All" on the right instead of leaving them as two things that happen to
+/// share a row, and it marks where one section ends and the next begins
+/// without needing a heavy band of whitespace to do it.
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.title, {super.key, this.onSeeAll});
 
@@ -14,18 +20,35 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Flexible(child: Text(title, style: NookType.heading)),
+        // Capped rather than flexed. A `Flexible` title and an `Expanded` rule
+        // are both flex children, so they split the free space evenly and a
+        // two-word heading wrapped to two lines with a rule beside it. The
+        // title takes the width it needs, up to half the row, and the rule
+        // takes whatever is left.
+        ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.5,
+          ),
+          child: Text(
+            title,
+            style: NookType.heading,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: NookSpacing.section),
+        const Expanded(child: NookRule()),
         if (onSeeAll != null)
           InkWell(
             onTap: onSeeAll,
             borderRadius: BorderRadius.circular(NookRadius.sm),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 4,
-                vertical: NookSpacing.tight,
+              padding: const EdgeInsets.only(
+                left: NookSpacing.tight,
+                top: NookSpacing.tight,
+                bottom: NookSpacing.tight,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -52,12 +75,13 @@ class SectionHeader extends StatelessWidget {
 }
 
 /// The uppercase label above a field: "DETECTED DESTINATION".
+///
+/// Now a [RuledLabel], so every section mark in the app is the same shape.
 class OverlineLabel extends StatelessWidget {
   const OverlineLabel(this.text, {super.key});
 
   final String text;
 
   @override
-  Widget build(BuildContext context) =>
-      Text(text.toUpperCase(), style: NookType.overline);
+  Widget build(BuildContext context) => RuledLabel(text);
 }

@@ -8,7 +8,14 @@ import 'package:drift/drift.dart';
 class Users extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
-  TextColumn get email => text()();
+
+  /// Nullable, and no longer collected.
+  ///
+  /// Nook stores everything on the device and talks to no server, so there was
+  /// never an account for an email address to identify. Onboarding now asks
+  /// what to call you and nothing else. The column stays so that profiles
+  /// created before this keep their data; nothing reads it.
+  TextColumn get email => text().nullable()();
 
   /// A base64 data URI. `image_picker` returns bytes rather than a path on the
   /// web, and the image never leaves the device either way.
@@ -82,6 +89,17 @@ class SavedPosts extends Table {
   TextColumn get aiNeighbourhood => text().nullable()();
   TextColumn get aiCity => text().nullable()();
   TextColumn get aiRegion => text().nullable()();
+
+  /// Specific places the source named — the five cafes in "5 Cafes in Kyoto".
+  ///
+  /// A JSON array of `{name, kind, area, note}`, because the count varies per
+  /// post and a column per place would be a schema that depends on content.
+  /// Read and written through [PostPlace].
+  TextColumn get aiPlaces => text().nullable()();
+
+  /// Activities, recommendations and tips the source gave, as a JSON array of
+  /// strings. Prices and seasons keep their own columns above.
+  TextColumn get aiHighlights => text().nullable()();
 
   /// Where the destination is, so it can be pinned on a map. Null whenever the
   /// destination is null or too vague to place — "Southeast Asia" has no single

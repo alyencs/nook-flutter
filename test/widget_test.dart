@@ -78,7 +78,7 @@ void main() {
   testWidgets('Home shows the greeting, both sections and the tab bar',
       (tester) async {
     // Home is only reached once a profile exists, so give it one.
-    await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+    await UsersDao(db).saveProfile(name: 'Ali Sampang');
     await pumpApp(tester, db, const RootShell());
 
     expect(find.text('Ali Sampang'), findsOneWidget);
@@ -160,7 +160,7 @@ void main() {
       (tester) async {
     await db.clearAll();
     await db.into(db.users).insert(
-          UsersCompanion.insert(name: 'Ali Sampang', email: 'a@b.co'),
+          UsersCompanion.insert(name: 'Ali Sampang'),
         );
 
     await pumpApp(tester, db, const RootShell());
@@ -178,7 +178,7 @@ void main() {
     await pumpFullApp(tester, db);
 
     expect(find.text('Nook'), findsOneWidget);
-    expect(find.text('Never lose your next favourite find.'), findsOneWidget);
+    expect(find.textContaining('next favourite find'), findsOneWidget);
     expect(find.text('Recent Saves'), findsNothing);
 
     await unmount(tester);
@@ -210,10 +210,13 @@ void main() {
 
     await tester.tap(find.text('Get Started'));
     await tester.pumpAndSettle();
-    expect(find.text('Set Up Profile'), findsOneWidget);             // LO1
-    expect(find.text('Full Name'), findsOneWidget);
-    expect(find.text('Email address'), findsOneWidget);
+    // LO1: personalisation, not registration — a name, an optional photo,
+    // and nothing that implies an account.
+    expect(find.textContaining('call you'), findsOneWidget);
+    expect(find.text('Your name'), findsOneWidget);
     expect(find.text('Profile Picture'), findsOneWidget);
+    expect(find.textContaining('Email'), findsNothing);
+    expect(find.byType(TextField), findsOneWidget);
 
     await unmount(tester);
   });
@@ -234,12 +237,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).at(0), 'Ali Sampang');
-    await tester.enterText(find.byType(TextField).at(1), 'ali@example.com');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.text('Enter Nook'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ali Sampang'), findsOneWidget);
+    // The greeting sets the name in the editorial face, so it is a span inside
+    // a rich Text rather than a Text of its own.
+    expect(find.textContaining('Ali Sampang'), findsWidgets);
     expect(find.text('Recent Saves'), findsOneWidget);
 
     await unmount(tester);
@@ -324,7 +328,7 @@ void main() {
     // used to read ScaffoldMessenger through a context whose element had just
     // been deactivated by popUntil, registering an inherited dependency that
     // could never be cleaned up.
-    await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+    await UsersDao(db).saveProfile(name: 'Ali Sampang');
     await pumpApp(tester, db, const RootShell());
 
     await tester.tap(find.text('Add'));
@@ -371,7 +375,7 @@ void main() {
   });
 
   testWidgets('settings switches persist and drive behaviour', (tester) async {
-    await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+    await UsersDao(db).saveProfile(name: 'Ali Sampang');
     await pumpApp(tester, db, const SettingsScreen());
 
     expect(find.text('Export Data'), findsOneWidget);
@@ -407,7 +411,7 @@ void main() {
 
     final theme = Theme.of(tester.element(find.byType(RootShell)));
     expect(theme.colorScheme.primary, NookColors.primary);
-    expect(theme.textTheme.bodyLarge?.fontFamily, 'Inter');
+    expect(theme.textTheme.bodyLarge?.fontFamily, 'Manrope');
 
     await unmount(tester);
   });

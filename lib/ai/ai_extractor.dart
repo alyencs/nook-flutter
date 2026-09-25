@@ -1,3 +1,4 @@
+import 'post_place.dart';
 import 'source_metadata.dart';
 
 /// What one extraction call returns.
@@ -27,6 +28,8 @@ class ExtractionResult {
     this.thumbnailUrl,
     this.sourceId,
     this.mediaType = PostMediaType.unknown,
+    this.places = const [],
+    this.highlights = const [],
     this.isSample = false,
   });
 
@@ -75,6 +78,13 @@ class ExtractionResult {
 
   /// Whether the post is a video, a photo, or a gallery. Not assumed.
   final PostMediaType mediaType;
+
+  /// Every specific venue the source named, in the order it named them. This is
+  /// what makes "5 Cafes in Kyoto" five cafes rather than one city.
+  final List<PostPlace> places;
+
+  /// Activities, recommendations and tips, one line each.
+  final List<String> highlights;
 
   bool get hasCoordinates => latitude != null && longitude != null;
 

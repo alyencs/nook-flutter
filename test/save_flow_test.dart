@@ -83,7 +83,7 @@ void main() {
       'paste to save raises no assertion '
       '(DevicePreview ${withPreview ? 'on' : 'off'})',
       (tester) async {
-        await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+        await UsersDao(db).saveProfile(name: 'Ali Sampang');
         await pump(tester, devicePreview: withPreview);
         await walkSaveFlow(tester);
 

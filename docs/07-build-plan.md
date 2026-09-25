@@ -1286,3 +1286,152 @@ the socket runs.
 ### Tests
 
 153 passing.
+
+## 21. Eighth pass — the editorial redesign, and two more ways through
+
+A visual direction borrowed from an editorial travel layout, applied without
+letting Nook stop looking like Nook, plus the functional work that came with it.
+
+### Type: two faces, one of them rationed
+
+**Manrope** (SIL OFL, instanced from the upstream variable font) replaces Inter
+for everything functional — body, labels, buttons, navigation.
+
+**The editorial face is the accent, and it is deliberately rationed.** The
+reference's device is one emphasised phrase inside an otherwise plain line, not
+a whole heading in a display face. `NookHeadline` makes that a property of the
+copy rather than a layout of nested widgets:
+
+```dart
+NookHeadline('Never lose your *next favourite find*')
+```
+
+There are exactly four of them in the app — the splash line, the onboarding
+question, the name on Home, the name on Profile — plus the figures on the
+Profile stat tiles. A screen with two is already overusing it.
+
+**On PP Editorial New.** The direction calls for it and it cannot be committed:
+it is licensed from Pangram Pangram, free for personal use only. What ships is
+Instrument Serif (SIL OFL), chosen to sit in the same role. Every editorial
+style resolves through `NookType.editorialFamily`, so swapping in the real face
+once licensed is two edits — drop the `.otf` files in `assets/fonts/`, point the
+`EditorialSerif` family at them — and nothing else changes.
+
+### Lines
+
+Three shapes in `lib/widgets/nook_rule.dart`, and the rule for adding one is
+that it has to be doing one of their jobs:
+
+- `NookRule` — a hairline between blocks.
+- `RuledLabel` — a section mark with the rule running out to the margin. Every
+  `OverlineLabel` in the app is now one.
+- `RuledRow` — a label and a value joined by a leader line, the way a contents
+  page ties an entry to its page number.
+
+`SectionHeader` gained a rule between its title and its "See All".
+
+**Two layout traps, both caught by `layout_test.dart`.** A `RuledLabel` stretches
+its rule with an `Expanded`, so it needs a bounded width — Manage Post had one
+nested inside a `Row` and overflowed by 15px; it uses the label's own `trailing`
+slot now. And a `Flexible` title beside an `Expanded` rule are both flex
+children, so they split the row evenly and "Recent Saves" wrapped to two lines
+with a rule beside it. Titles are capped with a `ConstrainedBox` instead.
+
+### Onboarding is personalisation, not registration
+
+Email and the account framing are gone. Nook stores everything on the device and
+talks to no server, so there was never an account for an address to identify —
+asking for one only made a local app feel like a sign-up form.
+
+LO1 now asks *"What should we call you?"* and takes a name, with an optional
+photo. Account keeps the name and the photo and nothing else. Schema version 4
+relaxes `users.email` to nullable through a `TableMigration` table rebuild,
+because SQLite cannot drop a NOT NULL constraint in place; profiles created
+before this keep the address they gave, and nothing reads it.
+
+### More than a title
+
+The pipeline could only ever be as good as what it received, and oEmbed gives a
+YouTube title and channel and stops — it has no description field at all. The
+description is where the detail lives.
+
+`YOUTUBE_API_KEY` is now read from `.env`, optionally. With it, extraction calls
+the Data API for `part=snippet` and hands the description to the model; without
+it, extraction works from the title as before. This is what turns "5 Cafes in
+Kyoto" into five named cafes.
+
+**Transcripts are not available**, and the prompt says so rather than inviting a
+guess. YouTube's caption endpoints need OAuth as the video's owner; there is no
+public, keyless route to a transcript for someone else's video.
+
+Two new columns hold what that produces: `ai_places` (a JSON array of
+`{name, kind, area, note}`, because the count varies per post and a column per
+place would be a schema that depends on content) and `ai_highlights`. Travel
+Details lists them. The instructions are explicit that an unnamed place stays
+unnamed: *"Listing a place the source did not name is the worst thing you can do
+here."*
+
+### Notifications moved off the controls
+
+SnackBars sit at the bottom, directly over the primary button and the tab bar —
+"Post moved" landed on the controls you had just been using. `NookToast` puts
+the same message in the top inset, wrapped in `IgnorePointer` so taps pass
+through, in the root overlay so it survives the route popping underneath it.
+That also removed the 350ms delay `showSnackBarAfterPop` needed to dodge a
+duplicate-hero-tag assertion: a toast belongs to no Scaffold, so there is
+nothing to collide with.
+
+Its countdown belongs to the widget, not to the class. A static timer outlived
+the tree it was started for and kept a test alive past its last frame.
+
+### The map
+
+Interactive: drag, pinch, double-tap and scroll-wheel zoom. Rotation stays off —
+a tilted map is disorienting in a card with no compass to straighten it.
+
+English labels: the standard OSM style renders every place in its local script,
+so a pin in Osaka came back labelled in Japanese. CARTO Positron is the same
+OpenStreetMap data with a Latin-script label layer, and it is a quiet grey
+basemap that lets the orange pin be the only saturated thing in the card.
+
+### Opening the original
+
+`OpenOriginal` uses the URL stored on the row, never one rebuilt from the
+platform and the source id — a rebuilt link guesses at a canonical form the
+platform may not use, and cannot represent the short links people actually
+paste. Non-http schemes are refused, so nothing can talk Nook into launching
+`javascript:` or `file:` through a saved row.
+
+### Share to Nook
+
+Nook deploys as a web app, so the mechanism that works for this build is the
+Web Share Target API: `share_target` in `web/manifest.json`, read by
+`lib/share/shared_link.dart`, cleared from the address bar so a reload cannot
+save twice. Share sheets rarely hand over a bare URL — TikTok sends the link
+inside a sentence — so the text field is searched too.
+
+It is only a source of URLs. Everything after that point is the code Paste Link
+already runs; there is no second extraction path to keep in step.
+`docs/09-share-to-nook.md` records the Android intent-filter and iOS Share
+Extension for when Nook is built for a device.
+
+### Animations
+
+Not in this repository, by request. `docs/10-animations.md` has the nine of
+them — motion tokens, button press, staggered card entrance, the save flight to
+the Trips tab, page transitions, pin drop, toggles, thumbnail fade, progress
+cross-fade — as exact files, imports, and before/after code.
+
+### Tests
+
+166 passing. New: `share_and_open_test.dart` (share-text parsing, including the
+non-http refusals) and four cases in `extraction_pipeline_test.dart` covering
+places surviving to the row and a post that names no venue storing none.
+
+### Not verified here
+
+The live oEmbed and YouTube Data API calls (the sandbox denies CONNECT to both
+hosts), the Share Target itself (needs an installed PWA on an Android device),
+and map tile rendering (tile hosts are blocked). Emoji render as boxes in the
+sandbox because CanvasKit fetches its fallback fonts from a blocked host; they
+should render normally in a browser with ordinary network access.

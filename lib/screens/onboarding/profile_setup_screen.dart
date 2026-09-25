@@ -8,14 +8,19 @@ import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_text_field.dart';
 
-/// LO1. Formerly "Create Account", minus the password.
+/// LO1. Personalisation, not registration.
 ///
-/// This writes the single row in the `users` table. It is a profile, not an
-/// account: nothing is verified, nothing is sent anywhere, and there is no
-/// password because there is no server that could check one.
+/// This writes the single row in the `users` table, and it asks for one thing:
+/// what to call you. There is no email and no password, because Nook keeps
+/// everything on this device and talks to no server — there is no account for
+/// either to identify, and asking for them only made a local app feel like a
+/// sign-up form.
+///
+/// A photo is optional, and can be added later from Account.
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
 
@@ -25,29 +30,24 @@ class ProfileSetupScreen extends StatefulWidget {
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _name = TextEditingController();
-  final _email = TextEditingController();
   String? _picture;
-  String? _emailError;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     _name.addListener(_refresh);
-    _email.addListener(_refresh);
   }
 
   @override
   void dispose() {
     _name.dispose();
-    _email.dispose();
     super.dispose();
   }
 
   void _refresh() => setState(() {});
 
-  bool get _canContinue =>
-      _name.text.trim().isNotEmpty && _email.text.trim().isNotEmpty;
+  bool get _canContinue => _name.text.trim().isNotEmpty;
 
   Future<void> _pickPicture() async {
     final file = await ImagePicker().pickImage(
@@ -64,20 +64,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   Future<void> _continue() async {
-    final email = _email.text.trim();
-    if (!email.contains('@') || !email.contains('.')) {
-      setState(() => _emailError = 'That does not look like an email address.');
-      return;
-    }
-
-    setState(() {
-      _emailError = null;
-      _saving = true;
-    });
+    setState(() => _saving = true);
 
     await AppScope.of(context).users.saveProfile(
           name: _name.text.trim(),
-          email: email,
           profilePicture: _picture,
         );
 
@@ -95,7 +85,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   Widget build(BuildContext context) {
     return NookScaffold(
       bottomBar: NookPrimaryButton(
-        label: 'Continue',
+        label: 'Enter Nook',
         busy: _saving,
         onPressed: _canContinue ? _continue : null,
       ),
@@ -104,23 +94,24 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 56),
-            Text('Set Up Profile', style: NookType.display),
+            const NookHeadline('What should we *call you?*'),
             const SizedBox(height: NookSpacing.tight),
             Text(
-              'Create your local profile to get started.',
-              style: NookType.body.copyWith(
-                color: NookColors.textMuted,
-                ),
+              'A first name, a nickname, anything you like. It stays on this '
+              'device — Nook has no account to sign in to.',
+              style: NookType.body.copyWith(color: NookColors.textMuted),
             ),
-            const SizedBox(height: 40),
-            NookTextField(controller: _name, hint: 'Full Name'),
-            const SizedBox(height: NookSpacing.section),
+            const SizedBox(height: 36),
             NookTextField(
-              controller: _email,
-              hint: 'Email address',
-              keyboardType: TextInputType.emailAddress,
-              errorText: _emailError,
+              controller: _name,
+              hint: 'Your name',
+              autofocus: true,
+              onSubmitted: (_) {
+                if (_canContinue) _continue();
+              },
             ),
+            const SizedBox(height: NookSpacing.block),
+            const RuledLabel('Add a photo — optional'),
             const SizedBox(height: NookSpacing.section),
             ProfilePicturePicker(picture: _picture, onTap: _pickPicture),
           ],

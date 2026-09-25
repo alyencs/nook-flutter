@@ -78,7 +78,7 @@ void main() {
     tester.view.physicalSize = const Size(390 * 3, 1600 * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+    await UsersDao(db).saveProfile(name: 'Ali Sampang');
     await tester.pumpWidget(
       AppScope(
         db: db,

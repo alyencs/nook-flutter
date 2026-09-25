@@ -48,17 +48,39 @@ class PostMap extends StatelessWidget {
               options: MapOptions(
                 initialCenter: point,
                 initialZoom: zoom,
-                // A thumbnail map, not an atlas: panning and rotating it inside
-                // a scrolling page fights the scroll.
+                // A real map: drag, pinch, double-tap and scroll-wheel zoom.
+                // Rotation stays off — a tilted map is disorienting in a card
+                // and there is no compass to straighten it with.
+                //
+                // `drag` inside a scrolling page needs the gesture to be won
+                // rather than shared, which is what the eager recogniser below
+                // does: a pan that starts on the map belongs to the map.
                 interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom,
+                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                  scrollWheelVelocity: 0.004,
                 ),
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  // CARTO Positron, for two reasons.
+                  //
+                  // Labels: the standard `tile.openstreetmap.org` style renders
+                  // every place in its own local script, so a pin in Osaka came
+                  // back labelled in Japanese and one in Bangkok in Thai.
+                  // Positron's label layer is Latin-script, so the map reads in
+                  // English wherever the pin lands.
+                  //
+                  // Looks: it is a quiet grey-and-white basemap rather than the
+                  // green-and-yellow default, which lets the orange pin be the
+                  // only saturated thing in the card.
+                  //
+                  // Same OpenStreetMap data, so the attribution names both.
+                  urlTemplate:
+                      'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                  fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.nook.app',
                   tileProvider: NetworkTileProvider(),
+                  retinaMode: false,
                 ),
                 MarkerLayer(
                   markers: [
@@ -85,7 +107,7 @@ class PostMap extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 color: const Color(0xCCFFFFFF),
                 child: Text(
-                  '© OpenStreetMap contributors',
+                  '© OpenStreetMap · CARTO',
                   style: NookType.caption.copyWith(fontSize: 10),
                 ),
               ),

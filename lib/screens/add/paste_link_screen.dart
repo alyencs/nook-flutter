@@ -19,9 +19,19 @@ import '../../widgets/section_header.dart';
 import 'detected_screen.dart';
 import 'post_draft.dart';
 
-/// A2. Feature #1: paste a link, and the one call that reads it.
+/// A2. Feature #1: a link, and the one call that reads it.
+///
+/// Two ways in, one pipeline. A link typed here and a link handed over by
+/// another app's share sheet both land on this screen; [sharedUrl] is the
+/// second case, and all it does is fill the field and press Analyze. Everything
+/// after that — platform detection, reading the post, the model call, the save —
+/// is the same code either way, which is the point: there is no second
+/// extraction path to keep in step with this one.
 class PasteLinkScreen extends StatefulWidget {
-  const PasteLinkScreen({super.key});
+  const PasteLinkScreen({super.key, this.sharedUrl});
+
+  /// A URL another app shared into Nook. Analysis starts on its own.
+  final String? sharedUrl;
 
   @override
   State<PasteLinkScreen> createState() => _PasteLinkScreenState();
@@ -45,6 +55,16 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   void initState() {
     super.initState();
     _url.addListener(() => setState(() {}));
+
+    final shared = widget.sharedUrl?.trim();
+    if (shared != null && shared.isNotEmpty) {
+      _url.text = shared;
+      // Straight into the same analysis the Analyze button runs. A shared post
+      // is already an expression of intent; making someone tap again to confirm
+      // what they just chose is a step for its own sake.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _analyze());
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefillFromClipboard());
   }
 

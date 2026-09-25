@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
+import '../../ai/post_place.dart';
 import '../../app_scope.dart';
 import '../../data/daos/settings_dao.dart';
 import '../../data/database.dart';
@@ -37,11 +38,10 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
     final scope = AppScope.of(context);
 
     // Captured before any await and before popping. Reading an inherited
-    // widget (ScaffoldMessenger, Navigator, AppScope) through a context whose
-    // element is being deactivated registers a dependency that can never be
-    // cleaned up, which is what trips
-    // "_dependents.isEmpty is not true" in the framework.
-    final messenger = ScaffoldMessenger.of(context);
+    // widget (Overlay, Navigator, AppScope) through a context whose element is
+    // being deactivated registers a dependency that can never be cleaned up,
+    // which is what trips "_dependents.isEmpty is not true" in the framework.
+    final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
 
     // "Save confirmation" in Settings, off by default.
@@ -76,6 +76,8 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
             aiNeighbourhood: Value(draft.neighbourhood),
             aiCity: Value(draft.city),
             aiRegion: Value(draft.region),
+            aiPlaces: Value(PostPlace.encode(draft.places)),
+            aiHighlights: Value(PostHighlights.encode(draft.highlights)),
             aiCountry: Value(draft.country),
             aiCategory: Value(draft.category),
             aiSummary: Value(draft.summary),
@@ -94,7 +96,7 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
     // Back to whichever tab the flow started from. Home is watching the same
     // stream, so the new post is already there.
     navigator.popUntil((route) => route.isFirst);
-    await showSnackBarAfterPop(messenger, 'Saved "${draft.title}"');
+    showToastAfterPop(overlay, 'Saved "${draft.title}"');
   }
 
   @override

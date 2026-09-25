@@ -9,6 +9,7 @@ import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_dialog.dart';
+import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/trip_card.dart';
@@ -28,17 +29,17 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
   bool _loaded = false;
 
   Future<void> _save() async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
 
     await AppScope.of(context).posts.moveToTrip(widget.postId, _selected);
     if (!mounted) return;
     navigator.pop();
-    await showSnackBarAfterPop(messenger, 'Post moved');
+    showToastAfterPop(overlay, 'Post moved');
   }
 
   Future<void> _delete() async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
     final posts = AppScope.of(context).posts;
 
@@ -58,7 +59,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
     navigator
       ..pop()
       ..pop();
-    await showSnackBarAfterPop(messenger, 'Post deleted');
+    showToastAfterPop(overlay, 'Post deleted');
   }
 
   @override
@@ -107,22 +108,23 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                 children: [
                   const NookAppBar(title: 'Manage Post'),
                   const SizedBox(height: NookSpacing.section),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const OverlineLabel('Current trip'),
-                      if (_selected != null)
-                        InkWell(
-                          onTap: () => setState(() => _selected = null),
-                          child: Text(
-                            'Remove',
-                            style: NookType.body.copyWith(
-                              color: NookColors.primary,
-                              fontWeight: FontWeight.w600,
+                  // The label's own trailing slot, not a Row around it: a
+                  // RuledLabel stretches its rule with an Expanded, which needs
+                  // a bounded width, and a Row gives its children unbounded.
+                  RuledLabel(
+                    'Current trip',
+                    trailing: _selected == null
+                        ? null
+                        : InkWell(
+                            onTap: () => setState(() => _selected = null),
+                            child: Text(
+                              'Remove',
+                              style: NookType.body.copyWith(
+                                color: NookColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                    ],
                   ),
                   const SizedBox(height: NookSpacing.tight),
                   Container(

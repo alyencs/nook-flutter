@@ -10,6 +10,7 @@ import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/nook_toast.dart';
 import '../../widgets/sub_screen_nav.dart';
 
 /// P3.
@@ -63,36 +64,32 @@ class SettingsScreen extends StatelessWidget {
   /// Writes every row Nook holds to a JSON file. On the web the browser
   /// downloads it; on a device it lands in the app's documents directory.
   static Future<void> _export(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     final db = AppScope.of(context).db;
 
     try {
       final destination = await NookExport.run(db);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            kIsWeb ? 'Exported $destination' : 'Exported to $destination',
-          ),
-        ),
+      NookToast.show(
+        overlay,
+        kIsWeb ? 'Exported $destination' : 'Exported to $destination',
+        icon: Icons.file_download_outlined,
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      NookToast.show(overlay, 'Export failed: $e', isError: true);
     }
   }
 
   static Future<void> _clearSearches(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     await AppScope.of(context).searches.clear();
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Search history cleared')),
-    );
+    NookToast.show(overlay, 'Search history cleared');
   }
 
   /// Thumbnails are fetched from each platform and held in Flutter's image
   /// cache. Emptying it is what "Clear Cache" can honestly mean here: your
   /// saved posts are not touched.
   static Future<void> _clearCache(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     final confirmed = await showNookDialog(
       context,
       title: 'Clear cached images?',
@@ -105,7 +102,7 @@ class SettingsScreen extends StatelessWidget {
     PaintingBinding.instance.imageCache
       ..clear()
       ..clearLiveImages();
-    messenger.showSnackBar(const SnackBar(content: Text('Cache cleared')));
+    NookToast.show(overlay, 'Cache cleared');
   }
 }
 
