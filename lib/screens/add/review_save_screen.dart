@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
+import '../../ai/post_place.dart';
 import '../../app_scope.dart';
 import '../../data/daos/settings_dao.dart';
 import '../../data/database.dart';
@@ -14,6 +15,7 @@ import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/post_thumbnail.dart';
+import '../../widgets/save_flight.dart';
 import 'post_draft.dart';
 
 /// A6. Everything the flow gathered, on one screen, before anything is written.
@@ -32,16 +34,22 @@ class ReviewSaveScreen extends StatefulWidget {
 class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
   bool _saving = false;
 
+  /// The thumbnail's position, so the flight knows where to start.
+  final _thumbKey = GlobalKey();
+
   Future<void> _save() async {
+    // The button disables itself on `_saving`, but that is only set after the
+    // settings read below, so a fast double-tap could get in twice — two rows
+    // written and two thumbnails in the air. Re-entrancy stops at the door.
+    if (_saving) return;
     final draft = widget.draft;
     final scope = AppScope.of(context);
 
     // Captured before any await and before popping. Reading an inherited
-    // widget (ScaffoldMessenger, Navigator, AppScope) through a context whose
-    // element is being deactivated registers a dependency that can never be
-    // cleaned up, which is what trips
-    // "_dependents.isEmpty is not true" in the framework.
-    final messenger = ScaffoldMessenger.of(context);
+    // widget (Overlay, Navigator, AppScope) through a context whose element is
+    // being deactivated registers a dependency that can never be cleaned up,
+    // which is what trips "_dependents.isEmpty is not true" in the framework.
+    final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
 
     // "Save confirmation" in Settings, off by default.
@@ -50,7 +58,8 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
       final confirmed = await showNookDialog(
         context,
         title: 'Save this post?',
-        message: '"${draft.title}" will be added to '
+        message:
+            '"${draft.title}" will be added to '
             '${draft.tripName ?? 'your library'}.',
         confirmLabel: 'Save Post',
       );
@@ -60,41 +69,51 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
     setState(() => _saving = true);
 
     await scope.posts.insertPost(
-          SavedPostsCompanion.insert(
-            title: draft.title,
-            caption: Value(draft.caption),
-            creator: Value(draft.creator),
-            creatorHandle: Value(draft.creatorHandle),
-            platform: draft.platform,
-            originalUrl: Value(draft.url),
-            sourceId: Value(draft.sourceId),
-            mediaType: Value(draft.mediaType.name),
-            importMethod: draft.importMethod,
-            aiDestination: Value(draft.destination),
-            aiPlaceName: Value(draft.placeName),
-            aiAddress: Value(draft.address),
-            aiNeighbourhood: Value(draft.neighbourhood),
-            aiCity: Value(draft.city),
-            aiRegion: Value(draft.region),
-            aiCountry: Value(draft.country),
-            aiCategory: Value(draft.category),
-            aiSummary: Value(draft.summary),
-            aiBestTime: Value(draft.bestTime),
-            aiBudgetNote: Value(draft.budgetNote),
-            aiLatitude: Value(draft.latitude),
-            aiLongitude: Value(draft.longitude),
-            thumbnailUrl: Value(draft.thumbnailUrl),
-            tripId: Value(draft.tripId),
-            personalNote: Value(draft.note),
-            dateSaved: DateTime.now(),
-          ),
-        );
+      SavedPostsCompanion.insert(
+        title: draft.title,
+        caption: Value(draft.caption),
+        creator: Value(draft.creator),
+        creatorHandle: Value(draft.creatorHandle),
+        platform: draft.platform,
+        originalUrl: Value(draft.url),
+        sourceId: Value(draft.sourceId),
+        mediaType: Value(draft.mediaType.name),
+        importMethod: draft.importMethod,
+        aiDestination: Value(draft.destination),
+        aiPlaceName: Value(draft.placeName),
+        aiAddress: Value(draft.address),
+        aiNeighbourhood: Value(draft.neighbourhood),
+        aiCity: Value(draft.city),
+        aiRegion: Value(draft.region),
+        aiPlaces: Value(PostPlace.encode(draft.places)),
+        aiHighlights: Value(PostHighlights.encode(draft.highlights)),
+        aiCountry: Value(draft.country),
+        aiCategory: Value(draft.category),
+        aiSummary: Value(draft.summary),
+        aiBestTime: Value(draft.bestTime),
+        aiBudgetNote: Value(draft.budgetNote),
+        aiLatitude: Value(draft.latitude),
+        aiLongitude: Value(draft.longitude),
+        thumbnailUrl: Value(draft.thumbnailUrl),
+        tripId: Value(draft.tripId),
+        personalNote: Value(draft.note),
+        dateSaved: DateTime.now(),
+      ),
+    );
 
     if (!mounted) return;
     // Back to whichever tab the flow started from. Home is watching the same
     // stream, so the new post is already there.
+    // The rect is read before the pop, while the widget is still on screen.
+    final box = _thumbKey.currentContext?.findRenderObject() as RenderBox?;
+    final from = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+
     navigator.popUntil((route) => route.isFirst);
-    await showSnackBarAfterPop(messenger, 'Saved "${draft.title}"');
+
+    if (from != null) {
+      SaveFlight.run(overlay, from: from, thumbnailUrl: draft.thumbnailUrl);
+    }
+    showToastAfterPop(overlay, 'Saved "${draft.title}"');
   }
 
   @override
@@ -128,6 +147,7 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       PostThumbnail(
+                        key: _thumbKey,
                         url: draft.thumbnailUrl,
                         width: 72,
                         height: 72,
@@ -150,7 +170,10 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
                   if (!draft.isNote) ...[
                     _Row(
                       label: 'Creator',
-                      child: Text(draft.creator ?? '—', style: NookType.bodyStrong),
+                      child: Text(
+                        draft.creator ?? '—',
+                        style: NookType.bodyStrong,
+                      ),
                     ),
                     _Row(
                       label: 'Platform',

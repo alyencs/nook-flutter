@@ -7,5 +7,15 @@
     "theme_color": "#DD700B",
     "description": "Never lose your next favourite find. Save travel posts from TikTok, Instagram, Facebook and YouTube, group them by trip, and search across all of them.",
     "orientation": "portrait-primary",
-    "prefer_related_applications": false
+    "prefer_related_applications": false,
+    "share_target": {
+        "action": ".",
+        "method": "GET",
+        "enctype": "application/x-www-form-urlencoded",
+        "params": {
+            "title": "shared_title",
+            "text": "shared_text",
+            "url": "shared_url"
+        }
+    }
 }

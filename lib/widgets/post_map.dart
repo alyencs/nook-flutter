@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
+import '../theme/nook_motion.dart';
 import 'metadata_chip.dart';
 import 'thumb_placeholder.dart';
 
@@ -48,17 +49,39 @@ class PostMap extends StatelessWidget {
               options: MapOptions(
                 initialCenter: point,
                 initialZoom: zoom,
-                // A thumbnail map, not an atlas: panning and rotating it inside
-                // a scrolling page fights the scroll.
+                // A real map: drag, pinch, double-tap and scroll-wheel zoom.
+                // Rotation stays off — a tilted map is disorienting in a card
+                // and there is no compass to straighten it with.
+                //
+                // `drag` inside a scrolling page needs the gesture to be won
+                // rather than shared, which is what the eager recogniser below
+                // does: a pan that starts on the map belongs to the map.
                 interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom,
+                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                  scrollWheelVelocity: 0.004,
                 ),
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  // CARTO Positron, for two reasons.
+                  //
+                  // Labels: the standard `tile.openstreetmap.org` style renders
+                  // every place in its own local script, so a pin in Osaka came
+                  // back labelled in Japanese and one in Bangkok in Thai.
+                  // Positron's label layer is Latin-script, so the map reads in
+                  // English wherever the pin lands.
+                  //
+                  // Looks: it is a quiet grey-and-white basemap rather than the
+                  // green-and-yellow default, which lets the orange pin be the
+                  // only saturated thing in the card.
+                  //
+                  // Same OpenStreetMap data, so the attribution names both.
+                  urlTemplate:
+                      'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                  fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.nook.app',
                   tileProvider: NetworkTileProvider(),
+                  retinaMode: false,
                 ),
                 MarkerLayer(
                   markers: [
@@ -85,7 +108,7 @@ class PostMap extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 color: const Color(0xCCFFFFFF),
                 child: Text(
-                  '© OpenStreetMap contributors',
+                  '© OpenStreetMap · CARTO',
                   style: NookType.caption.copyWith(fontSize: 10),
                 ),
               ),
@@ -97,18 +120,68 @@ class PostMap extends StatelessWidget {
   }
 }
 
-class _Pin extends StatelessWidget {
+class _Pin extends StatefulWidget {
   const _Pin();
 
   @override
+  State<_Pin> createState() => _PinState();
+}
+
+class _PinState extends State<_Pin> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: NookMotion.slow,
+  );
+
+  /// elasticOut on the way down only: the pin falls in and settles, which
+  /// draws the eye to the location without the map itself moving.
+  ///
+  /// Built once, not per build: CurvedAnimation registers a status listener on
+  /// its parent in the constructor, so rebuilding one every frame leaks a
+  /// listener each time.
+  late final Animation<double> _drop = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.elasticOut,
+  );
+
+  /// The fade runs off the raw controller rather than [_drop]: elasticOut
+  /// overshoots past 1, and an opacity above 1 asserts.
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: NookMotion.enter,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    // Both curves hold a listener on the controller; drop them before it goes.
+    (_drop as CurvedAnimation).dispose();
+    (_fade as CurvedAnimation).dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Icon(
-      Icons.location_on,
-      size: 40,
-      color: NookColors.primary,
-      shadows: [
-        Shadow(color: Color(0x552E2E2E), blurRadius: 6, offset: Offset(0, 2)),
-      ],
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, -26 * (1 - _drop.value)),
+        child: Opacity(opacity: _fade.value.clamp(0.0, 1.0), child: child),
+      ),
+      child: const Icon(
+        Icons.location_on,
+        size: 40,
+        color: NookColors.primary,
+        shadows: [
+          Shadow(color: Color(0x552E2E2E), blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
     );
   }
 }

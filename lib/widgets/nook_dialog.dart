@@ -4,6 +4,7 @@ import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
 import 'nook_buttons.dart';
+import 'nook_toast.dart';
 
 /// White rounded modal. Destructive confirmations use Soft Red; everything else
 /// uses Burnt Orange.
@@ -127,15 +128,14 @@ Future<String?> showCreateTripDialog(BuildContext context) async {
   return name;
 }
 
-/// Shows a confirmation once the current route transition has finished.
+/// Shows a confirmation after the current route has been popped.
 ///
-/// A SnackBar raised in the same frame as a pop is briefly parented by both the
-/// leaving and the arriving Scaffold, and Flutter asserts on the duplicate hero
-/// tag that creates. The messenger is app-level, so waiting costs nothing.
-Future<void> showSnackBarAfterPop(
-  ScaffoldMessengerState messenger,
-  String message,
-) async {
-  await Future<void>.delayed(const Duration(milliseconds: 350));
-  messenger.showSnackBar(SnackBar(content: Text(message)));
+/// Takes an [OverlayState] resolved before the pop. The old version took a
+/// `ScaffoldMessengerState` and waited 350ms, because a SnackBar raised in the
+/// same frame as a pop is briefly parented by both the leaving and the arriving
+/// Scaffold and Flutter asserts on the duplicate hero tag. [NookToast] lives in
+/// the root overlay and belongs to no Scaffold, so there is nothing to collide
+/// with and nothing to wait for.
+void showToastAfterPop(OverlayState overlay, String message) {
+  NookToast.show(overlay, message);
 }

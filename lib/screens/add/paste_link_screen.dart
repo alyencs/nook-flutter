@@ -10,6 +10,7 @@ import '../../data/daos/settings_dao.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
+import '../../theme/nook_motion.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
@@ -19,9 +20,19 @@ import '../../widgets/section_header.dart';
 import 'detected_screen.dart';
 import 'post_draft.dart';
 
-/// A2. Feature #1: paste a link, and the one call that reads it.
+/// A2. Feature #1: a link, and the one call that reads it.
+///
+/// Two ways in, one pipeline. A link typed here and a link handed over by
+/// another app's share sheet both land on this screen; [sharedUrl] is the
+/// second case, and all it does is fill the field and press Analyze. Everything
+/// after that — platform detection, reading the post, the model call, the save —
+/// is the same code either way, which is the point: there is no second
+/// extraction path to keep in step with this one.
 class PasteLinkScreen extends StatefulWidget {
-  const PasteLinkScreen({super.key});
+  const PasteLinkScreen({super.key, this.sharedUrl});
+
+  /// A URL another app shared into Nook. Analysis starts on its own.
+  final String? sharedUrl;
 
   @override
   State<PasteLinkScreen> createState() => _PasteLinkScreenState();
@@ -45,7 +56,19 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   void initState() {
     super.initState();
     _url.addListener(() => setState(() {}));
-    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillFromClipboard());
+
+    final shared = widget.sharedUrl?.trim();
+    if (shared != null && shared.isNotEmpty) {
+      _url.text = shared;
+      // Straight into the same analysis the Analyze button runs. A shared post
+      // is already an expression of intent; making someone tap again to confirm
+      // what they just chose is a step for its own sake.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _analyze());
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _prefillFromClipboard(),
+    );
   }
 
   /// "Paste detection" in Settings: if the clipboard already holds a link,
@@ -301,7 +324,16 @@ class _AnalysisProgress extends StatelessWidget {
               ),
               const SizedBox(width: NookSpacing.tight),
               Expanded(
-                child: Text('$stage…', style: NookType.bodyStrong),
+                child: AnimatedSwitcher(
+                  duration: NookMotion.fast,
+                  // Keyed on the text, so each new stage cross-fades with the
+                  // one before instead of the label changing under you.
+                  child: Text(
+                    '$stage…',
+                    key: ValueKey(stage),
+                    style: NookType.bodyStrong,
+                  ),
+                ),
               ),
               Text('${seconds}s', style: NookType.caption),
             ],
@@ -423,12 +455,7 @@ class _ExtractionError extends StatelessWidget {
                 size: 20,
               ),
               const SizedBox(width: NookSpacing.tight),
-              Expanded(
-                child: Text(
-                  message,
-                  style: NookType.body,
-                ),
-              ),
+              Expanded(child: Text(message, style: NookType.body)),
             ],
           ),
           const SizedBox(height: NookSpacing.section),

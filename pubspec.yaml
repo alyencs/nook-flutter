@@ -32,6 +32,8 @@ dependencies:
   # which is the one thing needed to tell a retryable 503 from a fatal 400.
   http: ^1.6.0
   font_awesome_flutter: ^11.0.0
+  # Opens a saved post's original URL in the platform's own browser or app.
+  url_launcher: ^6.3.1
   web: ^1.1.1
 
 dev_dependencies:
@@ -53,13 +55,26 @@ flutter:
     - .env.example
 
   fonts:
-    - family: Inter
+    # Manrope, the UI typeface: body, labels, buttons, navigation. SIL OFL,
+    # instanced from the upstream variable font. Licence in assets/fonts.
+    - family: Manrope
       fonts:
-        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Manrope-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Inter-Medium.ttf
+        - asset: assets/fonts/Manrope-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Inter-SemiBold.ttf
+        - asset: assets/fonts/Manrope-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Inter-Bold.ttf
+        - asset: assets/fonts/Manrope-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
+
+    # The editorial/display face, used only for emphasis — see the note at the
+    # top of lib/theme/nook_typography.dart for how to swap in PP Editorial New,
+    # which is licensed and cannot be committed here.
+    - family: EditorialSerif
+      fonts:
+        - asset: assets/fonts/EditorialSerif-Regular.ttf
+        - asset: assets/fonts/EditorialSerif-Italic.ttf
+          style: italic

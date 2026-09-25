@@ -22,7 +22,7 @@ class UsersDao {
   /// at all — after "Clear All Data" — does it insert.
   Future<int> saveProfile({
     required String name,
-    required String email,
+    String? email,
     String? profilePicture,
   }) async {
     final existing = await currentUser();
@@ -30,7 +30,7 @@ class UsersDao {
       return _db.into(_db.users).insert(
             UsersCompanion.insert(
               name: name,
-              email: email,
+              email: Value(email),
               profilePicture: Value(profilePicture),
             ),
           );

@@ -12,6 +12,7 @@ import '../../widgets/nook_text_field.dart';
 import '../../widgets/saved_post_card.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/trip_card.dart';
+import '../../widgets/entrance.dart';
 import '../add/add_method_screen.dart';
 import '../details/post_details_screen.dart';
 import '../search/search_screen.dart';
@@ -59,7 +60,7 @@ class HomeScreen extends StatelessWidget {
               final trips = tripSnapshot.data ?? const <TripSummary>[];
               final loading =
                   recentSnapshot.connectionState == ConnectionState.waiting ||
-                      tripSnapshot.connectionState == ConnectionState.waiting;
+                  tripSnapshot.connectionState == ConnectionState.waiting;
               final empty = recent.isEmpty && trips.isEmpty;
 
               return ListView(
@@ -106,8 +107,8 @@ class _Greeting extends StatelessWidget {
     final part = hour < 12
         ? 'morning'
         : hour < 18
-            ? 'afternoon'
-            : 'evening';
+        ? 'afternoon'
+        : 'evening';
 
     return StreamBuilder<User?>(
       stream: AppScope.of(context).users.watchCurrentUser(),
@@ -117,15 +118,13 @@ class _Greeting extends StatelessWidget {
           children: [
             Text(
               'Good $part,',
-              style: NookType.body.copyWith(
-                color: NookColors.textMuted,
-              ),
+              style: NookType.body.copyWith(color: NookColors.textMuted),
             ),
             const SizedBox(height: 2),
-            Text(
-              snapshot.data?.name ?? '',
-              style: NookType.display,
-            ),
+            // The one editorial moment on Home. The name is the most personal
+            // word on the screen, so it is the word that gets the accent face —
+            // and having exactly one of them is what keeps it an accent.
+            NookHeadline('*${snapshot.data?.name ?? ''}*', maxLines: 1),
           ],
         );
       },
@@ -144,12 +143,13 @@ class _HomeEmpty extends StatelessWidget {
       child: NookEmptyState(
         icon: Icons.bookmark_outline_rounded,
         title: 'No trips yet — save your first find',
-        message: 'Paste a link from TikTok, Instagram, or YouTube to start '
+        message:
+            'Paste a link from TikTok, Instagram, or YouTube to start '
             'building your first trip.',
         actionLabel: 'Save First Find',
-        onAction: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AddMethodScreen()),
-        ),
+        onAction: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AddMethodScreen())),
       ),
     );
   }
@@ -185,10 +185,14 @@ class _RecentSaves extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
             itemCount: posts.length,
-            separatorBuilder: (_, _) => const SizedBox(width: NookSpacing.section),
-            itemBuilder: (context, index) => SavedPostGridCard(
-              post: posts[index],
-              onTap: () => openPostDetails(context, posts[index].id),
+            separatorBuilder: (_, _) =>
+                const SizedBox(width: NookSpacing.section),
+            itemBuilder: (context, index) => Entrance(
+              index: index,
+              child: SavedPostGridCard(
+                post: posts[index],
+                onTap: () => openPostDetails(context, posts[index].id),
+              ),
             ),
           ),
         ),
@@ -212,9 +216,9 @@ class _YourTrips extends StatelessWidget {
       children: [
         SectionHeader(
           'Your Trips',
-          onSeeAll: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TripsScreenRoute()),
-          ),
+          onSeeAll: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const TripsScreenRoute())),
         ),
         const SizedBox(height: NookSpacing.section),
         LayoutBuilder(
@@ -232,7 +236,8 @@ class _YourTrips extends StatelessWidget {
                       summary: summary,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => TripDetailsScreen(tripId: summary.trip.id),
+                          builder: (_) =>
+                              TripDetailsScreen(tripId: summary.trip.id),
                         ),
                       ),
                     ),

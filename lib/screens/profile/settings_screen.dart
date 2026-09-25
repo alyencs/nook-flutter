@@ -7,9 +7,11 @@ import '../../data/export_service.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
+import '../../theme/nook_motion.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/nook_toast.dart';
 import '../../widgets/sub_screen_nav.dart';
 
 /// P3.
@@ -39,7 +41,8 @@ class SettingsScreen extends StatelessWidget {
                 _SwitchRow(
                   label: entry.value,
                   value: values[entry.key] ?? false,
-                  onChanged: (enabled) => scope.settings.set(entry.key, enabled),
+                  onChanged: (enabled) =>
+                      scope.settings.set(entry.key, enabled),
                 ),
                 const Divider(),
               ],
@@ -63,40 +66,37 @@ class SettingsScreen extends StatelessWidget {
   /// Writes every row Nook holds to a JSON file. On the web the browser
   /// downloads it; on a device it lands in the app's documents directory.
   static Future<void> _export(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     final db = AppScope.of(context).db;
 
     try {
       final destination = await NookExport.run(db);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            kIsWeb ? 'Exported $destination' : 'Exported to $destination',
-          ),
-        ),
+      NookToast.show(
+        overlay,
+        kIsWeb ? 'Exported $destination' : 'Exported to $destination',
+        icon: Icons.file_download_outlined,
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      NookToast.show(overlay, 'Export failed: $e', isError: true);
     }
   }
 
   static Future<void> _clearSearches(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     await AppScope.of(context).searches.clear();
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Search history cleared')),
-    );
+    NookToast.show(overlay, 'Search history cleared');
   }
 
   /// Thumbnails are fetched from each platform and held in Flutter's image
   /// cache. Emptying it is what "Clear Cache" can honestly mean here: your
   /// saved posts are not touched.
   static Future<void> _clearCache(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     final confirmed = await showNookDialog(
       context,
       title: 'Clear cached images?',
-      message: 'Thumbnails will be fetched again next time they are shown. '
+      message:
+          'Thumbnails will be fetched again next time they are shown. '
           'Your saved posts, trips and notes are not affected.',
       confirmLabel: 'Clear Cache',
     );
@@ -105,7 +105,7 @@ class SettingsScreen extends StatelessWidget {
     PaintingBinding.instance.imageCache
       ..clear()
       ..clearLiveImages();
-    messenger.showSnackBar(const SnackBar(content: Text('Cache cleared')));
+    NookToast.show(overlay, 'Cache cleared');
   }
 }
 
@@ -126,7 +126,20 @@ class _SwitchRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: NookType.body)),
+          Expanded(
+            // The row settles with the thumb rather than only the thumb moving:
+            // an off row reads as muted, an on row as full strength. An
+            // AnimatedContainer would be a no-op here — it needs an animatable
+            // property, and the only thing changing is the text colour.
+            child: AnimatedDefaultTextStyle(
+              duration: NookMotion.fast,
+              curve: NookMotion.press,
+              style: NookType.body.copyWith(
+                color: value ? NookColors.textPrimary : NookColors.textMuted,
+              ),
+              child: Text(label),
+            ),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:nook/ai/gemini_api.dart';
 import 'package:nook/ai/gemini_extractor.dart';
+import 'package:nook/ai/post_place.dart';
 import 'package:nook/ai/source_metadata.dart';
 import 'package:nook/data/daos/posts_dao.dart';
 import 'package:nook/data/database.dart';
@@ -349,6 +350,111 @@ void main() {
 
       expect(result.title, _title,
           reason: 'the platform stated it; that is a fact, not a paraphrase');
+    });
+  });
+
+  group('more than a title: the places a post names', () {
+    test('five cafes come back as five places, not one city', () async {
+      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
+        'title': '5 Cafes in Kyoto',
+        'category': 'Food',
+        'city': 'Kyoto',
+        'country': 'Japan',
+        'places': [
+          {'name': '% Arabica', 'kind': 'cafe', 'area': 'Arashiyama'},
+          {'name': 'Weekenders Coffee', 'kind': 'cafe', 'area': 'Nakagyo'},
+          {'name': 'Kurasu Kyoto', 'kind': 'cafe', 'area': 'Shimogyo'},
+          {'name': 'Walden Woods', 'kind': 'cafe'},
+          {'name': 'Vermillion Cafe', 'kind': 'cafe', 'area': 'Fushimi'},
+        ],
+        'highlights': [
+          'Go early — most open at 8am and fill by 10',
+          'Walden Woods has no seating upstairs',
+        ],
+      });
+
+      final result = await _extractor(pipeline).extract(_url);
+
+      expect(result.places, hasLength(5));
+      expect(result.places.map((p) => p.name), contains('Weekenders Coffee'));
+      expect(result.places.first.area, 'Arashiyama');
+      expect(result.highlights, hasLength(2));
+      // The post is still about Kyoto, and it is now also about five cafes.
+      expect(result.city, 'Kyoto');
+      // place_name was not returned, so the first place named becomes it.
+      expect(result.placeName, '% Arabica');
+      expect(result.destination, '% Arabica, Kyoto');
+    });
+
+    test('places survive the draft and the row', () async {
+      final db = NookDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
+        'title': '5 Cafes in Kyoto',
+        'category': 'Food',
+        'city': 'Kyoto',
+        'places': [
+          {'name': 'Kurasu Kyoto', 'kind': 'cafe', 'area': 'Shimogyo'},
+        ],
+        'highlights': ['Go early'],
+      });
+      final result = await _extractor(pipeline).extract(_url);
+      final draft = PostDraft.fromLink(url: _url, result: result);
+
+      expect(draft.places, hasLength(1));
+
+      final id = await PostsDao(db).insertPost(
+        SavedPostsCompanion.insert(
+          title: draft.title,
+          platform: draft.platform,
+          importMethod: draft.importMethod,
+          aiPlaces: Value(PostPlace.encode(draft.places)),
+          aiHighlights: Value(PostHighlights.encode(draft.highlights)),
+          dateSaved: DateTime.now(),
+        ),
+      );
+
+      final saved = await PostsDao(db).watchPost(id).first;
+      final places = PostPlace.decode(saved!.aiPlaces);
+      expect(places, hasLength(1));
+      expect(places.single.name, 'Kurasu Kyoto');
+      expect(places.single.summary, 'Kurasu Kyoto · Shimogyo');
+      expect(PostHighlights.decode(saved.aiHighlights), ['Go early']);
+    });
+
+    test('a post that names no venue stores none', () async {
+      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
+        'title': 'We visited a cafe in Osaka',
+        'category': 'Food',
+        'city': 'Osaka',
+        'country': 'Japan',
+        'places': <Object>[],
+      });
+
+      final result = await _extractor(pipeline).extract(_url);
+
+      expect(result.places, isEmpty, reason: 'the source named no cafe');
+      expect(result.placeName, isNull);
+      expect(result.city, 'Osaka');
+      // Nothing to encode means null, not "[]".
+      expect(PostPlace.encode(result.places), isNull);
+    });
+
+    test('malformed place entries are dropped, not guessed at', () async {
+      final pipeline = _Pipeline(oEmbed: _oEmbed, fields: {
+        'title': 'Kyoto',
+        'category': 'Food',
+        'places': [
+          {'kind': 'cafe'},
+          'just a string',
+          {'name': '   '},
+          {'name': 'Kurasu Kyoto'},
+        ],
+      });
+
+      final result = await _extractor(pipeline).extract(_url);
+      expect(result.places.map((p) => p.name), ['Kurasu Kyoto']);
     });
   });
 }

@@ -35,7 +35,7 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
   }
 
   Future<void> _save() async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
 
     setState(() => _saving = true);
@@ -43,7 +43,7 @@ class _PersonalNotesScreenState extends State<PersonalNotesScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
     navigator.pop();
-    await showSnackBarAfterPop(messenger, 'Note saved');
+    showToastAfterPop(overlay, 'Note saved');
   }
 
   @override

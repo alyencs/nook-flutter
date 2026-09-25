@@ -35,9 +35,9 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
   late final GeneratedColumn<String> email = GeneratedColumn<String>(
     'email',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _profilePictureMeta = const VerificationMeta(
     'profilePicture',
@@ -80,8 +80,6 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
         _emailMeta,
         email.isAcceptableOrUnknown(data['email']!, _emailMeta),
       );
-    } else if (isInserting) {
-      context.missing(_emailMeta);
     }
     if (data.containsKey('profile_picture')) {
       context.handle(
@@ -112,7 +110,7 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
       email: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}email'],
-      )!,
+      ),
       profilePicture: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_picture'],
@@ -129,7 +127,14 @@ class $UsersTable extends Users with TableInfo<$UsersTable, User> {
 class User extends DataClass implements Insertable<User> {
   final int id;
   final String name;
-  final String email;
+
+  /// Nullable, and no longer collected.
+  ///
+  /// Nook stores everything on the device and talks to no server, so there was
+  /// never an account for an email address to identify. Onboarding now asks
+  /// what to call you and nothing else. The column stays so that profiles
+  /// created before this keep their data; nothing reads it.
+  final String? email;
 
   /// A base64 data URI. `image_picker` returns bytes rather than a path on the
   /// web, and the image never leaves the device either way.
@@ -137,7 +142,7 @@ class User extends DataClass implements Insertable<User> {
   const User({
     required this.id,
     required this.name,
-    required this.email,
+    this.email,
     this.profilePicture,
   });
   @override
@@ -145,7 +150,9 @@ class User extends DataClass implements Insertable<User> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['name'] = Variable<String>(name);
-    map['email'] = Variable<String>(email);
+    if (!nullToAbsent || email != null) {
+      map['email'] = Variable<String>(email);
+    }
     if (!nullToAbsent || profilePicture != null) {
       map['profile_picture'] = Variable<String>(profilePicture);
     }
@@ -156,7 +163,9 @@ class User extends DataClass implements Insertable<User> {
     return UsersCompanion(
       id: Value(id),
       name: Value(name),
-      email: Value(email),
+      email: email == null && nullToAbsent
+          ? const Value.absent()
+          : Value(email),
       profilePicture: profilePicture == null && nullToAbsent
           ? const Value.absent()
           : Value(profilePicture),
@@ -171,7 +180,7 @@ class User extends DataClass implements Insertable<User> {
     return User(
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
-      email: serializer.fromJson<String>(json['email']),
+      email: serializer.fromJson<String?>(json['email']),
       profilePicture: serializer.fromJson<String?>(json['profilePicture']),
     );
   }
@@ -181,7 +190,7 @@ class User extends DataClass implements Insertable<User> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
-      'email': serializer.toJson<String>(email),
+      'email': serializer.toJson<String?>(email),
       'profilePicture': serializer.toJson<String?>(profilePicture),
     };
   }
@@ -189,12 +198,12 @@ class User extends DataClass implements Insertable<User> {
   User copyWith({
     int? id,
     String? name,
-    String? email,
+    Value<String?> email = const Value.absent(),
     Value<String?> profilePicture = const Value.absent(),
   }) => User(
     id: id ?? this.id,
     name: name ?? this.name,
-    email: email ?? this.email,
+    email: email.present ? email.value : this.email,
     profilePicture: profilePicture.present
         ? profilePicture.value
         : this.profilePicture,
@@ -236,7 +245,7 @@ class User extends DataClass implements Insertable<User> {
 class UsersCompanion extends UpdateCompanion<User> {
   final Value<int> id;
   final Value<String> name;
-  final Value<String> email;
+  final Value<String?> email;
   final Value<String?> profilePicture;
   const UsersCompanion({
     this.id = const Value.absent(),
@@ -247,10 +256,9 @@ class UsersCompanion extends UpdateCompanion<User> {
   UsersCompanion.insert({
     this.id = const Value.absent(),
     required String name,
-    required String email,
+    this.email = const Value.absent(),
     this.profilePicture = const Value.absent(),
-  }) : name = Value(name),
-       email = Value(email);
+  }) : name = Value(name);
   static Insertable<User> custom({
     Expression<int>? id,
     Expression<String>? name,
@@ -268,7 +276,7 @@ class UsersCompanion extends UpdateCompanion<User> {
   UsersCompanion copyWith({
     Value<int>? id,
     Value<String>? name,
-    Value<String>? email,
+    Value<String?>? email,
     Value<String?>? profilePicture,
   }) {
     return UsersCompanion(
@@ -847,6 +855,28 @@ class $SavedPostsTable extends SavedPosts
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _aiPlacesMeta = const VerificationMeta(
+    'aiPlaces',
+  );
+  @override
+  late final GeneratedColumn<String> aiPlaces = GeneratedColumn<String>(
+    'ai_places',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _aiHighlightsMeta = const VerificationMeta(
+    'aiHighlights',
+  );
+  @override
+  late final GeneratedColumn<String> aiHighlights = GeneratedColumn<String>(
+    'ai_highlights',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _aiLatitudeMeta = const VerificationMeta(
     'aiLatitude',
   );
@@ -947,6 +977,8 @@ class $SavedPostsTable extends SavedPosts
     aiNeighbourhood,
     aiCity,
     aiRegion,
+    aiPlaces,
+    aiHighlights,
     aiLatitude,
     aiLongitude,
     tripId,
@@ -1129,6 +1161,21 @@ class $SavedPostsTable extends SavedPosts
         aiRegion.isAcceptableOrUnknown(data['ai_region']!, _aiRegionMeta),
       );
     }
+    if (data.containsKey('ai_places')) {
+      context.handle(
+        _aiPlacesMeta,
+        aiPlaces.isAcceptableOrUnknown(data['ai_places']!, _aiPlacesMeta),
+      );
+    }
+    if (data.containsKey('ai_highlights')) {
+      context.handle(
+        _aiHighlightsMeta,
+        aiHighlights.isAcceptableOrUnknown(
+          data['ai_highlights']!,
+          _aiHighlightsMeta,
+        ),
+      );
+    }
     if (data.containsKey('ai_latitude')) {
       context.handle(
         _aiLatitudeMeta,
@@ -1282,6 +1329,14 @@ class $SavedPostsTable extends SavedPosts
         DriftSqlType.string,
         data['${effectivePrefix}ai_region'],
       ),
+      aiPlaces: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_places'],
+      ),
+      aiHighlights: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_highlights'],
+      ),
       aiLatitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}ai_latitude'],
@@ -1363,6 +1418,17 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
   final String? aiCity;
   final String? aiRegion;
 
+  /// Specific places the source named — the five cafes in "5 Cafes in Kyoto".
+  ///
+  /// A JSON array of `{name, kind, area, note}`, because the count varies per
+  /// post and a column per place would be a schema that depends on content.
+  /// Read and written through [PostPlace].
+  final String? aiPlaces;
+
+  /// Activities, recommendations and tips the source gave, as a JSON array of
+  /// strings. Prices and seasons keep their own columns above.
+  final String? aiHighlights;
+
   /// Where the destination is, so it can be pinned on a map. Null whenever the
   /// destination is null or too vague to place — "Southeast Asia" has no single
   /// point — in which case Travel Details shows the placeholder instead.
@@ -1400,6 +1466,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     this.aiNeighbourhood,
     this.aiCity,
     this.aiRegion,
+    this.aiPlaces,
+    this.aiHighlights,
     this.aiLatitude,
     this.aiLongitude,
     this.tripId,
@@ -1468,6 +1536,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     }
     if (!nullToAbsent || aiRegion != null) {
       map['ai_region'] = Variable<String>(aiRegion);
+    }
+    if (!nullToAbsent || aiPlaces != null) {
+      map['ai_places'] = Variable<String>(aiPlaces);
+    }
+    if (!nullToAbsent || aiHighlights != null) {
+      map['ai_highlights'] = Variable<String>(aiHighlights);
     }
     if (!nullToAbsent || aiLatitude != null) {
       map['ai_latitude'] = Variable<double>(aiLatitude);
@@ -1551,6 +1625,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       aiRegion: aiRegion == null && nullToAbsent
           ? const Value.absent()
           : Value(aiRegion),
+      aiPlaces: aiPlaces == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiPlaces),
+      aiHighlights: aiHighlights == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiHighlights),
       aiLatitude: aiLatitude == null && nullToAbsent
           ? const Value.absent()
           : Value(aiLatitude),
@@ -1601,6 +1681,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       aiNeighbourhood: serializer.fromJson<String?>(json['aiNeighbourhood']),
       aiCity: serializer.fromJson<String?>(json['aiCity']),
       aiRegion: serializer.fromJson<String?>(json['aiRegion']),
+      aiPlaces: serializer.fromJson<String?>(json['aiPlaces']),
+      aiHighlights: serializer.fromJson<String?>(json['aiHighlights']),
       aiLatitude: serializer.fromJson<double?>(json['aiLatitude']),
       aiLongitude: serializer.fromJson<double?>(json['aiLongitude']),
       tripId: serializer.fromJson<int?>(json['tripId']),
@@ -1636,6 +1718,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       'aiNeighbourhood': serializer.toJson<String?>(aiNeighbourhood),
       'aiCity': serializer.toJson<String?>(aiCity),
       'aiRegion': serializer.toJson<String?>(aiRegion),
+      'aiPlaces': serializer.toJson<String?>(aiPlaces),
+      'aiHighlights': serializer.toJson<String?>(aiHighlights),
       'aiLatitude': serializer.toJson<double?>(aiLatitude),
       'aiLongitude': serializer.toJson<double?>(aiLongitude),
       'tripId': serializer.toJson<int?>(tripId),
@@ -1669,6 +1753,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     Value<String?> aiNeighbourhood = const Value.absent(),
     Value<String?> aiCity = const Value.absent(),
     Value<String?> aiRegion = const Value.absent(),
+    Value<String?> aiPlaces = const Value.absent(),
+    Value<String?> aiHighlights = const Value.absent(),
     Value<double?> aiLatitude = const Value.absent(),
     Value<double?> aiLongitude = const Value.absent(),
     Value<int?> tripId = const Value.absent(),
@@ -1705,6 +1791,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
         : this.aiNeighbourhood,
     aiCity: aiCity.present ? aiCity.value : this.aiCity,
     aiRegion: aiRegion.present ? aiRegion.value : this.aiRegion,
+    aiPlaces: aiPlaces.present ? aiPlaces.value : this.aiPlaces,
+    aiHighlights: aiHighlights.present ? aiHighlights.value : this.aiHighlights,
     aiLatitude: aiLatitude.present ? aiLatitude.value : this.aiLatitude,
     aiLongitude: aiLongitude.present ? aiLongitude.value : this.aiLongitude,
     tripId: tripId.present ? tripId.value : this.tripId,
@@ -1757,6 +1845,10 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           : this.aiNeighbourhood,
       aiCity: data.aiCity.present ? data.aiCity.value : this.aiCity,
       aiRegion: data.aiRegion.present ? data.aiRegion.value : this.aiRegion,
+      aiPlaces: data.aiPlaces.present ? data.aiPlaces.value : this.aiPlaces,
+      aiHighlights: data.aiHighlights.present
+          ? data.aiHighlights.value
+          : this.aiHighlights,
       aiLatitude: data.aiLatitude.present
           ? data.aiLatitude.value
           : this.aiLatitude,
@@ -1802,6 +1894,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           ..write('aiNeighbourhood: $aiNeighbourhood, ')
           ..write('aiCity: $aiCity, ')
           ..write('aiRegion: $aiRegion, ')
+          ..write('aiPlaces: $aiPlaces, ')
+          ..write('aiHighlights: $aiHighlights, ')
           ..write('aiLatitude: $aiLatitude, ')
           ..write('aiLongitude: $aiLongitude, ')
           ..write('tripId: $tripId, ')
@@ -1837,6 +1931,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     aiNeighbourhood,
     aiCity,
     aiRegion,
+    aiPlaces,
+    aiHighlights,
     aiLatitude,
     aiLongitude,
     tripId,
@@ -1871,6 +1967,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           other.aiNeighbourhood == this.aiNeighbourhood &&
           other.aiCity == this.aiCity &&
           other.aiRegion == this.aiRegion &&
+          other.aiPlaces == this.aiPlaces &&
+          other.aiHighlights == this.aiHighlights &&
           other.aiLatitude == this.aiLatitude &&
           other.aiLongitude == this.aiLongitude &&
           other.tripId == this.tripId &&
@@ -1903,6 +2001,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
   final Value<String?> aiNeighbourhood;
   final Value<String?> aiCity;
   final Value<String?> aiRegion;
+  final Value<String?> aiPlaces;
+  final Value<String?> aiHighlights;
   final Value<double?> aiLatitude;
   final Value<double?> aiLongitude;
   final Value<int?> tripId;
@@ -1933,6 +2033,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.aiNeighbourhood = const Value.absent(),
     this.aiCity = const Value.absent(),
     this.aiRegion = const Value.absent(),
+    this.aiPlaces = const Value.absent(),
+    this.aiHighlights = const Value.absent(),
     this.aiLatitude = const Value.absent(),
     this.aiLongitude = const Value.absent(),
     this.tripId = const Value.absent(),
@@ -1964,6 +2066,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.aiNeighbourhood = const Value.absent(),
     this.aiCity = const Value.absent(),
     this.aiRegion = const Value.absent(),
+    this.aiPlaces = const Value.absent(),
+    this.aiHighlights = const Value.absent(),
     this.aiLatitude = const Value.absent(),
     this.aiLongitude = const Value.absent(),
     this.tripId = const Value.absent(),
@@ -1998,6 +2102,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Expression<String>? aiNeighbourhood,
     Expression<String>? aiCity,
     Expression<String>? aiRegion,
+    Expression<String>? aiPlaces,
+    Expression<String>? aiHighlights,
     Expression<double>? aiLatitude,
     Expression<double>? aiLongitude,
     Expression<int>? tripId,
@@ -2029,6 +2135,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       if (aiNeighbourhood != null) 'ai_neighbourhood': aiNeighbourhood,
       if (aiCity != null) 'ai_city': aiCity,
       if (aiRegion != null) 'ai_region': aiRegion,
+      if (aiPlaces != null) 'ai_places': aiPlaces,
+      if (aiHighlights != null) 'ai_highlights': aiHighlights,
       if (aiLatitude != null) 'ai_latitude': aiLatitude,
       if (aiLongitude != null) 'ai_longitude': aiLongitude,
       if (tripId != null) 'trip_id': tripId,
@@ -2062,6 +2170,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Value<String?>? aiNeighbourhood,
     Value<String?>? aiCity,
     Value<String?>? aiRegion,
+    Value<String?>? aiPlaces,
+    Value<String?>? aiHighlights,
     Value<double?>? aiLatitude,
     Value<double?>? aiLongitude,
     Value<int?>? tripId,
@@ -2093,6 +2203,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       aiNeighbourhood: aiNeighbourhood ?? this.aiNeighbourhood,
       aiCity: aiCity ?? this.aiCity,
       aiRegion: aiRegion ?? this.aiRegion,
+      aiPlaces: aiPlaces ?? this.aiPlaces,
+      aiHighlights: aiHighlights ?? this.aiHighlights,
       aiLatitude: aiLatitude ?? this.aiLatitude,
       aiLongitude: aiLongitude ?? this.aiLongitude,
       tripId: tripId ?? this.tripId,
@@ -2172,6 +2284,12 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     if (aiRegion.present) {
       map['ai_region'] = Variable<String>(aiRegion.value);
     }
+    if (aiPlaces.present) {
+      map['ai_places'] = Variable<String>(aiPlaces.value);
+    }
+    if (aiHighlights.present) {
+      map['ai_highlights'] = Variable<String>(aiHighlights.value);
+    }
     if (aiLatitude.present) {
       map['ai_latitude'] = Variable<double>(aiLatitude.value);
     }
@@ -2221,6 +2339,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
           ..write('aiNeighbourhood: $aiNeighbourhood, ')
           ..write('aiCity: $aiCity, ')
           ..write('aiRegion: $aiRegion, ')
+          ..write('aiPlaces: $aiPlaces, ')
+          ..write('aiHighlights: $aiHighlights, ')
           ..write('aiLatitude: $aiLatitude, ')
           ..write('aiLongitude: $aiLongitude, ')
           ..write('tripId: $tripId, ')
@@ -2732,14 +2852,14 @@ typedef $$UsersTableCreateCompanionBuilder =
     UsersCompanion Function({
       Value<int> id,
       required String name,
-      required String email,
+      Value<String?> email,
       Value<String?> profilePicture,
     });
 typedef $$UsersTableUpdateCompanionBuilder =
     UsersCompanion Function({
       Value<int> id,
       Value<String> name,
-      Value<String> email,
+      Value<String?> email,
       Value<String?> profilePicture,
     });
 
@@ -2930,7 +3050,7 @@ class $$UsersTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
-                Value<String> email = const Value.absent(),
+                Value<String?> email = const Value.absent(),
                 Value<String?> profilePicture = const Value.absent(),
               }) => UsersCompanion(
                 id: id,
@@ -2942,7 +3062,7 @@ class $$UsersTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String name,
-                required String email,
+                Value<String?> email = const Value.absent(),
                 Value<String?> profilePicture = const Value.absent(),
               }) => UsersCompanion.insert(
                 id: id,
@@ -3390,6 +3510,8 @@ typedef $$SavedPostsTableCreateCompanionBuilder =
       Value<String?> aiNeighbourhood,
       Value<String?> aiCity,
       Value<String?> aiRegion,
+      Value<String?> aiPlaces,
+      Value<String?> aiHighlights,
       Value<double?> aiLatitude,
       Value<double?> aiLongitude,
       Value<int?> tripId,
@@ -3422,6 +3544,8 @@ typedef $$SavedPostsTableUpdateCompanionBuilder =
       Value<String?> aiNeighbourhood,
       Value<String?> aiCity,
       Value<String?> aiRegion,
+      Value<String?> aiPlaces,
+      Value<String?> aiHighlights,
       Value<double?> aiLatitude,
       Value<double?> aiLongitude,
       Value<int?> tripId,
@@ -3570,6 +3694,16 @@ class $$SavedPostsTableFilterComposer
 
   ColumnFilters<String> get aiRegion => $composableBuilder(
     column: $table.aiRegion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiPlaces => $composableBuilder(
+    column: $table.aiPlaces,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiHighlights => $composableBuilder(
+    column: $table.aiHighlights,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3746,6 +3880,16 @@ class $$SavedPostsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get aiPlaces => $composableBuilder(
+    column: $table.aiPlaces,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiHighlights => $composableBuilder(
+    column: $table.aiHighlights,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get aiLatitude => $composableBuilder(
     column: $table.aiLatitude,
     builder: (column) => ColumnOrderings(column),
@@ -3895,6 +4039,14 @@ class $$SavedPostsTableAnnotationComposer
   GeneratedColumn<String> get aiRegion =>
       $composableBuilder(column: $table.aiRegion, builder: (column) => column);
 
+  GeneratedColumn<String> get aiPlaces =>
+      $composableBuilder(column: $table.aiPlaces, builder: (column) => column);
+
+  GeneratedColumn<String> get aiHighlights => $composableBuilder(
+    column: $table.aiHighlights,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get aiLatitude => $composableBuilder(
     column: $table.aiLatitude,
     builder: (column) => column,
@@ -3997,6 +4149,8 @@ class $$SavedPostsTableTableManager
                 Value<String?> aiNeighbourhood = const Value.absent(),
                 Value<String?> aiCity = const Value.absent(),
                 Value<String?> aiRegion = const Value.absent(),
+                Value<String?> aiPlaces = const Value.absent(),
+                Value<String?> aiHighlights = const Value.absent(),
                 Value<double?> aiLatitude = const Value.absent(),
                 Value<double?> aiLongitude = const Value.absent(),
                 Value<int?> tripId = const Value.absent(),
@@ -4027,6 +4181,8 @@ class $$SavedPostsTableTableManager
                 aiNeighbourhood: aiNeighbourhood,
                 aiCity: aiCity,
                 aiRegion: aiRegion,
+                aiPlaces: aiPlaces,
+                aiHighlights: aiHighlights,
                 aiLatitude: aiLatitude,
                 aiLongitude: aiLongitude,
                 tripId: tripId,
@@ -4059,6 +4215,8 @@ class $$SavedPostsTableTableManager
                 Value<String?> aiNeighbourhood = const Value.absent(),
                 Value<String?> aiCity = const Value.absent(),
                 Value<String?> aiRegion = const Value.absent(),
+                Value<String?> aiPlaces = const Value.absent(),
+                Value<String?> aiHighlights = const Value.absent(),
                 Value<double?> aiLatitude = const Value.absent(),
                 Value<double?> aiLongitude = const Value.absent(),
                 Value<int?> tripId = const Value.absent(),
@@ -4089,6 +4247,8 @@ class $$SavedPostsTableTableManager
                 aiNeighbourhood: aiNeighbourhood,
                 aiCity: aiCity,
                 aiRegion: aiRegion,
+                aiPlaces: aiPlaces,
+                aiHighlights: aiHighlights,
                 aiLatitude: aiLatitude,
                 aiLongitude: aiLongitude,
                 tripId: tripId,

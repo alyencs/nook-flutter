@@ -1,6 +1,7 @@
 import '../../ai/ai_extractor.dart';
 import '../../ai/categories.dart';
 import '../../ai/platform_from_url.dart';
+import '../../ai/post_place.dart';
 import '../../ai/source_metadata.dart';
 import '../../ai/thumbnail_from_url.dart';
 
@@ -26,6 +27,8 @@ class PostDraft {
         country = result.country,
         sourceId = result.sourceId,
         mediaType = result.mediaType,
+        places = result.places,
+        highlights = result.highlights,
         category = NookCategories.normalise(result.category),
         summary = result.summary,
         bestTime = result.bestTime,
@@ -53,6 +56,8 @@ class PostDraft {
         country = null,
         sourceId = SourceIds.of(url, NookPlatform.fromUrl(url)),
         mediaType = SourceIds.mediaTypeFrom(url, NookPlatform.fromUrl(url)),
+        places = const [],
+        highlights = const [],
         category = NookCategories.fallback,
         summary = null,
         bestTime = null,
@@ -79,6 +84,8 @@ class PostDraft {
         country = null,
         sourceId = null,
         mediaType = PostMediaType.unknown,
+        places = const [],
+        highlights = const [],
         category = NookCategories.fallback,
         summary = null,
         bestTime = null,
@@ -109,6 +116,8 @@ class PostDraft {
   String? country;
   final String? sourceId;
   final PostMediaType mediaType;
+  final List<PostPlace> places;
+  final List<String> highlights;
   String? category;
   String? summary;
   String? bestTime;

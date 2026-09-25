@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'ai_extractor.dart';
 import 'categories.dart';
 import 'gemini_api.dart';
+import 'post_place.dart';
 import 'source_metadata.dart';
 import 'thumbnail_from_url.dart';
 
@@ -29,9 +30,11 @@ class GeminiExtractor implements AiExtractor {
   GeminiExtractor({
     required String apiKey,
     String? model,
+    String? youTubeApiKey,
     http.Client? httpClient,
     RetryPolicy retry = const RetryPolicy(),
   })  : _override = _clean(model),
+        _youTubeApiKey = _clean(youTubeApiKey),
         _sourceClient = httpClient,
         _client = GeminiClient(
           apiKey: apiKey,
@@ -41,6 +44,7 @@ class GeminiExtractor implements AiExtractor {
 
   /// A pinned id from `GEMINI_MODEL`, or null to ask the API what it has.
   final String? _override;
+  final String? _youTubeApiKey;
   final GeminiClient _client;
 
   /// Shared with the Gemini client so a test can script both the oEmbed lookup
@@ -95,7 +99,11 @@ class GeminiExtractor implements AiExtractor {
     // The post itself, before the model sees anything. This is the step that
     // was missing: without it the model received a bare URL and could only
     // answer from an eleven-character video id.
-    final source = await SourceMetadataFetcher.fetch(url, client: _sourceClient);
+    final source = await SourceMetadataFetcher.fetch(
+      url,
+      client: _sourceClient,
+      youTubeApiKey: _youTubeApiKey,
+    );
     if (source.hasText) {
       onStage?.call('Read "${_shorten(source.title ?? '')}"');
     }
@@ -300,6 +308,43 @@ class GeminiExtractor implements AiExtractor {
             'have a single point.',
       },
       'longitude': {'type': 'NUMBER', 'nullable': true},
+      'places': {
+        'type': 'ARRAY',
+        'nullable': true,
+        'description': 'Every specific place the source names — each cafe, '
+            'restaurant, bar, shop, hotel or landmark it actually mentions. '
+            'Empty when the source names none. Never invent one.',
+        'items': {
+          'type': 'OBJECT',
+          'properties': {
+            'name': {'type': 'STRING'},
+            'kind': {
+              'type': 'STRING',
+              'nullable': true,
+              'description': 'cafe, restaurant, bar, hotel, shop, landmark, '
+                  'viewpoint, or other.',
+            },
+            'area': {
+              'type': 'STRING',
+              'nullable': true,
+              'description': 'District, street or station, if given.',
+            },
+            'note': {
+              'type': 'STRING',
+              'nullable': true,
+              'description': 'What the source said about it, briefly.',
+            },
+          },
+          'required': ['name'],
+        },
+      },
+      'highlights': {
+        'type': 'ARRAY',
+        'nullable': true,
+        'description': 'Activities, recommendations and practical tips the '
+            'source gives, one short line each. Empty when it gives none.',
+        'items': {'type': 'STRING'},
+      },
     },
     'required': ['title', 'category'],
   };
@@ -330,6 +375,14 @@ nulls; you will be wrong if you guess.
   named venue, a neighbourhood, a town. For a whole country or region
   ("Japan", "Southeast Asia") return null for both, even though you know where
   the country is. A pin in the middle of a country is a false precision.
+- places: every specific venue the source names, in the order it names them. A
+  post titled "5 Cafes in Kyoto" whose description lists five cafes should
+  return five entries, each with whatever the source gives — a district, a
+  station, a line about what it is known for. A post that says only "we visited
+  a cafe in Osaka" names no venue, so places is empty and city is Osaka. Listing
+  a place the source did not name is the worst thing you can do here.
+- highlights: activities, recommendations and practical tips the source gives.
+  One short line each, in the source's own terms. Empty when it gives none.
 - best_time and budget_note: only when the source actually mentions a season,
   a date, a price or a cost.
 - category: exactly one of the listed values. Use "Other" when unsure.
@@ -412,7 +465,13 @@ Return JSON only, matching the schema.
         longitude.abs() <= 180 &&
         !(latitude == 0 && longitude == 0);
 
-    final placeName = string('place_name');
+    final places = _placesFrom(json['places']);
+    final highlights = _highlightsFrom(json['highlights']);
+
+    // A post can name a venue in its list without filling place_name; the first
+    // place it names is the one the post is about.
+    final placeName = string('place_name') ??
+        (places.isNotEmpty ? places.first.name : null);
     final neighbourhood = string('neighbourhood');
     final city = string('city');
     final region = string('region');
@@ -462,7 +521,26 @@ Return JSON only, matching the schema.
       thumbnailUrl: thumbnailUrl,
       sourceId: source.sourceId,
       mediaType: source.mediaType,
+      places: places,
+      highlights: highlights,
     );
+  }
+
+  static List<PostPlace> _placesFrom(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .map(PostPlace.fromJson)
+        .whereType<PostPlace>()
+        .toList(growable: false);
+  }
+
+  static List<String> _highlightsFrom(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<String>()
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
   }
 
   /// The one-line location, built from the most specific parts available.

@@ -15,14 +15,15 @@ class NookDatabase extends _$NookDatabase {
 
   /// 2 added `app_settings` and the coordinate columns; 3 added the columns
   /// that keep a full extraction — caption, creator handle, source id, media
-  /// type and the specific location parts.
+  /// type and the specific location parts; 4 added the places and highlights a
+  /// post mentions, and relaxed `users.email` now that nothing collects it.
   ///
   /// They were added at version 1 without bumping this, which is the bug behind
   /// "no such table: app_settings": drift creates the whole schema only for a
   /// database it creates itself, so every database that already existed stayed
   /// on the old shape and no migration ever ran.
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -33,6 +34,7 @@ class NookDatabase extends _$NookDatabase {
         onUpgrade: (m, from, to) async {
           if (from < 2) await _upgradeToV2(m);
           if (from < 3) await _upgradeToV3(m);
+          if (from < 4) await _upgradeToV4(m);
         },
         beforeOpen: (details) async {
           // SQLite does not enforce foreign keys unless asked to. Without
@@ -85,6 +87,29 @@ class NookDatabase extends _$NookDatabase {
         await m.addColumn(savedPosts, entry.value);
       }
     }
+  }
+
+  /// Version 4: places and highlights, and an email column that is no longer
+  /// required.
+  ///
+  /// SQLite cannot relax a NOT NULL constraint in place, so `users` is rebuilt
+  /// through drift's `TableMigration`, which copies every existing row across.
+  /// Profiles created before this keep the address they gave; nothing reads it
+  /// any more, and onboarding no longer asks.
+  Future<void> _upgradeToV4(Migrator m) async {
+    for (final entry in <String, GeneratedColumn<String>>{
+      'ai_places': savedPosts.aiPlaces,
+      'ai_highlights': savedPosts.aiHighlights,
+    }.entries) {
+      if (!await _hasColumn('saved_posts', entry.key)) {
+        await m.addColumn(savedPosts, entry.value);
+      }
+    }
+    // Drift marks TableMigration experimental, but it is the documented way to
+    // rebuild a table, and rebuilding is the only way SQLite will relax a NOT
+    // NULL constraint. It copies every existing row across.
+    // ignore: experimental_member_use
+    await m.alterTable(TableMigration(users));
   }
 
   Future<bool> _hasTable(String name) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'nook_colors.dart';
 import 'nook_typography.dart';
+import 'nook_motion.dart';
 
 /// Nook's Material theme.
 ///
@@ -53,6 +54,54 @@ abstract final class NookTheme {
         contentTextStyle: NookType.body.copyWith(color: Colors.white),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          // One transition on every platform, so the app moves the same way in
+          // a browser as it does on a phone. The default on web is no
+          // transition at all, which is what makes the flow feel like a slide
+          // deck rather than an app.
+          TargetPlatform.android: _NookPageTransition(),
+          TargetPlatform.iOS: _NookPageTransition(),
+          TargetPlatform.macOS: _NookPageTransition(),
+          TargetPlatform.windows: _NookPageTransition(),
+          TargetPlatform.linux: _NookPageTransition(),
+          TargetPlatform.fuchsia: _NookPageTransition(),
+        },
+      ),
+    );
+  }
+}
+
+/// A short slide-and-fade from the right.
+class _NookPageTransition extends PageTransitionsBuilder {
+  const _NookPageTransition();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    // CurveTween, not CurvedAnimation: buildTransitions runs on every rebuild
+    // of the route, and a CurvedAnimation adds a status listener to its parent
+    // in the constructor that only dispose() removes. A tween holds nothing —
+    // it evaluates the curve on read.
+    //
+    // One curve rather than a separate reverseCurve: run easeOutCubic backwards
+    // and you already get its mirror, which is the settling-on-exit shape the
+    // reverse curve was there for.
+    final curve = CurveTween(curve: NookMotion.enter).animate(animation);
+    return FadeTransition(
+      opacity: curve,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.06, 0),
+          end: Offset.zero,
+        ).animate(curve),
+        child: child,
       ),
     );
   }

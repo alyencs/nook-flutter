@@ -104,7 +104,10 @@ class SavedPostRowCard extends StatelessWidget {
                 Text(
                   post.title,
                   style: NookType.bodyStrong,
-                  maxLines: 2,
+                  // One line, always. These rows are a compact index of what
+                  // you looked at recently, and a title that wraps to two
+                  // makes the list lurch as you scroll past long ones.
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),

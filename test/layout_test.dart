@@ -252,7 +252,7 @@ void main() {
   // are pumped through it rather than on their own.
   for (final (index, tab) in ['Home', 'Trips', 'Add', 'Profile'].indexed) {
     testWidgets('$tab tab lays out on a 390x844 phone', (tester) async {
-      await UsersDao(db).saveProfile(name: 'Ali Sampang', email: 'a@b.co');
+      await UsersDao(db).saveProfile(name: 'Ali Sampang');
       tester.view.physicalSize = phone * 3;
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);

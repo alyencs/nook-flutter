@@ -10,15 +10,20 @@ import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
+import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/nook_toast.dart';
 import '../../widgets/sub_screen_nav.dart';
 import '../../widgets/nook_text_field.dart';
 import '../onboarding/profile_setup_screen.dart';
 
 /// P2.
 ///
-/// No "Change Password" row: there is no password, because there is no server.
-/// Edits save when a field loses focus rather than behind a button, since the
+/// No password and no email. Nook keeps everything on the device and talks to
+/// no server, so there was never an account for either to belong to — what is
+/// here is a name to be greeted by and a picture to go with it.
+///
+/// Edits save when the field loses focus rather than behind a button, since the
 /// frame does not draw one.
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -29,29 +34,23 @@ class AccountScreen extends StatefulWidget {
 
 class _AccountScreenState extends State<AccountScreen> {
   final _name = TextEditingController();
-  final _email = TextEditingController();
   bool _loaded = false;
   int? _userId;
 
   @override
   void dispose() {
     _name.dispose();
-    _email.dispose();
     super.dispose();
   }
 
   Future<void> _saveField() async {
     final id = _userId;
     if (id == null) return;
-    await AppScope.of(context).users.updateProfile(
-          id,
-          name: _name.text.trim(),
-          email: _email.text.trim(),
-        );
+    final name = _name.text.trim();
+    if (name.isEmpty) return;
+    await AppScope.of(context).users.updateProfile(id, name: name);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile updated')),
-    );
+    NookToast.of(context, 'Saved');
   }
 
   Future<void> _changePhoto() async {
@@ -100,7 +99,6 @@ class _AccountScreenState extends State<AccountScreen> {
 
         if (!_loaded) {
           _name.text = user.name;
-          _email.text = user.email;
           _userId = user.id;
           _loaded = true;
         }
@@ -128,35 +126,30 @@ class _AccountScreenState extends State<AccountScreen> {
                 ],
               ),
               const SizedBox(height: NookSpacing.block),
+              const RuledLabel('What we call you'),
+              const SizedBox(height: NookSpacing.tight),
               Focus(
                 onFocusChange: (hasFocus) {
                   if (!hasFocus) _saveField();
                 },
                 child: NookTextField(
                   controller: _name,
-                  hint: 'Full Name',
-                  label: 'Full Name',
+                  hint: 'Your name',
+
                 ),
               ),
-              const SizedBox(height: NookSpacing.section),
-              Focus(
-                onFocusChange: (hasFocus) {
-                  if (!hasFocus) _saveField();
-                },
-                child: NookTextField(
-                  controller: _email,
-                  hint: 'Email',
-                  label: 'Email',
-                  keyboardType: TextInputType.emailAddress,
-                ),
+              const SizedBox(height: NookSpacing.tight),
+              Text(
+                'Only used to greet you. It stays on this device.',
+                style: NookType.caption,
               ),
-              const SizedBox(height: 40),
-              Text('Danger Zone', style: NookType.title),
+              const SizedBox(height: 36),
+              const RuledLabel('Danger zone'),
               const SizedBox(height: NookSpacing.section),
               InkWell(
                 onTap: _deleteAccount,
                 child: Text(
-                  'Delete my account',
+                  'Delete my profile',
                   style: NookType.body.copyWith(
                     color: NookColors.error,
                     decoration: TextDecoration.underline,

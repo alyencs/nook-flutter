@@ -7,6 +7,7 @@ import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
+import '../../widgets/nook_toast.dart';
 import '../../widgets/sub_screen_nav.dart';
 import 'content_screen.dart';
 
@@ -107,7 +108,7 @@ class _HelpScreenState extends State<HelpScreen> {
   /// No mail client and no in-app form, so this hands over the address it can
   /// actually offer and copies it, rather than opening nothing.
   Future<void> _contact(BuildContext context, String title, String body) async {
-    final messenger = ScaffoldMessenger.of(context);
+    final overlay = Overlay.of(context, rootOverlay: true);
     await showDialog<void>(
       context: context,
       builder: (context) => Dialog(
@@ -139,9 +140,8 @@ class _HelpScreenState extends State<HelpScreen> {
                   );
                   if (!context.mounted) return;
                   Navigator.of(context).pop();
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Link copied')),
-                  );
+                  NookToast.show(overlay, 'Link copied',
+                      icon: Icons.link_rounded);
                 },
               ),
               const SizedBox(height: NookSpacing.tight),

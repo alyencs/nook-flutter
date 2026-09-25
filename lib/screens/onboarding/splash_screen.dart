@@ -28,10 +28,13 @@ class SplashScreen extends StatelessWidget {
             const SizedBox(height: NookSpacing.block),
             Text('Nook', style: NookType.display),
             const SizedBox(height: NookSpacing.tight),
-            Text(
-              'Never lose your next favourite find.',
-              style: NookType.body.copyWith(color: NookColors.textMuted),
-              textAlign: TextAlign.center,
+            SizedBox(
+              width: 220,
+              child: NookHeadline(
+                'Never lose your *next favourite find*',
+                style: NookType.body.copyWith(color: NookColors.textMuted),
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
         ),

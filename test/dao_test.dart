@@ -45,12 +45,12 @@ void main() {
     final profile = await users.currentUser();
     expect(profile, isNotNull);
     expect(profile!.name, isEmpty);
-    expect(profile.email, isEmpty);
+    expect(profile.email, isNull, reason: 'onboarding no longer collects one');
   });
 
   test('saving a profile fills the seeded row rather than adding a second',
       () async {
-    await users.saveProfile(name: 'Ali Sampang', email: 'ali@example.com');
+    await users.saveProfile(name: 'Ali Sampang', );
 
     final all = await db.select(db.users).get();
     expect(all, hasLength(1), reason: 'the seeded row is reused');

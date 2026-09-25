@@ -20,7 +20,7 @@ Future<void> seedDatabase(NookDatabase db) async {
   // profile: the launch gate treats a nameless row as "not set up yet" and
   // runs the onboarding screens. Set Up Profile fills this same row in.
   final userId = await db.into(db.users).insert(
-        UsersCompanion.insert(name: '', email: ''),
+        UsersCompanion.insert(name: ''),
       );
 
   Future<int> trip(String name, int createdDaysAgo) => db.into(db.trips).insert(
