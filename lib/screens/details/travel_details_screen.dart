@@ -12,6 +12,7 @@ import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/post_map.dart';
+import 'map_screen.dart';
 import '../../widgets/post_thumbnail.dart';
 
 /// S2. The screen the whole proposal is built around.
@@ -53,10 +54,7 @@ class TravelDetailsScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          post.title,
-                          style: NookType.bodyStrong,
-                        ),
+                        Text(post.title, style: NookType.bodyStrong),
                         const SizedBox(height: 2),
                         Text(
                           post.creator ?? '—',
@@ -148,21 +146,37 @@ class TravelDetailsScreen extends StatelessWidget {
               const OverlineLabel('Map location'),
               const SizedBox(height: NookSpacing.tight),
               if (post.aiLatitude != null && post.aiLongitude != null)
-                PostMap(
-                  latitude: post.aiLatitude!,
-                  longitude: post.aiLongitude!,
-                  label: post.aiPlaceName ??
-                      post.aiNeighbourhood ??
-                      post.aiCity ??
-                      _cityOf(post.aiDestination) ??
-                      post.aiDestination ??
-                      'Saved location',
+                Builder(
+                  builder: (context) {
+                    // Most specific first: the cafe before its district, the
+                    // district before the city. Extraction already refuses to
+                    // give coordinates to anything broader than a city, so
+                    // this never labels a pin with a country.
+                    final label =
+                        post.aiPlaceName ??
+                        post.aiNeighbourhood ??
+                        post.aiCity ??
+                        _cityOf(post.aiDestination) ??
+                        post.aiDestination ??
+                        'Saved location';
+                    return PostMap(
+                      latitude: post.aiLatitude!,
+                      longitude: post.aiLongitude!,
+                      label: label,
+                      onTap: () => MapScreen.open(
+                        context,
+                        latitude: post.aiLatitude!,
+                        longitude: post.aiLongitude!,
+                        label: label,
+                      ),
+                    );
+                  },
                 )
               else
                 PostMapPlaceholder(
                   reason: post.aiDestination == null
                       ? 'No destination was detected for this post, so there is '
-                          'nothing to pin yet. Add one from the post to place it.'
+                            'nothing to pin yet. Add one from the post to place it.'
                       : '"${post.aiDestination}" is too broad to place on a map.',
                 ),
               const SizedBox(height: NookSpacing.block),
@@ -242,18 +256,22 @@ class _PlaceRow extends StatelessWidget {
   }
 
   static IconData _iconFor(String? kind) => switch (kind) {
-        'cafe' => Icons.local_cafe_outlined,
-        'restaurant' => Icons.restaurant_outlined,
-        'bar' => Icons.wine_bar_outlined,
-        'hotel' => Icons.hotel_outlined,
-        'shop' => Icons.shopping_bag_outlined,
-        'viewpoint' => Icons.landscape_outlined,
-        _ => Icons.place_outlined,
-      };
+    'cafe' => Icons.local_cafe_outlined,
+    'restaurant' => Icons.restaurant_outlined,
+    'bar' => Icons.wine_bar_outlined,
+    'hotel' => Icons.hotel_outlined,
+    'shop' => Icons.shopping_bag_outlined,
+    'viewpoint' => Icons.landscape_outlined,
+    _ => Icons.place_outlined,
+  };
 }
 
 class _MetaRow extends StatelessWidget {
-  const _MetaRow({required this.icon, required this.label, required this.value});
+  const _MetaRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   final IconData icon;
   final String label;
@@ -318,10 +336,7 @@ class _ExploreItineraryButton extends StatelessWidget {
           onPressed: null,
         ),
         const SizedBox(height: NookSpacing.tight),
-        Text(
-          'Stretch goal — not in this build',
-          style: NookType.caption,
-        ),
+        Text('Stretch goal — not in this build', style: NookType.caption),
       ],
     );
   }
