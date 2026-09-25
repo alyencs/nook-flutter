@@ -68,7 +68,7 @@ abstract final class NookTheme {
           TargetPlatform.linux: _NookPageTransition(),
           TargetPlatform.fuchsia: _NookPageTransition(),
         },
-      ),      
+      ),
     );
   }
 }
@@ -85,11 +85,15 @@ class _NookPageTransition extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final curve = CurvedAnimation(
-      parent: animation,
-      curve: NookMotion.enter,
-      reverseCurve: NookMotion.exit,
-    );
+    // CurveTween, not CurvedAnimation: buildTransitions runs on every rebuild
+    // of the route, and a CurvedAnimation adds a status listener to its parent
+    // in the constructor that only dispose() removes. A tween holds nothing —
+    // it evaluates the curve on read.
+    //
+    // One curve rather than a separate reverseCurve: run easeOutCubic backwards
+    // and you already get its mirror, which is the settling-on-exit shape the
+    // reverse curve was there for.
+    final curve = CurveTween(curve: NookMotion.enter).animate(animation);
     return FadeTransition(
       opacity: curve,
       child: SlideTransition(

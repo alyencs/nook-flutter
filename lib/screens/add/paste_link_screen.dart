@@ -66,7 +66,9 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _analyze());
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) => _prefillFromClipboard());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _prefillFromClipboard(),
+    );
   }
 
   /// "Paste detection" in Settings: if the clipboard already holds a link,
@@ -241,17 +243,10 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
             ),
             if (_busy) ...[
               const SizedBox(height: NookSpacing.section),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: NookMotion.fast,
-                  // Keyed on the text, so each new stage cross-fades with the
-                  // one before instead of the label changing under you.
-                  child: Text(
-                    '$stage…',
-                    key: ValueKey(stage),
-                    style: NookType.bodyStrong,
-                  ),
-                ),
+              _AnalysisProgress(
+                stage: _stage ?? 'Working',
+                seconds: _elapsed,
+                onCancel: _cancel,
               ),
             ],
             if (_error != null) ...[
@@ -329,7 +324,16 @@ class _AnalysisProgress extends StatelessWidget {
               ),
               const SizedBox(width: NookSpacing.tight),
               Expanded(
-                child: Text('$stage…', style: NookType.bodyStrong),
+                child: AnimatedSwitcher(
+                  duration: NookMotion.fast,
+                  // Keyed on the text, so each new stage cross-fades with the
+                  // one before instead of the label changing under you.
+                  child: Text(
+                    '$stage…',
+                    key: ValueKey(stage),
+                    style: NookType.bodyStrong,
+                  ),
+                ),
               ),
               Text('${seconds}s', style: NookType.caption),
             ],
@@ -451,12 +455,7 @@ class _ExtractionError extends StatelessWidget {
                 size: 20,
               ),
               const SizedBox(width: NookSpacing.tight),
-              Expanded(
-                child: Text(
-                  message,
-                  style: NookType.body,
-                ),
-              ),
+              Expanded(child: Text(message, style: NookType.body)),
             ],
           ),
           const SizedBox(height: NookSpacing.section),

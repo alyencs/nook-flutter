@@ -41,7 +41,8 @@ class SettingsScreen extends StatelessWidget {
                 _SwitchRow(
                   label: entry.value,
                   value: values[entry.key] ?? false,
-                  onChanged: (enabled) => scope.settings.set(entry.key, enabled),
+                  onChanged: (enabled) =>
+                      scope.settings.set(entry.key, enabled),
                 ),
                 const Divider(),
               ],
@@ -94,7 +95,8 @@ class SettingsScreen extends StatelessWidget {
     final confirmed = await showNookDialog(
       context,
       title: 'Clear cached images?',
-      message: 'Thumbnails will be fetched again next time they are shown. '
+      message:
+          'Thumbnails will be fetched again next time they are shown. '
           'Your saved posts, trips and notes are not affected.',
       confirmLabel: 'Clear Cache',
     );
@@ -124,7 +126,20 @@ class _SwitchRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: NookType.body)),
+          Expanded(
+            // The row settles with the thumb rather than only the thumb moving:
+            // an off row reads as muted, an on row as full strength. An
+            // AnimatedContainer would be a no-op here — it needs an animatable
+            // property, and the only thing changing is the text colour.
+            child: AnimatedDefaultTextStyle(
+              duration: NookMotion.fast,
+              curve: NookMotion.press,
+              style: NookType.body.copyWith(
+                color: value ? NookColors.textPrimary : NookColors.textMuted,
+              ),
+              child: Text(label),
+            ),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,

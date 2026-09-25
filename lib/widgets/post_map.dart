@@ -131,29 +131,57 @@ class _PinState extends State<_Pin> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: NookMotion.slow,
-  )..forward();
+  );
+
+  /// elasticOut on the way down only: the pin falls in and settles, which
+  /// draws the eye to the location without the map itself moving.
+  ///
+  /// Built once, not per build: CurvedAnimation registers a status listener on
+  /// its parent in the constructor, so rebuilding one every frame leaks a
+  /// listener each time.
+  late final Animation<double> _drop = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.elasticOut,
+  );
+
+  /// The fade runs off the raw controller rather than [_drop]: elasticOut
+  /// overshoots past 1, and an opacity above 1 asserts.
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: NookMotion.enter,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.forward();
+  }
 
   @override
   void dispose() {
+    // Both curves hold a listener on the controller; drop them before it goes.
+    (_drop as CurvedAnimation).dispose();
+    (_fade as CurvedAnimation).dispose();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // elasticOut on the way down only: the pin falls in and settles, which
-    // draws the eye to the location without the map itself moving.
-    final drop = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
     return AnimatedBuilder(
-      animation: drop,
+      animation: _controller,
       builder: (context, child) => Transform.translate(
-        offset: Offset(0, -26 * (1 - drop.value)),
-        child: Opacity(
-          opacity: _controller.value.clamp(0.0, 1.0),
-          child: child,
-        ),
+        offset: Offset(0, -26 * (1 - _drop.value)),
+        child: Opacity(opacity: _fade.value.clamp(0.0, 1.0), child: child),
       ),
-      child: /* the existing _Pin build() body goes here, unchanged */,
+      child: const Icon(
+        Icons.location_on,
+        size: 40,
+        color: NookColors.primary,
+        shadows: [
+          Shadow(color: Color(0x552E2E2E), blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
     );
   }
 }
