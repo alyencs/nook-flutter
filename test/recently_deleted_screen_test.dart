@@ -104,7 +104,7 @@ void main() {
 
     expect(find.text('Kyoto cafes'), findsOneWidget);
     expect(find.text('Deleted today'), findsOneWidget);
-    expect(find.byTooltip('Restore'), findsOneWidget);
+    expect(find.text('Restore'), findsOneWidget);
     expect(find.byTooltip('Delete permanently'), findsOneWidget);
     expect(find.text('Empty'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -124,7 +124,7 @@ void main() {
     await show(tester);
     expect(find.text('Kyoto cafes'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Restore'));
+    await tester.tap(find.text('Restore'));
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 150));
     }
@@ -185,8 +185,29 @@ void main() {
   testWidgets('the retention window is stated, not left to be discovered', (
     tester,
   ) async {
+    // Stated on the screen rather than discovered when something vanishes —
+    // but only when there is something to keep, so an empty bin stays quiet.
+    await real(tester, () async {
+      final id = await addPost();
+      await posts.deletePost(id);
+    });
     await show(tester);
-    expect(find.textContaining('30 days'), findsOneWidget);
+
+    expect(find.textContaining('kept for 30 days'), findsOneWidget);
+    expect(find.textContaining('1 item'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('the screen names itself once, not twice', (tester) async {
+    await real(tester, () async {
+      final id = await addPost();
+      await posts.deletePost(id);
+    });
+    await show(tester);
+
+    // The app bar said "Recently Deleted" and a display-size heading directly
+    // underneath said it again.
+    expect(find.text('Recently Deleted'), findsOneWidget);
     await unmount(tester);
   });
 }

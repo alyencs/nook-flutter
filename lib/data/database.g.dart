@@ -365,6 +365,17 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _colorIdMeta = const VerificationMeta(
+    'colorId',
+  );
+  @override
+  late final GeneratedColumn<String> colorId = GeneratedColumn<String>(
+    'color_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _deletedAtMeta = const VerificationMeta(
     'deletedAt',
   );
@@ -382,6 +393,7 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
     name,
     userId,
     createdAt,
+    colorId,
     deletedAt,
   ];
   @override
@@ -423,6 +435,12 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('color_id')) {
+      context.handle(
+        _colorIdMeta,
+        colorId.isAcceptableOrUnknown(data['color_id']!, _colorIdMeta),
+      );
+    }
     if (data.containsKey('deleted_at')) {
       context.handle(
         _deletedAtMeta,
@@ -454,6 +472,10 @@ class $TripsTable extends Trips with TableInfo<$TripsTable, Trip> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      colorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_id'],
+      ),
       deletedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}deleted_at'],
@@ -473,6 +495,13 @@ class Trip extends DataClass implements Insertable<Trip> {
   final int userId;
   final DateTime createdAt;
 
+  /// Which of the five folder colours this trip is, by [TripColor.id].
+  ///
+  /// Nullable so every trip that existed before the feature keeps working:
+  /// null means "nobody chose", and the UI spreads those across the palette by
+  /// id rather than leaving them all one colour.
+  final String? colorId;
+
   /// When this trip was moved to Recently Deleted, or null while it is live.
   ///
   /// Deleting a trip does not touch the posts in it — that was always true, and
@@ -486,6 +515,7 @@ class Trip extends DataClass implements Insertable<Trip> {
     required this.name,
     required this.userId,
     required this.createdAt,
+    this.colorId,
     this.deletedAt,
   });
   @override
@@ -495,6 +525,9 @@ class Trip extends DataClass implements Insertable<Trip> {
     map['name'] = Variable<String>(name);
     map['user_id'] = Variable<int>(userId);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || colorId != null) {
+      map['color_id'] = Variable<String>(colorId);
+    }
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
@@ -507,6 +540,9 @@ class Trip extends DataClass implements Insertable<Trip> {
       name: Value(name),
       userId: Value(userId),
       createdAt: Value(createdAt),
+      colorId: colorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(colorId),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
@@ -523,6 +559,7 @@ class Trip extends DataClass implements Insertable<Trip> {
       name: serializer.fromJson<String>(json['name']),
       userId: serializer.fromJson<int>(json['userId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      colorId: serializer.fromJson<String?>(json['colorId']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
@@ -534,6 +571,7 @@ class Trip extends DataClass implements Insertable<Trip> {
       'name': serializer.toJson<String>(name),
       'userId': serializer.toJson<int>(userId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'colorId': serializer.toJson<String?>(colorId),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
@@ -543,12 +581,14 @@ class Trip extends DataClass implements Insertable<Trip> {
     String? name,
     int? userId,
     DateTime? createdAt,
+    Value<String?> colorId = const Value.absent(),
     Value<DateTime?> deletedAt = const Value.absent(),
   }) => Trip(
     id: id ?? this.id,
     name: name ?? this.name,
     userId: userId ?? this.userId,
     createdAt: createdAt ?? this.createdAt,
+    colorId: colorId.present ? colorId.value : this.colorId,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   Trip copyWithCompanion(TripsCompanion data) {
@@ -557,6 +597,7 @@ class Trip extends DataClass implements Insertable<Trip> {
       name: data.name.present ? data.name.value : this.name,
       userId: data.userId.present ? data.userId.value : this.userId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      colorId: data.colorId.present ? data.colorId.value : this.colorId,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
@@ -568,13 +609,15 @@ class Trip extends DataClass implements Insertable<Trip> {
           ..write('name: $name, ')
           ..write('userId: $userId, ')
           ..write('createdAt: $createdAt, ')
+          ..write('colorId: $colorId, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, userId, createdAt, deletedAt);
+  int get hashCode =>
+      Object.hash(id, name, userId, createdAt, colorId, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -583,6 +626,7 @@ class Trip extends DataClass implements Insertable<Trip> {
           other.name == this.name &&
           other.userId == this.userId &&
           other.createdAt == this.createdAt &&
+          other.colorId == this.colorId &&
           other.deletedAt == this.deletedAt);
 }
 
@@ -591,12 +635,14 @@ class TripsCompanion extends UpdateCompanion<Trip> {
   final Value<String> name;
   final Value<int> userId;
   final Value<DateTime> createdAt;
+  final Value<String?> colorId;
   final Value<DateTime?> deletedAt;
   const TripsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.userId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.colorId = const Value.absent(),
     this.deletedAt = const Value.absent(),
   });
   TripsCompanion.insert({
@@ -604,6 +650,7 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     required String name,
     required int userId,
     required DateTime createdAt,
+    this.colorId = const Value.absent(),
     this.deletedAt = const Value.absent(),
   }) : name = Value(name),
        userId = Value(userId),
@@ -613,6 +660,7 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     Expression<String>? name,
     Expression<int>? userId,
     Expression<DateTime>? createdAt,
+    Expression<String>? colorId,
     Expression<DateTime>? deletedAt,
   }) {
     return RawValuesInsertable({
@@ -620,6 +668,7 @@ class TripsCompanion extends UpdateCompanion<Trip> {
       if (name != null) 'name': name,
       if (userId != null) 'user_id': userId,
       if (createdAt != null) 'created_at': createdAt,
+      if (colorId != null) 'color_id': colorId,
       if (deletedAt != null) 'deleted_at': deletedAt,
     });
   }
@@ -629,6 +678,7 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     Value<String>? name,
     Value<int>? userId,
     Value<DateTime>? createdAt,
+    Value<String?>? colorId,
     Value<DateTime?>? deletedAt,
   }) {
     return TripsCompanion(
@@ -636,6 +686,7 @@ class TripsCompanion extends UpdateCompanion<Trip> {
       name: name ?? this.name,
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
+      colorId: colorId ?? this.colorId,
       deletedAt: deletedAt ?? this.deletedAt,
     );
   }
@@ -655,6 +706,9 @@ class TripsCompanion extends UpdateCompanion<Trip> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (colorId.present) {
+      map['color_id'] = Variable<String>(colorId.value);
+    }
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
@@ -668,6 +722,7 @@ class TripsCompanion extends UpdateCompanion<Trip> {
           ..write('name: $name, ')
           ..write('userId: $userId, ')
           ..write('createdAt: $createdAt, ')
+          ..write('colorId: $colorId, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
@@ -3243,6 +3298,7 @@ typedef $$TripsTableCreateCompanionBuilder =
       required String name,
       required int userId,
       required DateTime createdAt,
+      Value<String?> colorId,
       Value<DateTime?> deletedAt,
     });
 typedef $$TripsTableUpdateCompanionBuilder =
@@ -3251,6 +3307,7 @@ typedef $$TripsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<int> userId,
       Value<DateTime> createdAt,
+      Value<String?> colorId,
       Value<DateTime?> deletedAt,
     });
 
@@ -3314,6 +3371,11 @@ class $$TripsTableFilterComposer extends Composer<_$NookDatabase, $TripsTable> {
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorId => $composableBuilder(
+    column: $table.colorId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3395,6 +3457,11 @@ class $$TripsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get colorId => $composableBuilder(
+    column: $table.colorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
     column: $table.deletedAt,
     builder: (column) => ColumnOrderings(column),
@@ -3441,6 +3508,9 @@ class $$TripsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get colorId =>
+      $composableBuilder(column: $table.colorId, builder: (column) => column);
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
@@ -3526,12 +3596,14 @@ class $$TripsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<int> userId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> colorId = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
               }) => TripsCompanion(
                 id: id,
                 name: name,
                 userId: userId,
                 createdAt: createdAt,
+                colorId: colorId,
                 deletedAt: deletedAt,
               ),
           createCompanionCallback:
@@ -3540,12 +3612,14 @@ class $$TripsTableTableManager
                 required String name,
                 required int userId,
                 required DateTime createdAt,
+                Value<String?> colorId = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
               }) => TripsCompanion.insert(
                 id: id,
                 name: name,
                 userId: userId,
                 createdAt: createdAt,
+                colorId: colorId,
                 deletedAt: deletedAt,
               ),
           withReferenceMapper: (p0) => p0

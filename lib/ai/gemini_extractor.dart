@@ -66,6 +66,9 @@ class GeminiExtractor implements AiExtractor {
   /// not spend an attempt rediscovering that.
   final _retired = <String>{};
 
+  /// Models that rejected `thinkingConfig`, so it is not sent to them twice.
+  final _noThinking = <String>{};
+
   /// Extractions currently running, keyed by URL.
   ///
   /// Two taps on Analyze, or a tap and an Enter press, must not become two
@@ -158,7 +161,7 @@ class GeminiExtractor implements AiExtractor {
       try {
         return await _client.generateContent(
           model: model,
-          body: _requestBody(source),
+          body: _requestBody(source, thinking: !_noThinking.contains(model)),
           // Still one phase from the outside. A retry is part of the wait, not
           // a separate thing worth narrating.
           onRetry: (attempt, of, wait) =>
@@ -166,6 +169,18 @@ class GeminiExtractor implements AiExtractor {
         );
       } on GeminiApiException catch (e) {
         last = e;
+
+        // This model predates `thinkingConfig`. Remember that and ask it again
+        // without the field, rather than losing the extraction to a parameter
+        // that only exists to make it faster.
+        if (e.isThinkingUnsupported && _noThinking.add(model)) {
+          return _client.generateContent(
+            model: model,
+            body: _requestBody(source, thinking: false),
+            onRetry: (attempt, of, wait) =>
+                onStage?.call(ExtractionPhase.analysing),
+          );
+        }
 
         // A model that no longer exists is gone for this session.
         if (e.isModelUnavailable) {
@@ -235,7 +250,10 @@ class GeminiExtractor implements AiExtractor {
     }();
   }
 
-  Map<String, Object?> _requestBody(SourceMetadata source) => {
+  Map<String, Object?> _requestBody(
+    SourceMetadata source, {
+    bool thinking = true,
+  }) => {
     'contents': [
       {
         'role': 'user',
@@ -252,6 +270,25 @@ class GeminiExtractor implements AiExtractor {
       'temperature': 0.2,
       'responseMimeType': 'application/json',
       'responseSchema': _responseSchema,
+      // A ceiling on the reply. The schema is a fixed set of short fields, so
+      // anything beyond this is a model that has lost the plot — and an
+      // uncapped reply is one that can run until it times out.
+      'maxOutputTokens': 2048,
+      // The fix for the "busy" failures, and the most important line in this
+      // file.
+      //
+      // Gemini 2.5 models think before they answer, and thinking is ON by
+      // default. Nothing here asked them to stop, so every extraction spent
+      // seconds and thousands of invisible tokens reasoning about a JSON shape
+      // it had already been handed. That is what made a call routinely exceed
+      // the 20s attempt timeout — at which point the client treated it as a
+      // transient failure and sent it again, four times, each one as expensive
+      // as the last. The 503s and quota errors were largely self-inflicted:
+      // load the app was generating itself.
+      //
+      // This is schema-constrained extraction from text that is already in the
+      // prompt. There is nothing to reason about. Budget zero.
+      if (thinking) 'thinkingConfig': {'thinkingBudget': 0},
     },
   };
 
@@ -330,9 +367,9 @@ class GeminiExtractor implements AiExtractor {
         'type': 'NUMBER',
         'nullable': true,
         'description':
-            'Decimal degrees for the specific place or '
-            'neighbourhood. Null unless the location is specific enough to '
-            'have a single point.',
+            'Decimal degrees of the most specific place named above — the '
+            'venue or landmark itself, not the city containing it. Null '
+            'unless the location is specific enough to have a single point.',
       },
       'longitude': {'type': 'NUMBER', 'nullable': true},
       'places': {
@@ -401,10 +438,17 @@ nulls; you will be wrong if you guess.
   the post names a cafe, give place_name. If it names a district, give
   neighbourhood. Fill in city, region and country when they follow from what is
   named. A post that only says "Japan" gets country alone and nulls above it.
-- latitude / longitude: only for a place specific enough to have one point — a
-  named venue, a neighbourhood, a town. For a whole country or region
-  ("Japan", "Southeast Asia") return null for both, even though you know where
-  the country is. A pin in the middle of a country is a false precision.
+- latitude / longitude: the coordinates of the MOST SPECIFIC place you named
+  above, not of the city it sits in. If place_name is "Mount Batur", give
+  Mount Batur's own coordinates — not Bali's. If place_name is a cafe and you
+  know where that cafe is, give the cafe. Only fall back to the neighbourhood
+  when the venue's own position is not something you know, and to the town only
+  when the neighbourhood is not either. Never return a city centroid while a
+  more specific place_name is set: a pin standing in the middle of a city under
+  a label naming a mountain is wrong, not approximate.
+  For a whole country or region ("Japan", "Southeast Asia") return null for
+  both, even though you know where the country is. A pin in the middle of a
+  country is a false precision.
 - places: every specific venue the source names, in the order it names them. A
   post titled "5 Cafes in Kyoto" whose description lists five cafes should
   return five entries, each with whatever the source gives — a district, a

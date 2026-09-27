@@ -1023,6 +1023,123 @@ void main() {
       );
     });
   });
+
+  group('the request asks the model not to think', () {
+    Map<String, Object?> configOf(_Server server) {
+      final body = jsonDecode(server.generateCalls.first.body) as Map;
+      return (body['generationConfig'] as Map).cast<String, Object?>();
+    }
+
+    test('thinking is budgeted to zero on every extraction', () async {
+      // The root cause of the "busy" failures. Gemini 2.5 models think by
+      // default; nothing asked them to stop, so each extraction spent seconds
+      // and thousands of invisible tokens reasoning about a JSON shape it had
+      // already been given — then blew the attempt timeout and was retried
+      // four times, generating the load that came back as 503 and 429.
+      final server = _Server(_withModelList([_reply(200, _extraction())]));
+      await _extractor(server).extract(_url);
+
+      final config = configOf(server);
+      expect(config['thinkingConfig'], isNotNull);
+      expect((config['thinkingConfig']! as Map)['thinkingBudget'], 0);
+    });
+
+    test('the reply is capped, so it cannot run until it times out', () async {
+      final server = _Server(_withModelList([_reply(200, _extraction())]));
+      await _extractor(server).extract(_url);
+
+      final max = configOf(server)['maxOutputTokens'];
+      expect(max, isA<int>());
+      expect(max as int, lessThanOrEqualTo(4096));
+      expect(max, greaterThan(512), reason: 'the schema still has to fit');
+    });
+
+    test('a model that rejects the field is asked again without it', () async {
+      // Older models predate thinkingConfig and 400 on it. That is a reason to
+      // resend, not to lose the extraction.
+      final server = _Server(
+        _withModelList([
+          _reply(
+            400,
+            _errorBody(
+              400,
+              'INVALID_ARGUMENT',
+              'Unknown name "thinkingConfig" in GenerateContentRequest',
+            ),
+          ),
+          _reply(200, _extraction()),
+        ]),
+      );
+
+      final result = await _extractor(server).extract(_url);
+
+      expect(result.destination, isNotNull, reason: 'it still extracted');
+      expect(server.generateCalls, hasLength(2));
+      final second =
+          jsonDecode(server.generateCalls[1].body) as Map<String, dynamic>;
+      expect(
+        (second['generationConfig'] as Map).containsKey('thinkingConfig'),
+        isFalse,
+        reason: 'the field it rejected is not sent again',
+      );
+    });
+
+    test('a model that rejected it once is not asked with it twice', () async {
+      final server = _Server(
+        _withModelList([
+          _reply(
+            400,
+            _errorBody(
+              400,
+              'INVALID_ARGUMENT',
+              'Unknown name "thinkingConfig"',
+            ),
+          ),
+          _reply(200, _extraction()),
+          _reply(200, _extraction()),
+        ]),
+      );
+      final extractor = _extractor(server);
+
+      await extractor.extract(_url);
+      await extractor.extract('${_url}2');
+
+      // Three calls: the rejected one, its resend, and the second extraction —
+      // which already knows not to ask.
+      expect(server.generateCalls, hasLength(3));
+      final third =
+          jsonDecode(server.generateCalls[2].body) as Map<String, dynamic>;
+      expect(
+        (third['generationConfig'] as Map).containsKey('thinkingConfig'),
+        isFalse,
+      );
+    });
+
+    test(
+      'a 400 that is not about thinking still fails, rather than looping',
+      () async {
+        final server = _Server(
+          _withModelList([
+            _reply(
+              400,
+              _errorBody(
+                400,
+                'INVALID_ARGUMENT',
+                'API key not valid',
+                reason: 'API_KEY_INVALID',
+              ),
+            ),
+          ]),
+        );
+
+        await expectLater(
+          _extractor(server).extract(_url),
+          throwsA(isA<ExtractionException>()),
+        );
+        expect(server.generateCalls, hasLength(1));
+      },
+    );
+  });
 }
 
 /// A stand-in for the platform socket errors `package:http` surfaces, which

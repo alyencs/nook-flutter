@@ -96,8 +96,7 @@ class SettingsScreen extends StatelessWidget {
       context,
       title: 'Clear cached images?',
       message:
-          'Thumbnails will be fetched again next time they are shown. '
-          'Your saved posts, trips and notes are not affected.',
+          'Thumbnails reload next time. Your posts and trips are untouched.',
       confirmLabel: 'Clear Cache',
     );
     if (!confirmed) return;

@@ -26,7 +26,11 @@ abstract final class NookTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      fontFamily: 'Inter',
+      // Manrope. This said 'Inter' long after Inter stopped being bundled, so
+      // every widget that did not reach for NookType explicitly — a Material
+      // default, a stray Text — fell back to the platform's own font and the
+      // app quietly ran two typefaces.
+      fontFamily: NookType.family,
       // Screens paint the warm gradient themselves; a solid colour behind it
       // would show through on over-scroll.
       scaffoldBackgroundColor: NookColors.background,

@@ -121,11 +121,15 @@ class TripsBody extends StatelessWidget {
                     width: width,
                     child: _NewTripTile(
                       onTap: () async {
-                        final name = await showCreateTripDialog(context);
-                        if (name == null || !context.mounted) return;
+                        final draft = await showTripDialog(context);
+                        if (draft == null || !context.mounted) return;
                         final user = await scope.users.currentUser();
                         if (user == null) return;
-                        await scope.trips.createTrip(name, user.id);
+                        await scope.trips.createTrip(
+                          draft.name,
+                          user.id,
+                          colour: draft.colour,
+                        );
                       },
                     ),
                   ),

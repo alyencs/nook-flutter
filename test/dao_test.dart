@@ -89,14 +89,55 @@ void main() {
   );
 
   test(
-    'seeded posts carry no thumbnail, because their links are invented',
+    'every seeded post carries a real photograph of its destination',
     () async {
-      // The demo library's URLs are illustrative, not real posts, so no real
-      // preview image exists for them and every card draws the placeholder.
-      // Thumbnails appear once a real link is saved — see extractor_test.dart for
-      // the derivation itself.
+      // The demo library's URLs are illustrative, so `PostThumbnails.fromUrl`
+      // had nothing to resolve and every card drew the empty placeholder —
+      // which is what made the seeded trips look unfinished. Each post now
+      // carries a photograph of the place it is about.
       final all = await posts.watchAll().first;
-      expect(all.every((p) => p.thumbnailUrl == null), isTrue);
+      expect(all, isNotEmpty);
+      for (final post in all) {
+        expect(
+          post.thumbnailUrl,
+          isNotNull,
+          reason: '"${post.title}" has no image',
+        );
+        expect(post.thumbnailUrl, startsWith('https://'));
+      }
+    },
+  );
+
+  test(
+    'seeded posts pin the place they name, not the city around it',
+    () async {
+      // "Sunrise Hike at Mount Batur" used to sit on a Bali coordinate, and the
+      // Kyoto cafe guide on the Kyoto city centroid.
+      final all = await posts.watchAll().first;
+      final placed = all.where((p) => p.aiLatitude != null);
+      expect(placed, isNotEmpty);
+
+      for (final post in placed) {
+        expect(
+          post.aiPlaceName,
+          isNotNull,
+          reason: '"${post.title}" has coordinates but names no place',
+        );
+      }
+
+      final batur = all.firstWhere((p) => p.title.contains('Mount Batur'));
+      expect(batur.aiPlaceName, 'Mount Batur');
+      expect(batur.aiLatitude, closeTo(-8.2422, 0.01));
+      expect(batur.aiLongitude, closeTo(115.3753, 0.01));
+
+      // The Kyoto cafe guide is on Nishiki Market, not the city centre.
+      final kyoto = all.firstWhere((p) => p.title.contains('5 Hidden Cafes'));
+      expect(kyoto.aiPlaceName, isNotNull);
+      expect(
+        kyoto.aiLatitude,
+        isNot(closeTo(35.0116, 0.0001)),
+        reason: 'that is the Kyoto city centroid',
+      );
     },
   );
 

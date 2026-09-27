@@ -53,8 +53,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
       context,
       title: 'Delete this post?',
       message:
-          'It moves to Recently Deleted, where you can restore it — '
-          'including its note and its trip.',
+          'It moves to Recently Deleted. You can restore it from there.',
       confirmLabel: 'Delete Post',
       destructive: true,
     );
@@ -225,7 +224,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                         ),
                         child: Row(
                           children: [
-                            const TripFolderTile(size: 32),
+                            TripFolderTile(colour: summary.colour, size: 32),
                             const SizedBox(width: NookSpacing.section),
                             Expanded(
                               child: Text(

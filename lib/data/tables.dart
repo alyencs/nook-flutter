@@ -34,6 +34,13 @@ class Trips extends Table {
       integer().customConstraint('NOT NULL REFERENCES users(id)')();
   DateTimeColumn get createdAt => dateTime()();
 
+  /// Which of the five folder colours this trip is, by [TripColor.id].
+  ///
+  /// Nullable so every trip that existed before the feature keeps working:
+  /// null means "nobody chose", and the UI spreads those across the palette by
+  /// id rather than leaving them all one colour.
+  TextColumn get colorId => text().nullable()();
+
   /// When this trip was moved to Recently Deleted, or null while it is live.
   ///
   /// Deleting a trip does not touch the posts in it — that was always true, and

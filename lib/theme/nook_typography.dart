@@ -125,13 +125,21 @@ abstract final class NookType {
   // emphasised phrase sits on the same line as the words around it.
 
   /// The emphasised phrase inside a [display] line.
+  /// The editorial face is always Nook's orange.
+  ///
+  /// Emphasis and brand colour are one decision, not two: a serif italic in
+  /// charcoal reads as a different font rather than as the same voice raised.
+  /// Using the orange already in the palette keeps the accent recognisably
+  /// Nook rather than introducing a second highlight colour.
+  static const accentColor = NookColors.primary;
+
   static const displayAccent = TextStyle(
     fontFamily: editorialFamily,
     fontSize: 29,
     height: 1.15,
     fontWeight: FontWeight.w400,
     fontStyle: FontStyle.italic,
-    color: NookColors.textPrimary,
+    color: accentColor,
     letterSpacing: -0.4,
   );
 
@@ -142,7 +150,7 @@ abstract final class NookType {
     height: 1.2,
     fontWeight: FontWeight.w400,
     fontStyle: FontStyle.italic,
-    color: NookColors.textPrimary,
+    color: accentColor,
     letterSpacing: -0.2,
   );
 
@@ -152,7 +160,7 @@ abstract final class NookType {
     fontSize: 30,
     height: 1.0,
     fontWeight: FontWeight.w400,
-    color: NookColors.textPrimary,
+    color: accentColor,
   );
 
   /// The accent style that pairs with [base].
@@ -165,7 +173,8 @@ abstract final class NookType {
       fontSize: base.fontSize! * 1.16,
       height: base.height,
       fontStyle: FontStyle.italic,
-      color: base.color,
+      // The accent is the orange, whatever colour the plain run is.
+      color: accentColor,
       letterSpacing: base.letterSpacing,
     );
   }

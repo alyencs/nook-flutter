@@ -71,6 +71,18 @@ class GeminiApiException implements Exception {
   /// the length of the candidate list.
   bool get isModelOverloaded => const {500, 502, 503, 504}.contains(status);
 
+  /// Whether the model rejected `thinkingConfig` itself.
+  ///
+  /// Nook asks every model not to think, because this is schema-constrained
+  /// extraction and reasoning tokens buy nothing here. A model that predates
+  /// the field rejects it with a 400 naming the unknown parameter; that is a
+  /// reason to resend without it, not to fail the extraction.
+  bool get isThinkingUnsupported {
+    if (status != 400) return false;
+    final lower = '$message ${code ?? ''}'.toLowerCase();
+    return lower.contains('thinking');
+  }
+
   /// Whether this particular model is gone, so the next candidate should be
   /// tried instead of retrying this one.
   ///

@@ -53,6 +53,19 @@ Future<void> seedDatabase(NookDatabase db) async {
     required int savedDaysAgo,
     double? latitude,
     double? longitude,
+
+    /// The named place the coordinates belong to.
+    ///
+    /// Without this the specificity gate reads the post as city-level, and the
+    /// map chip says "Kyoto" over a pin that is standing on a particular cafe.
+    String? placeName,
+    String? neighbourhood,
+
+    /// A real photograph of the destination.
+    ///
+    /// The seeded URLs are invented, so `PostThumbnails.fromUrl` had nothing to
+    /// resolve and every demo card drew the empty placeholder.
+    String? imageUrl,
     String? note,
     int? viewedDaysAgo,
     int? noteEditedDaysAgo,
@@ -82,9 +95,11 @@ Future<void> seedDatabase(NookDatabase db) async {
             aiSummary: Value(summary),
             aiBestTime: Value(bestTime),
             aiBudgetNote: Value(budgetNote),
+            aiPlaceName: Value(placeName),
+            aiNeighbourhood: Value(neighbourhood),
             aiLatitude: Value(latitude),
             aiLongitude: Value(longitude),
-            thumbnailUrl: Value(PostThumbnails.fromUrl(url)),
+            thumbnailUrl: Value(imageUrl ?? PostThumbnails.fromUrl(url)),
             tripId: Value(tripId),
             personalNote: Value(note),
             dateSaved: daysAgo(savedDaysAgo),
@@ -118,8 +133,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     savedDaysAgo: 2,
     viewedDaysAgo: 4,
     noteEditedDaysAgo: 1,
-    latitude: 35.0116,
-    longitude: 135.7681,
+    placeName: 'Nishiki Market',
+    neighbourhood: 'Nakagyo',
+    latitude: 35.005095,
+    longitude: 135.76487,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Nishiki_Market_Kyoto.jpg?width=800',
   );
 
   await post(
@@ -137,8 +156,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~€70/day excluding flights',
     note: 'The tram 28 tip only works before 9am.',
     savedDaysAgo: 3,
-    latitude: 38.7223,
-    longitude: -9.1393,
+    placeName: 'Alfama',
+    neighbourhood: 'Alfama',
+    latitude: 38.7118,
+    longitude: -9.1297,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Lisbon_Alfama_View.jpg?width=800',
   );
 
   await post(
@@ -156,8 +179,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~₱2,500/day including boat hire',
     savedDaysAgo: 6,
     viewedDaysAgo: 1,
-    latitude: 9.8349,
-    longitude: 118.7384,
+    placeName: 'El Nido',
+    neighbourhood: 'Bacuit Bay',
+    latitude: 11.1967,
+    longitude: 119.4167,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/El_Nido_Palawan.jpg?width=800',
   );
 
   await post(
@@ -176,8 +203,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~฿600/day for food',
     savedDaysAgo: 8,
     viewedDaysAgo: 2,
-    latitude: 13.7563,
-    longitude: 100.5018,
+    placeName: 'Yaowarat Road',
+    neighbourhood: 'Chinatown',
+    latitude: 13.7403,
+    longitude: 100.5102,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Yaowarat_Road_Bangkok.jpg?width=800',
   );
 
   await post(
@@ -195,6 +226,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: 'No cost beyond the bag itself',
     savedDaysAgo: 10,
     viewedDaysAgo: 3,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Carry_on_luggage.jpg?width=800',
   );
 
   await post(
@@ -212,8 +245,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~IDR 500,000 including guide',
     savedDaysAgo: 12,
     viewedDaysAgo: 5,
+    placeName: 'Mount Batur',
+    neighbourhood: 'Kintamani',
     latitude: -8.2422,
     longitude: 115.3753,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Mount_Batur_Bali.jpg?width=800',
   );
 
   await post(
@@ -232,6 +269,8 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~\$15/night for a dorm bed',
     savedDaysAgo: 14,
     viewedDaysAgo: 6,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Hostel_dormitory_room.jpg?width=800',
   );
 
   await post(
@@ -249,8 +288,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'March–May',
     budgetNote: '~¥2,500/day',
     savedDaysAgo: 16,
-    latitude: 35.0116,
-    longitude: 135.7681,
+    placeName: 'Gion',
+    neighbourhood: 'Gion',
+    latitude: 35.0037,
+    longitude: 135.7753,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Gion_Kyoto.jpg?width=800',
   );
 
   await post(
@@ -267,8 +310,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'March–May',
     budgetNote: '~¥1,800/day',
     savedDaysAgo: 18,
+    placeName: 'Fushimi Inari Taisha',
+    neighbourhood: 'Fushimi',
     latitude: 34.9671,
     longitude: 135.7727,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Fushimi_Inari_Taisha_Kyoto.jpg?width=800',
   );
 
   await post(
@@ -287,8 +334,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: '~€80/day excluding flights',
     savedDaysAgo: 20,
     viewedDaysAgo: 7,
-    latitude: 41.1579,
-    longitude: -8.6291,
+    placeName: 'Ribeira',
+    neighbourhood: 'Ribeira',
+    latitude: 41.1406,
+    longitude: -8.611,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Porto_Ribeira.jpg?width=800',
   );
 
   await post(
@@ -305,8 +356,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'December–February',
     budgetNote: '~₱1,800/day',
     savedDaysAgo: 24,
-    latitude: 16.4023,
-    longitude: 120.596,
+    placeName: 'Burnham Park',
+    neighbourhood: 'Burnham Park',
+    latitude: 16.4108,
+    longitude: 120.5933,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Burnham_Park_Baguio.jpg?width=800',
   );
 
   await post(
@@ -323,8 +378,12 @@ Future<void> seedDatabase(NookDatabase db) async {
     bestTime: 'May–September',
     budgetNote: '~€15/evening',
     savedDaysAgo: 28,
-    latitude: 38.7223,
-    longitude: -9.1393,
+    placeName: 'Miradouro da Senhora do Monte',
+    neighbourhood: 'Graca',
+    latitude: 38.7172,
+    longitude: -9.1322,
+    imageUrl:
+        'https://commons.wikimedia.org/wiki/Special:FilePath/Miradouro_Senhora_do_Monte_Lisbon.jpg?width=800',
   );
 
   // The searches drawn on the Search screen.

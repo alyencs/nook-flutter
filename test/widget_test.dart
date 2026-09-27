@@ -193,21 +193,25 @@ void main() {
 
     await tester.tap(find.text('Continue')); // LA1 splash
     await tester.pumpAndSettle();
-    expect(find.text('Save travel finds'), findsOneWidget); // LA2
+    // The headlines are rich text now — a plain run plus an editorial accent —
+    // so the overline is the stable anchor for "which page is this".
+    expect(find.text('SAVE'), findsOneWidget); // LA2
+    expect(find.text('01'), findsOneWidget);
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
-    expect(find.text('AI organizes your trips'), findsOneWidget); // LA3
+    expect(find.text('READ'), findsOneWidget); // LA3
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
-    expect(find.text('Organize by trip'), findsOneWidget); // LA4
+    expect(find.text('PLAN'), findsOneWidget); // LA4
 
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
-    expect(find.text('Rediscover anything'), findsOneWidget); // LA5
+    expect(find.text('RETURN'), findsOneWidget); // LA5
+    expect(find.text('04'), findsOneWidget);
 
-    await tester.tap(find.text('Get Started'));
+    await tester.tap(find.text('Enter Nook'));
     await tester.pumpAndSettle();
     expect(find.text('Welcome to Nook'), findsOneWidget); // LA6
 
@@ -235,7 +239,7 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.text('Get Started'));
+    await tester.tap(find.text('Enter Nook'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Get Started'));
     await tester.pumpAndSettle();
@@ -410,7 +414,7 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Save travel finds'), findsOneWidget);
+    expect(find.text('SAVE'), findsOneWidget);
     await unmount(tester);
   });
 
