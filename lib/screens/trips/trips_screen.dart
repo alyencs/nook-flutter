@@ -19,7 +19,7 @@ import 'trip_details_screen.dart';
 ///
 /// The mockup never drew this screen, but the tab bar has a Trips tab and MVP
 /// feature #3 needs somewhere to browse them. Built from the same cards, grid
-/// and spacing as everything else — see decision 4 in docs/07-build-plan.md.
+/// and spacing as everything else.
 class TripsScreen extends StatelessWidget {
   const TripsScreen({super.key, required this.nav});
 
@@ -160,14 +160,20 @@ class _TripsBodyState extends State<TripsBody> {
     );
   }
 
-  /// Wraps exactly one card — the one just created — in a spring, and forgets
-  /// it afterwards so it never plays twice.
+  /// Wraps exactly one card — the one just created — in a spring.
+  ///
+  /// The flag is deliberately *not* cleared afterwards. An earlier version
+  /// cleared it in a post-frame callback, which pulled [FolderArrive] out of
+  /// the tree on the very next frame and disposed its controller before any of
+  /// the 340ms had run: the spring never played at all.
+  ///
+  /// Nothing needs clearing, because the key is what stops it repeating. The
+  /// stream behind this list ticks on every write, but a stable key keeps the
+  /// same State — and therefore the same already-finished controller — so the
+  /// animation cannot restart. It ends at scale 1, which is exactly the plain
+  /// card, and is replaced the next time a trip is created.
   Widget _maybeSpring(int tripId, Widget card) {
     if (tripId != _justCreated) return card;
-    // Cleared after this frame, not during it: setState inside build throws.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _justCreated = null);
-    });
     return FolderArrive(key: ValueKey('arrive-$tripId'), child: card);
   }
 }

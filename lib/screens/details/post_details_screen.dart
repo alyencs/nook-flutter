@@ -51,7 +51,7 @@ class PostDetailsScreen extends StatelessWidget {
                 child: NookPrimaryButton(
                   // The mockup labels this "Continue", which says nothing on a
                   // detail screen — and Travel Details would otherwise have no
-                  // way in. See decision 9 in docs/07-build-plan.md.
+                  // way in.
                   label: 'Travel Details',
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(

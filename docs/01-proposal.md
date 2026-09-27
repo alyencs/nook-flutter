@@ -1,8 +1,8 @@
 # Proposal
 
 *The revised proposal, as submitted (m6a1, revised in m7a1). The scope below is
-what was built; anything that changed during the build is recorded in
-[07-build-plan.md](07-build-plan.md).*
+what was built; what changed during the build, and when, is in the
+[weekly reports](04-weekly-reports.md).*
 
 **Nook — never lose your next favourite find.**
 
@@ -49,6 +49,14 @@ searchable across platforms.
 - **Real accounts, passwords, password reset, email verification** — there is no
   server to authenticate against. Replaced by a local profile.
 
+> **As built.** Two of these changed. The **map** stopped being a stretch goal in
+> week 3 and is now a real feature — a pin per located post, and a full-screen
+> map you can drag, pinch and zoom — because extraction was already returning
+> coordinates, which made it far cheaper than estimated. Everything else in this
+> list stayed out: Connected Platforms and the itinerary generator are drawn,
+> disabled and labelled as stretch goals. See the
+> [weekly reports](04-weekly-reports.md).
+
 ## Data the app remembers, and where it is saved
 
 | Thing | Fields | Where |
@@ -56,6 +64,16 @@ searchable across platforms.
 | User | Name, Email, Profile Picture | Drift `users` table, one local row |
 | Saved Post | Title, Creator, Platform, Original URL, Import Method, Thumbnail, AI Destination, AI Category, AI Summary, Trip ID, Personal Note, Date Saved | Drift `saved_posts` |
 | Trip | Trip Name, Item Count, User ID | Drift `trips` |
+
+> **As built.** The shape held; the detail grew. There are now **five tables** at
+> schema version 6 — `app_settings` joined the four above — and `saved_posts`
+> carries 32 columns rather than twelve, because the Travel Details screen needed
+> country, best time and budget, and reading the post properly needed the caption,
+> the handle, the source id and the location from place name down to region.
+> `item_count` is computed rather than stored, so a trip card cannot disagree with
+> the rows behind it. **Email is no longer collected**: Nook talks to no server, so
+> there was never an account for an address to identify. The current structure is
+> in the [README](../README.md#storage).
 
 **The choice: Drift (SQL, on-device, works on web).**
 

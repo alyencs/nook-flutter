@@ -2,8 +2,7 @@
 /// Destination & Category screen and the suggestion chips on Search.
 ///
 /// The mockup drew two different lists (six on Search, seven on Add); this is
-/// the union of both, so nothing drawn is lost. See decision 6 in
-/// docs/07-build-plan.md.
+/// the union of both, so nothing drawn is lost.
 abstract final class NookCategories {
   static const all = <String>[
     'Food',

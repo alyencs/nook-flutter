@@ -41,8 +41,8 @@ class _LogoAssemblyState extends State<LogoAssembly>
   /// Order is reading order: top-left, top-right, bottom-left, bottom-right.
   static const _pieces = [
     (dx: -2.4, dy: -1.6, delay: 0.00, glyph: 'N'),
-    (dx: 2.4, dy: -1.9, delay: 0.09, glyph: 'V'),
-    (dx: -2.1, dy: 2.2, delay: 0.18, glyph: 'V'),
+    (dx: 2.4, dy: -1.9, delay: 0.09, glyph: 'O'),
+    (dx: -2.1, dy: 2.2, delay: 0.18, glyph: 'O'),
     (dx: 2.6, dy: 1.7, delay: 0.27, glyph: 'K'),
   ];
 

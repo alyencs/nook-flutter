@@ -37,6 +37,9 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
   /// The thumbnail in the header, so the delete flight knows where to start.
   final _thumbKey = GlobalKey();
 
+  /// True from the first tap of Delete Post until the post has gone.
+  bool _deleting = false;
+
   Future<void> _save() async {
     final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
@@ -48,6 +51,12 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
   }
 
   Future<void> _delete() async {
+    // Two fast taps before the dialog paints would otherwise run this twice:
+    // two dialogs, two writes, two flights, and four pops off a two-deep
+    // stack. The button has no busy state of its own, so the guard lives here.
+    if (_deleting) return;
+    _deleting = true;
+
     final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
     final posts = AppScope.of(context).posts;
@@ -67,7 +76,12 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
       confirmLabel: 'Delete Post',
       destructive: true,
     );
-    if (!confirmed || !mounted) return;
+    // Released on cancel, so declining once does not disable the button for
+    // the life of the screen.
+    if (!confirmed || !mounted) {
+      _deleting = false;
+      return;
+    }
 
     // Read while the card is still on screen, before anything pops.
     final thumbnail = _thumbnailUrl;
@@ -85,12 +99,16 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
     // seemed not to happen at all.
     await Future<void>.delayed(NookMotion.normal + NookMotion.fast);
 
-    // The card leaves for Profile — where Recently Deleted lives — and only
-    // then is the row marked, so the two read as cause and effect rather than
-    // the list twitching under a card that is still sitting there.
-    //
+    // Started here, not awaited, so the row leaves its place at the same
+    // moment the card lifts off it. Waiting until the flight landed meant the
+    // post sat in the list for the whole second the animation was running,
+    // with a copy of itself flying overhead — which reads as a duplicate
+    // rather than as the thing being taken away.
+    final write = posts.deletePost(widget.postId);
+
     // Wrapped, because a delete that depends on an animation finishing is a
-    // delete that can be lost. If the flight throws, the write still happens.
+    // delete that can be lost. If the flight throws, the write is already in
+    // progress and still lands.
     if (from != null) {
       try {
         await DeleteFlight.run(overlay, from: from, thumbnailUrl: thumbnail);
@@ -101,17 +119,9 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
       }
     }
 
-    // Written after the flight has landed, so the confirmation follows
-    // something the user has just watched rather than narrating over it.
-    await posts.deletePost(widget.postId);
-    NookToast.show(
-      overlay,
-      'Moved to Recently Deleted',
-      icon: Icons.restore_from_trash_outlined,
-    );
-  }
-
-    await posts.deletePost(widget.postId);
+    // Both finished: the confirmation follows something the user has just
+    // watched, rather than narrating over the top of it.
+    await write;
     NookToast.show(
       overlay,
       'Moved to Recently Deleted',

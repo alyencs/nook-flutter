@@ -106,14 +106,14 @@ class _Flight extends StatefulWidget {
 class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: NookMotion.slow,
+    duration: widget.duration,
   );
 
   /// Built once: a CurvedAnimation registers a status listener on its parent,
   /// so one per build leaks one per build.
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: widget.duration,
+  late final Animation<double> _t = CurvedAnimation(
+    parent: _controller,
+    curve: NookMotion.enter,
   );
 
   @override
@@ -155,22 +155,31 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
           top: y - height / 2,
           child: IgnorePointer(
             child: Opacity(
-              opacity: (v < 0.85 ? 1.0 : (1 - v) / 0.15).clamp(0.0, 1.0),
+              // Fades only over the last 8%, not the last 15%: the card was
+              // disappearing a tab's height short of the tab, so the journey
+              // ended in mid-air rather than at the place it was pointing to.
+              opacity: (v < 0.92 ? 1.0 : (1 - v) / 0.08).clamp(0.0, 1.0),
               child: Container(
                 width: size,
                 height: height,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(NookRadius.sm),
-                  // An opaque card with a shadow. The old version flew a
-                  // transparent placeholder across a pale background, which is
-                  // most of why nobody saw it.
+                  // An opaque card with a border and a shadow. The first
+                  // version flew a transparent placeholder, the second a pale
+                  // card with a soft shadow — and Nook's background is cream,
+                  // so a pale card on it is a rumour. The border is the same
+                  // 1.5pt ink every other card in the app is drawn with, which
+                  // is what makes this one legible while it crosses them.
                   color: widget.opaque ? NookColors.surface : null,
+                  border: widget.opaque
+                      ? Border.all(color: NookColors.textPrimary, width: 1.5)
+                      : null,
                   boxShadow: widget.opaque
                       ? const [
                           BoxShadow(
-                            color: Color(0x332E2E2E),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
+                            color: Color(0x452E2E2E),
+                            blurRadius: 24,
+                            offset: Offset(0, 10),
                           ),
                         ]
                       : null,

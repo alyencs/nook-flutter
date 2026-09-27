@@ -77,21 +77,27 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
       animation: _t,
       builder: (context, _) {
         final v = _t.value;
-        final radius = 14 + 34 * v;
+        // 12 to 34, so the ring stays inside the 68pt bar instead of expanding
+        // over the page above it, where most of it was being drawn.
+        final radius = 12 + 22 * v;
+        // Held at full strength for the first third and faded after. A linear
+        // fade over the whole 520ms left the ring at a third of its opacity by
+        // the time it was big enough to notice.
+        final opacity = v < 0.35 ? 1.0 : 1 - (v - 0.35) / 0.65;
 
         return Positioned(
           left: widget.centre.dx - radius,
           top: widget.centre.dy - radius,
           child: IgnorePointer(
             child: Opacity(
-              opacity: (1 - v).clamp(0.0, 1.0),
+              opacity: opacity.clamp(0.0, 1.0),
               child: Container(
                 width: radius * 2,
                 height: radius * 2,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   // White, because the bar it sits on is the orange gradient.
-                  border: Border.all(color: NookColors.surface, width: 2),
+                  border: Border.all(color: NookColors.surface, width: 3),
                 ),
               ),
             ),

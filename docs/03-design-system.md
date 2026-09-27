@@ -45,20 +45,43 @@ this document originally named.
 
 Nook is about reading and organising, so typography prioritises readability.
 
-**Typeface: Inter**, bundled as a local asset rather than fetched from a CDN, so
-the deployed build has no third-party dependency and renders identically
+**Two typefaces, both bundled as local assets** rather than fetched from a CDN,
+so the deployed build has no third-party dependency and renders identically
 offline.
+
+- **Manrope** does the work: body, labels, buttons, navigation, every piece of
+  functional UI. It is the voice of the app.
+- **Instrument Serif** is the accent, and it is rationed — one emphasised phrase
+  inside an otherwise plain line, four times in the whole app. It always carries
+  Nook's orange, because emphasis and brand colour are one decision, not two.
+
+The design direction calls for **PP Editorial New** in that second role. It is
+licensed from Pangram Pangram and free for personal use only, so it cannot be
+committed to a public repository. Instrument Serif (SIL OFL) stands in. Every
+editorial style resolves through one family constant, so swapping in the
+licensed face is two edits: drop the files into `assets/fonts/` and repoint the
+`EditorialSerif` family in `pubspec.yaml`.
 
 | Style | Size | Weight | Used for |
 | --- | --- | --- | --- |
-| Display *(added)* | 32 | Bold | Screen-owning headings: "Set Up Profile", "Review & Save" |
-| Heading | 24 | Bold | Screen titles, section headers, trip names |
-| Title *(added)* | 20 | SemiBold | App-bar titles, card titles |
-| Body | 16 | Regular | Saved posts, notes, descriptions |
-| Caption | 12 | Regular | Creator names, platform labels, dates, hints |
-| Overline *(added)* | 12 | SemiBold, uppercase, +0.08em | Field labels: "DETECTED DESTINATION", "SUPPORTED PLATFORMS" |
+| Display *(added)* | 25 | ExtraBold | Screen-owning headings: "Set Up Profile", "Review & Save" |
+| Heading | 20 | Bold | Screen titles, section headers, trip names |
+| Title *(added)* | 16.5 | Bold | App-bar titles, card titles |
+| Body Strong *(added)* | 14 | SemiBold | Saved post titles in lists and cards |
+| Body | 14 | Regular | Saved posts, notes, descriptions |
+| Button *(added)* | 14.5 | Bold | Button labels |
+| Caption | 11 | Medium | Creator names, platform labels, dates, hints |
+| Overline *(added)* | 10 | Bold, uppercase, +1.4 tracking | Field labels: "DETECTED DESTINATION", "SUPPORTED PLATFORMS" |
 
-Display, Title and Overline are additions: the mockup draws all three, and the
+The editorial accents pair with the Manrope line they sit inside: **Display
+Accent** at 29 and **Heading Accent** at 23, both italic, plus a standalone
+**Figure** at 30 for a count or a stat.
+
+**These sizes are not the ones this document originally named.** The scale
+started at 32 / 24 / 20 / 16 / 12 and came down about 10% in week 3, when a
+dozen screens had drifted from it independently with ad-hoc `fontSize`
+overrides; the editorial redesign in week 5 settled it here. Display, Title,
+Body Strong, Button and Overline are additions: the mockup draws them and the
 original 24/16/12 scale had no name for them.
 
 ## Spacing rule
