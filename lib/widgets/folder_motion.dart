@@ -70,13 +70,24 @@ class _FolderOpenState extends State<FolderOpen>
           return Transform(
             alignment: Alignment.bottomCenter,
             transform: Matrix4.identity()
-              // A little perspective, so the tip reads as a lid opening rather
-              // than the tile shearing.
-              ..setEntry(3, 2, 0.0015)
-              ..rotateX(-0.22 * v)
+              // Perspective, so the tip reads as a lid opening rather than the
+              // tile shearing. Deeper than it first was: on a card only 72pt
+              // tall, 0.0015 with a 13-degree tilt moved the top edge about
+              // two pixels — running, and invisible, which is the same as not
+              // running at all.
+              ..setEntry(3, 2, 0.0028)
+              ..rotateX(-0.42 * v)
+              // Lifted off the grid and brought a little closer, so it leaves
+              // the page rather than folding into it.
               // translateByDouble, not translate: the Vector-math overload is
               // deprecated in current Flutter and raises an analyzer info.
-              ..translateByDouble(0.0, -4.0 * v, 0.0, 1.0),
+              ..translateByDouble(0.0, -10.0 * v, 0.0, 1.0)
+              ..scaleByDouble(
+                1 + 0.06 * v,
+                1 + 0.06 * v,
+                1.0,
+                1.0,
+              ),
             child: child,
           );
         },

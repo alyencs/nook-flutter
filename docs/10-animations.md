@@ -354,22 +354,31 @@ the opaque card all read from the new fields)
           top: y - height / 2,
           child: IgnorePointer(
             child: Opacity(
-              opacity: (v < 0.85 ? 1.0 : (1 - v) / 0.15).clamp(0.0, 1.0),
+              // Fades only over the last 8%, not the last 15%: the card was
+              // disappearing a tab's height short of the tab, so the journey
+              // ended in mid-air rather than at the place it was pointing to.
+              opacity: (v < 0.92 ? 1.0 : (1 - v) / 0.08).clamp(0.0, 1.0),
               child: Container(
                 width: size,
                 height: height,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(NookRadius.sm),
-                  // An opaque card with a shadow. The old version flew a
-                  // transparent placeholder across a pale background, which is
-                  // most of why nobody saw it.
+                  // An opaque card with a border and a shadow. The first
+                  // version flew a transparent placeholder, the second a pale
+                  // card with a soft shadow — and Nook's background is cream,
+                  // so a pale card on it is a rumour. The border is the same
+                  // 1.5pt ink every other card in the app is drawn with, which
+                  // is what makes this one legible while it crosses them.
                   color: widget.opaque ? NookColors.surface : null,
+                  border: widget.opaque
+                      ? Border.all(color: NookColors.textPrimary, width: 1.5)
+                      : null,
                   boxShadow: widget.opaque
                       ? const [
                           BoxShadow(
-                            color: Color(0x332E2E2E),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
+                            color: Color(0x452E2E2E),
+                            blurRadius: 24,
+                            offset: Offset(0, 10),
                           ),
                         ]
                       : null,
@@ -508,21 +517,27 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
       animation: _t,
       builder: (context, _) {
         final v = _t.value;
-        final radius = 14 + 34 * v;
+        // 12 to 34, so the ring stays inside the 68pt bar instead of expanding
+        // over the page above it, where most of it was being drawn.
+        final radius = 12 + 22 * v;
+        // Held at full strength for the first third and faded after. A linear
+        // fade over the whole 520ms left the ring at a third of its opacity by
+        // the time it was big enough to notice.
+        final opacity = v < 0.35 ? 1.0 : 1 - (v - 0.35) / 0.65;
 
         return Positioned(
           left: widget.centre.dx - radius,
           top: widget.centre.dy - radius,
           child: IgnorePointer(
             child: Opacity(
-              opacity: (1 - v).clamp(0.0, 1.0),
+              opacity: opacity.clamp(0.0, 1.0),
               child: Container(
                 width: radius * 2,
                 height: radius * 2,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   // White, because the bar it sits on is the orange gradient.
-                  border: Border.all(color: NookColors.surface, width: 2),
+                  border: Border.all(color: NookColors.surface, width: 3),
                 ),
               ),
             ),
@@ -563,6 +578,15 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
 **Replace with:**
 
 ```dart
+  /// The narrowest the card is allowed to set off at.
+  ///
+  /// It leaves from a 56pt thumbnail, and a card that starts at 56 and shrinks
+  /// to a fifth of that spends most of its journey under 30pt across — a speck
+  /// on a cream background. Measured off a recording of the real thing: at
+  /// mid-flight the old card was about 30x17, which is smaller than the text
+  /// it was passing over.
+  static const _minWidth = 132.0;
+
   static Future<void> run(
     OverlayState overlay, {
     required Rect from,
@@ -571,16 +595,23 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
     final media = MediaQuery.of(overlay.context);
     return Flight.run(
       overlay,
-      from: from,
+      // Centred where the thumbnail was, so it still leaves from the post you
+      // were looking at — just at a size that can be followed.
+      from: Rect.fromCenter(
+        center: from.center,
+        width: from.width < _minWidth ? _minWidth : from.width,
+        height: from.height,
+      ),
       to: Flight.tabCentre(media.size, media.padding, tab),
       thumbnailUrl: thumbnailUrl,
       // Nine hundred milliseconds, not four hundred. This is the one animation
       // whose whole job is to be followed: it answers "where did my post go",
       // and an answer nobody sees is not an answer.
       duration: NookMotion.deliberate,
-      // Ends at 18% rather than 28%, so it reads as dropping *into* the tab
-      // rather than stopping above it.
-      endScale: 0.18,
+      // Ends at 16% of that, so it reads as dropping *into* the tab rather
+      // than stopping above it: 132 x 74 at the start, about 21 x 12 as it
+      // arrives, which is tab-sized.
+      endScale: 0.16,
       // A higher arc than the save flight. Saving puts something away;
       // deleting picks it up first, and the lift is what says so.
       lift: -64,
@@ -637,7 +668,7 @@ abstract final class RestoreFlight {
       thumbnailUrl: thumbnailUrl,
       duration: NookMotion.deliberate,
       // Larger than it started: this one grows, which is the whole point.
-      endScale: to.width / _seed,
+      endScale: (to.height * 16 / 9) / _seed,
       // The arc bends the other way, so the two are mirror images.
       lift: 64,
       opaque: true,
@@ -1067,13 +1098,24 @@ class _FolderOpenState extends State<FolderOpen>
           return Transform(
             alignment: Alignment.bottomCenter,
             transform: Matrix4.identity()
-              // A little perspective, so the tip reads as a lid opening rather
-              // than the tile shearing.
-              ..setEntry(3, 2, 0.0015)
-              ..rotateX(-0.22 * v)
+              // Perspective, so the tip reads as a lid opening rather than the
+              // tile shearing. Deeper than it first was: on a card only 72pt
+              // tall, 0.0015 with a 13-degree tilt moved the top edge about
+              // two pixels — running, and invisible, which is the same as not
+              // running at all.
+              ..setEntry(3, 2, 0.0028)
+              ..rotateX(-0.42 * v)
+              // Lifted off the grid and brought a little closer, so it leaves
+              // the page rather than folding into it.
               // translateByDouble, not translate: the Vector-math overload is
               // deprecated in current Flutter and raises an analyzer info.
-              ..translateByDouble(0.0, -4.0 * v, 0.0, 1.0),
+              ..translateByDouble(0.0, -10.0 * v, 0.0, 1.0)
+              ..scaleByDouble(
+                1 + 0.06 * v,
+                1 + 0.06 * v,
+                1.0,
+                1.0,
+              ),
             child: child,
           );
         },
@@ -1461,8 +1503,8 @@ class _LogoAssemblyState extends State<LogoAssembly>
   /// Order is reading order: top-left, top-right, bottom-left, bottom-right.
   static const _pieces = [
     (dx: -2.4, dy: -1.6, delay: 0.00, glyph: 'N'),
-    (dx: 2.4, dy: -1.9, delay: 0.09, glyph: 'V'),
-    (dx: -2.1, dy: 2.2, delay: 0.18, glyph: 'V'),
+    (dx: 2.4, dy: -1.9, delay: 0.09, glyph: 'O'),
+    (dx: -2.1, dy: 2.2, delay: 0.18, glyph: 'O'),
     (dx: 2.6, dy: 1.7, delay: 0.27, glyph: 'K'),
   ];
 

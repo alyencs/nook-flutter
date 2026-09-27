@@ -171,19 +171,34 @@ class _EmptyAction extends StatelessWidget {
 }
 
 /// One deleted post: what it was, and the two ways out.
-class _DeletedPostRow extends StatelessWidget {
-  /// Not `const`: each row owns a key so the restore flight knows the rect it
-  /// is flying back into.
-  _DeletedPostRow({required this.post});
+class _DeletedPostRow extends StatefulWidget {
+  const _DeletedPostRow({required this.post});
 
   final SavedPost post;
 
+  @override
+  State<_DeletedPostRow> createState() => _DeletedPostRowState();
+}
+
+class _DeletedPostRowState extends State<_DeletedPostRow> {
   /// The row's own position on screen, read before the list rebuilds without
   /// it.
+  ///
+  /// Held in the State, not on the widget. A GlobalKey built in a
+  /// StatelessWidget's field is a *new* key on every rebuild, and this list is
+  /// driven by a stream that ticks on every write — so each tick would hand
+  /// the element tree a different key, tear the whole row down and build it
+  /// again. That discards the entrance animation and makes the rect read
+  /// unreliable at exactly the moment the flight needs it.
   final _rowKey = GlobalKey();
+
+  /// Guards against a second tap while the first restore is still running.
+  bool _restoring = false;
 
   @override
   Widget build(BuildContext context) {
+    final post = widget.post;
+
     return _DeletedRow(
       key: _rowKey,
       leading: PostThumbnail(
@@ -195,6 +210,11 @@ class _DeletedPostRow extends StatelessWidget {
       title: post.title,
       subtitle: _deletedAgo(post.deletedAt),
       onRestore: () async {
+        // One restore per row. Without this, two quick taps run the write
+        // twice and launch two flights at the same rect.
+        if (_restoring) return;
+        _restoring = true;
+
         final scope = AppScope.of(context);
         final overlay = Overlay.of(context, rootOverlay: true);
 
