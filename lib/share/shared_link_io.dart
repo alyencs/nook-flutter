@@ -6,9 +6,11 @@
 /// Neither can be added from Dart, and neither can be exercised by this
 /// project's test or deploy path, which is the web.
 ///
-/// `docs/09-share-to-nook.md` records exactly what to add when Nook is built
-/// for a device. Until then a native build simply has no shared link, which is
-/// the same state as an ordinary launch.
+/// Adding it later means an `<intent-filter>` for `ACTION_SEND` with
+/// `text/plain` plus a `MainActivity` that forwards the extra, or an iOS Share
+/// Extension sharing an app group container — and then returning the received
+/// link from here. Until then a native build simply has no shared link, which
+/// is the same state as an ordinary launch.
 String? initialSharedLink() => null;
 
 void consumeSharedLink() {}

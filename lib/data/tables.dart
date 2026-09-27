@@ -91,8 +91,7 @@ class SavedPosts extends Table {
   TextColumn get aiCategory => text().nullable()();
   TextColumn get aiSummary => text().nullable()();
 
-  // Added for the Travel Details screen, which draws all three. See decision 3
-  // in docs/07-build-plan.md.
+  // Added for the Travel Details screen, which draws all three.
   TextColumn get aiCountry => text().nullable()();
   TextColumn get aiBestTime => text().nullable()();
   TextColumn get aiBudgetNote => text().nullable()();

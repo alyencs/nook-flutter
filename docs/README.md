@@ -1,29 +1,36 @@
 # Project documentation
 
-Everything about this project that is not code lives here, so the repository is
-the single place your work exists. Nothing is submitted as a separate file: you
-submit **one link: the public repository in your own GitHub account**, and this
-folder is half of what gets read.
+Everything about Nook that is not code lives here, so the repository is the
+single place the work exists. Nothing is submitted separately: the submission is
+**one link — the public repository** — and this folder is half of what gets read.
 
-| File | What goes in it |
+| File | What is in it |
 | --- | --- |
-| [01-proposal.md](01-proposal.md) | the problem, the users, the scope, the storage decision |
-| [02-mockup.md](02-mockup.md) | the mockup images, plus your wireframes and screen flow |
-| [03-design-system.md](03-design-system.md) | palette, type scale, spacing, components, **plus a visual PDF or image** |
-| [04-weekly-reports.md](04-weekly-reports.md) | one short entry per week, added as you go |
-| [05-demo-video.md](05-demo-video.md) | the recording and what it shows |
-| [06-security-and-privacy.md](06-security-and-privacy.md) | the checklist, filled in and dated |
-| `assets/` | screenshots, wireframe photos, diagrams |
+| [01-proposal.md](01-proposal.md) | The revised proposal as submitted: the problem, the users, the five core features, what is out of scope, and the storage decision. |
+| [02-mockup.md](02-mockup.md) | The screens, the flow between them, and the three places the built app departs from a frame. |
+| [03-design-system.md](03-design-system.md) | Palette, type scale, spacing, radius and the component inventory, as shipped. |
+| [04-weekly-reports.md](04-weekly-reports.md) | The development history, week by week, reconstructed from the commit history. |
+| [05-demo-video.md](05-demo-video.md) | What the recording has to show, and the run to follow. |
+| [06-security-and-privacy.md](06-security-and-privacy.md) | Why the data and the keys are handled the way they are. |
+| `assets/` | Screenshots and diagrams. |
 
-Two rules:
+The security **audit** — every item checked against the code, with the open ones
+listed — is [`SECURITY-CHECKLIST.md`](../SECURITY-CHECKLIST.md) at the root of
+the repository, next to the README, because that is where a reader looks for it.
+`06` explains the reasoning; the checklist is the evidence.
 
-- **Markdown, not attachments.** Write these as Markdown so they render on
-  GitHub. Photos of paper wireframes are fine, saved into `assets/` and embedded
-  with an image tag pointing at `assets/`.
-- **These are your FINAL documents.** Drop in what you submitted to Canvas, and
-  replace it with the final version when the project is done. Nobody reads this
-  folder until you hand the project in, so you do not have to keep it in sync
-  every week.
-- **The weekly reports are the exception. Write those as you go.** A report
-  written in week twelve for all twelve weeks is obvious to read and worth much
-  less to you.
+## Reading these
+
+- **01, 02 and 03 are the planning documents**, kept as submitted. Where the
+  build departed from them, the document says so in place rather than being
+  quietly rewritten.
+- **04 is a historical record.** It contains work that was later replaced —
+  Inter as the typeface, email in onboarding, a destructive delete, CARTO tiles.
+  That is deliberate. For what Nook is *now*, read the [README](../README.md).
+- **Everything else describes the current build** and is dated where it matters.
+
+Three working documents were removed once the project was finished: a build plan
+that tracked the twelve conflicts between the planning documents, a note on
+native share plumbing, and an animation implementation guide. All three had done
+their job and had started to contradict the shipped app. Their outcomes are in
+the weekly reports and in the code.

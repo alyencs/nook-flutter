@@ -14,11 +14,10 @@ abstract final class NookTabs {
 /// The four tabs, on a Burnt Orange bar.
 ///
 /// The design system describes a white bar with orange active icons; the mockup
-/// draws this. Decision 1 in `docs/07-build-plan.md` resolved that in favour of
-/// the mockup, and the design system document was updated to match. The bar
-/// carries the same left-to-right gradient as a primary button — sampling the
-/// mockup across it gives (220,110,13) at the left edge and (195,95,1) at the
-/// right, the button's own two stops.
+/// draws this. The mockup won, and the design system document was updated to
+/// match. The bar carries the same left-to-right gradient as a primary button —
+/// sampling the mockup across it gives (220,110,13) at the left edge and
+/// (195,95,1) at the right, the button's own two stops.
 class NookBottomNav extends StatelessWidget {
   const NookBottomNav({
     super.key,

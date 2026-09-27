@@ -19,7 +19,7 @@ import 'trip_details_screen.dart';
 ///
 /// The mockup never drew this screen, but the tab bar has a Trips tab and MVP
 /// feature #3 needs somewhere to browse them. Built from the same cards, grid
-/// and spacing as everything else — see decision 4 in docs/07-build-plan.md.
+/// and spacing as everything else.
 class TripsScreen extends StatelessWidget {
   const TripsScreen({super.key, required this.nav});
 

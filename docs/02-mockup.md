@@ -49,7 +49,7 @@ The revision table from the mockup brief, and what the built app does about each
 | --- | --- | --- |
 | Sign In Method | Rename "Get Started"; drop Google/Email; single CTA to local profile | Yes |
 | Login, Login Landing, Forgot Password, Verification Success | Delete — nothing to log into without a server | Deleted |
-| Create Account | Rename "Local Profile Setup"; keep name, email, photo; drop password | Yes |
+| Create Account | Rename "Local Profile Setup"; keep name, email, photo; drop password | Yes — and email was dropped too, in week 5. Nook talks to no server, so there was never an account for an address to identify; onboarding asks what to call you and offers a photo. |
 | Home: Default / Scrolled / Populated | "Collections" → "Your Trips" | Yes |
 | Home: Empty | Copy: "No trips yet — save your first find" | Yes, verbatim |
 | Home: Search Results | Cards show destination and a category chip, not just title and creator | Yes |
@@ -77,7 +77,7 @@ grid and spacing as the drawn screens:
 
 ## Where the built app departs from a frame
 
-Three, each with its reason, all recorded in [07-build-plan.md](07-build-plan.md):
+Three, each with its reason:
 
 1. **Post Details' primary button** reads **Travel Details**, not "Continue".
    "Continue" says nothing on a detail screen, and Travel Details — the
