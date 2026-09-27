@@ -74,10 +74,7 @@ class _AccountScreenState extends State<AccountScreen> {
     final confirmed = await showNookDialog(
       context,
       title: 'Delete your profile?',
-      message:
-          'This erases your profile, every saved post and every trip from '
-          'this device. Nothing is stored anywhere else, so it cannot be '
-          'recovered.',
+      message: 'This erases everything on this device and cannot be undone.',
       confirmLabel: 'Delete everything',
       destructive: true,
     );

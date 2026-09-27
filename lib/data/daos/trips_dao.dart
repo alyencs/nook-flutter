@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../../theme/trip_colors.dart';
 import '../database.dart';
 
 /// A trip plus the number of posts in it.
@@ -11,6 +12,9 @@ class TripSummary {
 
   final Trip trip;
   final int itemCount;
+
+  /// The folder colour, resolved once here so every screen agrees.
+  TripColor get colour => tripColourOf(id: trip.id, colorId: trip.colorId);
 }
 
 class TripsDao {
@@ -60,7 +64,7 @@ class TripsDao {
     _db.trips,
   )..where((t) => t.id.equals(id) & t.deletedAt.isNull())).watchSingleOrNull();
 
-  Future<int> createTrip(String name, int userId) {
+  Future<int> createTrip(String name, int userId, {TripColor? colour}) {
     return _db
         .into(_db.trips)
         .insert(
@@ -68,8 +72,15 @@ class TripsDao {
             name: name,
             userId: userId,
             createdAt: DateTime.now(),
+            colorId: Value(colour?.id),
           ),
         );
+  }
+
+  Future<void> setColour(int id, TripColor colour) {
+    return (_db.update(_db.trips)..where((t) => t.id.equals(id))).write(
+      TripsCompanion(colorId: Value(colour.id)),
+    );
   }
 
   Future<void> rename(int id, String name) {

@@ -28,14 +28,14 @@ class _ChooseTripScreenState extends State<ChooseTripScreen> {
   int? _selected;
 
   Future<void> _createTrip() async {
-    final name = await showCreateTripDialog(context);
-    if (name == null || !mounted) return;
+    final draft = await showTripDialog(context);
+    if (draft == null || !mounted) return;
 
     final scope = AppScope.of(context);
     final user = await scope.users.currentUser();
     if (user == null) return;
 
-    final id = await scope.trips.createTrip(name, user.id);
+    final id = await scope.trips.createTrip(draft.name, user.id);
     if (!mounted) return;
     setState(() => _selected = id);
   }
@@ -141,7 +141,7 @@ class _TripRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             children: [
-              const TripFolderTile(),
+              TripFolderTile(colour: summary.colour),
               const SizedBox(width: NookSpacing.section),
               Expanded(
                 child: Column(

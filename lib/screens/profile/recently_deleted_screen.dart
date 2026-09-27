@@ -12,8 +12,8 @@ import '../../widgets/nook_empty_state.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_toast.dart';
 import '../../widgets/post_thumbnail.dart';
-import '../../widgets/screen_title.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/delete_flight.dart';
 
 /// Where deleted posts and trips wait.
 ///
@@ -71,14 +71,18 @@ class _RecentlyDeletedScreenState extends State<RecentlyDeletedScreen> {
                         ? null
                         : _EmptyAction(onTap: () => _confirmEmptyAll(context)),
                   ),
-                  const SizedBox(height: NookSpacing.section),
-                  const ScreenTitle('Recently Deleted'),
                   const SizedBox(height: NookSpacing.tight),
-                  Text(
-                    'Items stay here for 30 days. Restoring puts something '
-                    'back exactly where it was.',
-                    style: NookType.body.copyWith(color: NookColors.textMuted),
-                  ),
+                  // The app bar already names the screen. A display-size
+                  // heading under it said the same words twice.
+                  if (!empty)
+                    Text(
+                      '${posts.length + trips.length} '
+                      '${posts.length + trips.length == 1 ? 'item' : 'items'} '
+                      '· kept for 30 days',
+                      style: NookType.caption.copyWith(
+                        color: NookColors.textMuted,
+                      ),
+                    ),
                   const SizedBox(height: NookSpacing.block),
 
                   if (empty)
@@ -168,13 +172,20 @@ class _EmptyAction extends StatelessWidget {
 
 /// One deleted post: what it was, and the two ways out.
 class _DeletedPostRow extends StatelessWidget {
-  const _DeletedPostRow({required this.post});
+  /// Not `const`: each row owns a key so the restore flight knows the rect it
+  /// is flying back into.
+  _DeletedPostRow({required this.post});
 
   final SavedPost post;
+
+  /// The row's own position on screen, read before the list rebuilds without
+  /// it.
+  final _rowKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     return _DeletedRow(
+      key: _rowKey,
       leading: PostThumbnail(
         url: post.thumbnailUrl,
         width: 48,
@@ -186,7 +197,29 @@ class _DeletedPostRow extends StatelessWidget {
       onRestore: () async {
         final scope = AppScope.of(context);
         final overlay = Overlay.of(context, rootOverlay: true);
+
+        // Read while the row is still on screen.
+        final box = _rowKey.currentContext?.findRenderObject() as RenderBox?;
+        final to = box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size;
+
+        // Written first here, unlike delete. The row has to leave this list
+        // for the gap to close, and the flight is what carries the eye from
+        // that gap to where the post has gone back to.
         await scope.posts.restorePost(post.id);
+
+        if (to != null) {
+          try {
+            await RestoreFlight.run(
+              overlay,
+              to: to,
+              thumbnailUrl: post.thumbnailUrl,
+            );
+          } catch (_) {
+            // The restore already happened; the animation is decoration.
+          }
+        }
         NookToast.show(overlay, 'Restored "${post.title}"');
       },
       onDeleteForever: () async {
@@ -272,6 +305,7 @@ class _DeletedTripRow extends StatelessWidget {
 /// The shared shape, so a deleted trip and a deleted post read as one list.
 class _DeletedRow extends StatelessWidget {
   const _DeletedRow({
+    super.key,
     required this.leading,
     required this.title,
     required this.subtitle,
@@ -287,8 +321,14 @@ class _DeletedRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: NookSpacing.tight),
+    return Container(
+      margin: const EdgeInsets.only(bottom: NookSpacing.tight),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: NookColors.surface,
+        borderRadius: BorderRadius.circular(NookRadius.md),
+        border: Border.all(color: NookColors.border),
+      ),
       child: Row(
         children: [
           ClipRRect(
@@ -317,22 +357,63 @@ class _DeletedRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: NookSpacing.tight),
-          // The safe action reads as the default; the irreversible one is set
-          // apart in the error colour rather than sitting next to it as an
-          // equal.
-          IconButton(
-            onPressed: onRestore,
-            icon: const Icon(Icons.restore_rounded, size: 21),
-            color: NookColors.primary,
-            tooltip: 'Restore',
-          ),
+          // Restore is the reason to be here, so it is a labelled button.
+          // Permanent delete is the exception, so it is a quiet icon beside
+          // it rather than its equal — the two are not the same weight of
+          // decision and should not look like it.
+          _RestoreButton(onTap: onRestore),
           IconButton(
             onPressed: onDeleteForever,
-            icon: const Icon(Icons.delete_forever_outlined, size: 21),
-            color: NookColors.error,
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: NookColors.textMuted,
+            visualDensity: VisualDensity.compact,
             tooltip: 'Delete permanently',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The one action worth a label.
+class _RestoreButton extends StatelessWidget {
+  const _RestoreButton({required this.onTap});
+
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Restore',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NookRadius.pill),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: NookColors.secondary,
+            borderRadius: BorderRadius.circular(NookRadius.pill),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.restore_rounded,
+                size: 16,
+                color: NookColors.primary,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'Restore',
+                style: NookType.caption.copyWith(
+                  color: NookColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

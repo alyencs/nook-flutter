@@ -3,37 +3,78 @@ import 'package:flutter/material.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
+import '../../theme/nook_motion.dart';
+import '../../widgets/logo_assembly.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
 import 'onboarding_screen.dart';
 
-/// LA1. The mark, the name, the line, and one way forward.
-class SplashScreen extends StatelessWidget {
+/// LA1. The mark assembles itself, then the name and the line arrive under it.
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  /// True once the four quarters have locked together, which is what brings
+  /// the wordmark in underneath.
+  bool _assembled = false;
 
   @override
   Widget build(BuildContext context) {
     return NookScaffold(
-      bottomBar: NookPrimaryButton(
-        label: 'Continue',
-        onPressed: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const OnboardingScreen())),
+      bottomBar: AnimatedOpacity(
+        // The button waits for the mark. Tapping through a logo animation is
+        // allowed — it just is not invited until the mark is whole.
+        opacity: _assembled ? 1 : 0.35,
+        duration: NookMotion.slow,
+        child: NookPrimaryButton(
+          label: 'Continue',
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const OnboardingScreen())),
+        ),
       ),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const NookMark(size: 96),
+            LogoAssembly(
+              size: 116,
+              onComplete: () {
+                if (mounted) setState(() => _assembled = true);
+              },
+            ),
             const SizedBox(height: NookSpacing.block),
-            Text('Nook', style: NookType.display),
-            const SizedBox(height: NookSpacing.tight),
-            SizedBox(
-              width: 220,
-              child: NookHeadline(
-                'Never lose your *next favourite find*',
-                style: NookType.body.copyWith(color: NookColors.textMuted),
-                textAlign: TextAlign.center,
+            // The words follow the mark rather than sharing the screen with
+            // it, so the sequence reads as one thing becoming another.
+            AnimatedOpacity(
+              opacity: _assembled ? 1 : 0,
+              duration: NookMotion.slow,
+              curve: NookMotion.enter,
+              child: AnimatedSlide(
+                offset: _assembled ? Offset.zero : const Offset(0, 0.3),
+                duration: NookMotion.slow,
+                curve: NookMotion.enter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Nook', style: NookType.display),
+                    const SizedBox(height: NookSpacing.tight),
+                    SizedBox(
+                      width: 220,
+                      child: NookHeadline(
+                        'Never lose your *next favourite find*',
+                        style: NookType.body.copyWith(
+                          color: NookColors.textMuted,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

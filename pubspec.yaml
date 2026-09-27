@@ -53,6 +53,7 @@ flutter:
     # which carries no key, so the deployed build runs the sample extractor.
     - .env
     - .env.example
+    - assets/images/nook_mark.png
 
   fonts:
     # Manrope, the UI typeface: body, labels, buttons, navigation. SIL OFL,

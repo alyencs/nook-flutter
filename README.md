@@ -59,7 +59,7 @@ Saved folders group content by trip or search across platforms. Nook does both.
 | Maps | `flutter_map` with OpenStreetMap tiles — no key, no billing account |
 | Icons | Material Icons, plus Font Awesome brand marks for the platform logos |
 | Other packages | `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `device_preview` (phone frame on the live link) |
-| Type | Inter, bundled as a local asset |
+| Type | Manrope for everything, PP Editorial New for emphasis — both bundled locally |
 
 Storage is on the device and nowhere else. That is a deliberate decision, not a
 shortcut: two travellers never need to see the same saved posts, so a server
@@ -183,7 +183,7 @@ links from each platform is the next thing on the list.
 ## Credits
 
 - Packages: see `pubspec.yaml`
-- Typeface: [Inter](https://rsms.me/inter/) by Rasmus Andersson, SIL Open Font License 1.1
+- Typefaces: [Manrope](https://github.com/sharanda/manrope) by Mikhail Sharanda and [Instrument Serif](https://github.com/Instrument/instrument-serif) standing in for PP Editorial New — both SIL Open Font License 1.1
 - Icons: Material Icons, Apache License 2.0
 - Platform logos: [Font Awesome Free](https://fontawesome.com) brand icons, CC BY 4.0
 - Map tiles: © OpenStreetMap contributors, ODbL

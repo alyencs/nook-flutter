@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/nook_motion.dart';
 import '../theme/nook_spacing.dart';
+import '../theme/nook_colors.dart';
 import 'post_thumbnail.dart';
 
 /// A post's thumbnail travelling from where it was to where it now lives.
@@ -35,6 +36,10 @@ abstract final class Flight {
     required Rect from,
     required Offset to,
     required String? thumbnailUrl,
+    Duration duration = NookMotion.slow,
+    double endScale = 0.28,
+    double lift = -28,
+    bool opaque = false,
   }) {
     final done = Completer<void>();
 
@@ -45,6 +50,10 @@ abstract final class Flight {
         from: from,
         to: to,
         thumbnailUrl: thumbnailUrl,
+        duration: duration,
+        endScale: endScale,
+        lift: lift,
+        opaque: opaque,
         // Guarded: whenComplete also fires when the controller is disposed
         // mid-flight, and removing an entry twice trips an assertion.
         onDone: () {
@@ -66,12 +75,29 @@ class _Flight extends StatefulWidget {
     required this.to,
     required this.thumbnailUrl,
     required this.onDone,
+    required this.duration,
+    required this.endScale,
+    required this.lift,
+    required this.opaque,
   });
 
   final Rect from;
   final Offset to;
   final String? thumbnailUrl;
   final VoidCallback onDone;
+
+  /// How long the whole journey takes.
+  final Duration duration;
+
+  /// The fraction of its starting width it ends at.
+  final double endScale;
+
+  /// The height of the arc at its midpoint, in logical pixels. Negative lifts.
+  final double lift;
+
+  /// Paints a solid card behind the thumbnail, so the thing travelling is
+  /// visible even when the image never loads.
+  final bool opaque;
 
   @override
   State<_Flight> createState() => _FlightState();
@@ -85,9 +111,9 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
 
   /// Built once: a CurvedAnimation registers a status listener on its parent,
   /// so one per build leaks one per build.
-  late final Animation<double> _t = CurvedAnimation(
-    parent: _controller,
-    curve: NookMotion.enter,
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.duration,
   );
 
   @override
@@ -111,16 +137,17 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
       animation: _t,
       builder: (context, _) {
         final v = _t.value;
-        // An arc rather than a straight line: it lifts slightly before it
-        // falls, which reads as "picked up and put away" instead of "dragged".
+        // An arc rather than a straight line: it lifts before it falls, which
+        // reads as "picked up and put away" instead of "dragged".
         final x =
             widget.from.center.dx + (widget.to.dx - widget.from.center.dx) * v;
-        final lift = -28 * (1 - (2 * v - 1) * (2 * v - 1));
+        final arc = widget.lift * (1 - (2 * v - 1) * (2 * v - 1));
         final y =
             widget.from.center.dy +
             (widget.to.dy - widget.from.center.dy) * v +
-            lift;
-        final size = widget.from.width * (1 - 0.72 * v);
+            arc;
+        final size =
+            widget.from.width * (1 - (1 - widget.endScale) * v);
         final height = size * 9 / 16;
 
         return Positioned(
@@ -129,9 +156,26 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
           child: IgnorePointer(
             child: Opacity(
               opacity: (v < 0.85 ? 1.0 : (1 - v) / 0.15).clamp(0.0, 1.0),
-              child: SizedBox(
+              child: Container(
                 width: size,
                 height: height,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(NookRadius.sm),
+                  // An opaque card with a shadow. The old version flew a
+                  // transparent placeholder across a pale background, which is
+                  // most of why nobody saw it.
+                  color: widget.opaque ? NookColors.surface : null,
+                  boxShadow: widget.opaque
+                      ? const [
+                          BoxShadow(
+                            color: Color(0x332E2E2E),
+                            blurRadius: 18,
+                            offset: Offset(0, 8),
+                          ),
+                        ]
+                      : null,
+                ),
+                clipBehavior: Clip.antiAlias,
                 // The glyph stays on: a post with no thumbnail, or one whose
                 // image fails to load, otherwise flies an empty box across the
                 // screen — an animation that runs and says nothing.

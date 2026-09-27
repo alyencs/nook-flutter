@@ -6,6 +6,7 @@ import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
+import '../../theme/trip_colors.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_empty_state.dart';
 import '../../widgets/nook_scaffold.dart';
@@ -74,7 +75,13 @@ class TripDetailsScreen extends StatelessWidget {
                         if (index == 0) {
                           return Row(
                             children: [
-                              const TripFolderTile(size: 36),
+                              TripFolderTile(
+                                size: 36,
+                                colour: tripColourOf(
+                                  id: trip.id,
+                                  colorId: trip.colorId,
+                                ),
+                              ),
                               const SizedBox(width: NookSpacing.tight),
                               Text(
                                 '${posts.length} '
@@ -119,12 +126,20 @@ class TripDetailsScreen extends StatelessWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: Text('Rename trip', style: NookType.body),
+              title: Text('Edit trip', style: NookType.body),
               onTap: () async {
                 Navigator.of(sheetContext).pop();
-                final name = await showCreateTripDialog(context);
-                if (name == null) return;
-                await scope.trips.rename(trip.id, name);
+                final draft = await showTripDialog(
+                  context,
+                  initialName: trip.name,
+                  initialColour: tripColourOf(
+                    id: trip.id,
+                    colorId: trip.colorId,
+                  ),
+                );
+                if (draft == null) return;
+                await scope.trips.rename(trip.id, draft.name);
+                await scope.trips.setColour(trip.id, draft.colour);
               },
             ),
             ListTile(
@@ -142,10 +157,9 @@ class TripDetailsScreen extends StatelessWidget {
                   context,
                   title: 'Delete this trip?',
                   message:
-                      'The posts inside it will not be deleted. They stay '
-                      'in your library and simply stop belonging to a trip.\n\n'
-                      'The trip goes to Recently Deleted, where you can put it '
-                      'back.',
+                      'The posts inside will not be deleted — they stay in '
+                      'your library. You can restore the trip from Recently '
+                      'Deleted.',
                   confirmLabel: 'Delete Trip',
                   destructive: true,
                 );

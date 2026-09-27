@@ -4,13 +4,25 @@ import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import 'get_started_screen.dart';
 
-/// LA2–LA5. Four pages, copy verbatim from the mockup.
+/// LA2–LA5, as an editorial spread rather than four centred cards.
 ///
-/// The revision brief asked that this speak to travellers specifically rather
-/// than to "saving posts" in general, which is what these four say.
+/// The old version was a grey rounded box with an icon in it, a centred title
+/// and a centred paragraph, four times. It read like a settings screen. This
+/// borrows the grammar of a travel magazine — the thing Nook is actually for:
+///
+/// * A numbered index, so four screens read as a sequence rather than a queue.
+/// * An overline and a rule running to the margin, which is the same section
+///   mark used everywhere else in the app.
+/// * A tall photograph, full-bleed to the right edge, with the text hanging off
+///   its left. Asymmetry is what stops a page looking like a form.
+/// * One headline with one emphasised phrase in the editorial italic, in
+///   Nook's orange, and nothing else competing for the accent.
+///
+/// The composition is Nook's: warm ground, orange accent, the same hairlines.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -22,34 +34,43 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
 
+  /// `*…*` marks the phrase that becomes the editorial italic.
   static const _pages = [
     (
-      title: 'Save travel finds',
+      overline: 'Save',
+      headline: 'Everything you find,\n*in one place*',
       body:
-          'Save travel tips, itineraries, and recommendations from TikTok, '
-          'Instagram, and YouTube — all in one place.',
-      icon: Icons.bookmark_add_outlined,
+          'Tips, itineraries and recommendations from TikTok, Instagram, '
+          'Facebook and YouTube.',
+      image: 'Nishiki_Market_Kyoto.jpg',
+      tint: Color(0xFFF7E7BE),
     ),
     (
-      title: 'AI organizes your trips',
+      overline: 'Read',
+      headline: 'Nook reads the post\n*so you do not have to*',
       body:
-          'Nook detects destinations and categories from your saved travel '
-          'content automatically.',
-      icon: Icons.auto_awesome_outlined,
+          'Destinations, places and prices are pulled out of the content '
+          'itself — not just the title.',
+      image: 'Fushimi_Inari_Taisha_Kyoto.jpg',
+      tint: Color(0xFFD7E6F2),
     ),
     (
-      title: 'Organize by trip',
+      overline: 'Plan',
+      headline: 'One trip,\n*one folder*',
       body:
-          'Group your saved travel content into trips — Japan 2027, Weekend '
-          'in Paris, and more.',
-      icon: Icons.folder_copy_outlined,
+          'Group what you save into trips — Japan 2027, a weekend in Porto, '
+          'someday.',
+      image: 'Porto_Ribeira.jpg',
+      tint: Color(0xFFD9E8DA),
     ),
     (
-      title: 'Rediscover anything',
+      overline: 'Return',
+      headline: 'Find it again\n*in a second*',
       body:
-          'Search across all your saved travel content instantly. Never lose '
-          'a great find again.',
-      icon: Icons.search_rounded,
+          'Search everything you have saved, by place, by creator, by the '
+          'note you left yourself.',
+      image: 'El_Nido_Palawan.jpg',
+      tint: Color(0xFFF6DEDE),
     ),
   ];
 
@@ -67,10 +88,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
     _controller.nextPage(
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOut,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
     );
   }
+
+  void _skip() => Navigator.of(context).pushReplacement(
+    MaterialPageRoute(builder: (_) => const GetStartedScreen()),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +103,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     return NookScaffold(
       padHorizontal: false,
-      bottomBar: NookPrimaryButton(
-        label: isLast ? 'Get Started' : 'Next',
-        onPressed: _next,
+      bottomBar: Row(
+        children: [
+          Expanded(
+            child: NookPrimaryButton(
+              label: isLast ? 'Enter Nook' : 'Next',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: _next,
+            ),
+          ),
+          if (!isLast) ...[
+            const SizedBox(width: NookSpacing.tight),
+            TextButton(
+              onPressed: _skip,
+              child: Text(
+                'Skip',
+                style: NookType.body.copyWith(color: NookColors.textMuted),
+              ),
+            ),
+          ],
+        ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: PageView.builder(
@@ -91,64 +134,208 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               onPageChanged: (page) => setState(() => _page = page),
               itemBuilder: (context, index) {
                 final page = _pages[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: NookSpacing.screenEdge,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        height: 250,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: NookColors.placeholder,
-                          borderRadius: BorderRadius.circular(NookRadius.md),
-                        ),
-                        child: Icon(
-                          page.icon,
-                          size: 72,
-                          color: NookColors.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      Text(
-                        page.title,
-                        style: NookType.display,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: NookSpacing.section),
-                      Text(
-                        page.body,
-                        style: NookType.body.copyWith(
-                          color: NookColors.textMuted,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+                return _OnboardingPage(
+                  index: index,
+                  total: _pages.length,
+                  overline: page.overline,
+                  headline: page.headline,
+                  body: page.body,
+                  image: page.image,
+                  tint: page.tint,
                 );
               },
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 0; i < _pages.length; i++)
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.symmetric(horizontal: 5),
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: i == _page ? NookColors.primary : NookColors.border,
+          // The progress rule: four segments, filled as far as you have come.
+          // A counted line rather than dots, because the numbers above already
+          // say where you are and two indicators would be one too many.
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NookSpacing.screenEdge,
+            ),
+            child: Row(
+              children: [
+                for (var i = 0; i < _pages.length; i++) ...[
+                  Expanded(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
+                      height: 2,
+                      color: i <= _page
+                          ? NookColors.primary
+                          : NookColors.border,
+                    ),
                   ),
-                ),
-            ],
+                  if (i != _pages.length - 1) const SizedBox(width: 6),
+                ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _OnboardingPage extends StatelessWidget {
+  const _OnboardingPage({
+    required this.index,
+    required this.total,
+    required this.overline,
+    required this.headline,
+    required this.body,
+    required this.image,
+    required this.tint,
+  });
+
+  final int index;
+  final int total;
+  final String overline;
+  final String headline;
+  final String body;
+  final String image;
+  final Color tint;
+
+  String get _number => (index + 1).toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The photograph takes the upper half and runs off the right edge;
+        // the words sit under it, left-aligned. On a short screen the image
+        // gives way first, because the headline is the thing that has to read.
+        final imageHeight = (constraints.maxHeight * 0.44).clamp(140.0, 320.0);
+
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: NookSpacing.tight),
+
+              // 01 — SAVE ────────────────────
+              Padding(
+                padding: const EdgeInsets.only(left: NookSpacing.screenEdge),
+                child: Row(
+                  children: [
+                    Text(
+                      _number,
+                      style: NookType.overline.copyWith(
+                        color: NookColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: NookSpacing.tight),
+                    Text(overline.toUpperCase(), style: NookType.overline),
+                    const SizedBox(width: NookSpacing.section),
+                    const Expanded(child: NookRule(opacity: 0.7)),
+                    const SizedBox(width: NookSpacing.screenEdge),
+                  ],
+                ),
+              ),
+              const SizedBox(height: NookSpacing.block),
+
+              // The photograph, bleeding off the right edge.
+              Padding(
+                padding: const EdgeInsets.only(left: NookSpacing.screenEdge),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(NookRadius.md),
+                    bottomLeft: Radius.circular(NookRadius.md),
+                  ),
+                  child: SizedBox(
+                    height: imageHeight,
+                    width: double.infinity,
+                    child: _Photo(name: image, tint: tint),
+                  ),
+                ),
+              ),
+              const SizedBox(height: NookSpacing.block),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: NookSpacing.screenEdge,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    NookHeadline(headline, style: NookType.display),
+                    const SizedBox(height: NookSpacing.section),
+                    Text(
+                      body,
+                      style: NookType.body.copyWith(
+                        color: NookColors.textMuted,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: NookSpacing.block),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A destination photograph, with a coloured ground underneath it.
+///
+/// The tint is not a placeholder colour — it is what the page looks like while
+/// the photograph loads, and what it keeps looking like if the image never
+/// arrives. Each page's tint is one of the five folder colours, so the
+/// onboarding and the trips it is describing are drawn from one palette.
+class _Photo extends StatelessWidget {
+  const _Photo({required this.name, required this.tint});
+
+  final String name;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ColoredBox(color: tint),
+        Image.network(
+          'https://commons.wikimedia.org/wiki/Special:FilePath/$name?width=900',
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          loadingBuilder: (context, child, progress) =>
+              progress == null ? child : const SizedBox.shrink(),
+        ),
+        // A hairline grid, borrowed from the section marks used through the
+        // app, so the photograph reads as part of a laid-out page.
+        Positioned.fill(
+          child: IgnorePointer(child: CustomPaint(painter: const _GridMarks())),
+        ),
+      ],
+    );
+  }
+}
+
+class _GridMarks extends CustomPainter {
+  const _GridMarks();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.35)
+      ..strokeWidth = 1;
+
+    // One vertical at a third, one horizontal at two thirds: enough to imply
+    // a grid, not enough to become a pattern.
+    canvas.drawLine(
+      Offset(size.width / 3, 0),
+      Offset(size.width / 3, size.height),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height * 0.68),
+      Offset(size.width, size.height * 0.68),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GridMarks oldDelegate) => false;
 }

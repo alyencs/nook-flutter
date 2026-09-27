@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
+import '../theme/trip_colors.dart';
 import 'nook_buttons.dart';
+import 'trip_color_picker.dart';
 import 'nook_toast.dart';
 
 /// White rounded modal. Destructive confirmations use Soft Red; everything else
@@ -63,72 +65,106 @@ Future<bool> showNookDialog(
 }
 
 /// The "Create New Trip" prompt on the Choose Trip screen.
-Future<String?> showCreateTripDialog(BuildContext context) async {
-  final controller = TextEditingController();
-  final name = await showDialog<String>(
+/// What a trip was named and coloured.
+class TripDraft {
+  const TripDraft(this.name, this.colour);
+
+  final String name;
+  final TripColor colour;
+}
+
+/// Names a trip and picks its folder colour in one step.
+///
+/// The colour is chosen here rather than afterwards because choosing it is the
+/// point: a trip you have to go back and recolour is one you will leave the
+/// default. [initialName] and [initialColour] turn the same dialog into the
+/// edit sheet, so there is one place that knows what a trip is made of.
+Future<TripDraft?> showTripDialog(
+  BuildContext context, {
+  String? initialName,
+  TripColor? initialColour,
+}) async {
+  final controller = TextEditingController(text: initialName ?? '');
+  var colour = initialColour ?? TripColor.fallback;
+  final editing = initialName != null;
+
+  final draft = await showDialog<TripDraft>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: NookColors.surface,
-      insetPadding: const EdgeInsets.all(NookSpacing.screenEdge),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NookRadius.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(NookSpacing.screenEdge),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Create New Trip', style: NookType.title),
-            const SizedBox(height: NookSpacing.section),
-            Container(
-              decoration: BoxDecoration(
-                color: NookColors.surface,
-                borderRadius: BorderRadius.circular(NookRadius.md),
-                border: Border.all(color: NookColors.border),
-              ),
-              child: TextField(
-                controller: controller,
-                autofocus: true,
-                style: NookType.body,
-                cursorColor: NookColors.primary,
-                textCapitalization: TextCapitalization.words,
-                onSubmitted: (value) => Navigator.of(
-                  context,
-                ).pop(value.trim().isEmpty ? null : value.trim()),
-                decoration: InputDecoration(
-                  hintText: 'e.g. Japan 2027',
-                  hintStyle: NookType.body.copyWith(
-                    color: NookColors.textMuted,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => Dialog(
+        backgroundColor: NookColors.surface,
+        insetPadding: const EdgeInsets.all(NookSpacing.screenEdge),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NookRadius.md),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(NookSpacing.screenEdge),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(editing ? 'Edit trip' : 'New trip', style: NookType.title),
+              const SizedBox(height: NookSpacing.section),
+              Container(
+                decoration: BoxDecoration(
+                  color: NookColors.surface,
+                  borderRadius: BorderRadius.circular(NookRadius.md),
+                  border: Border.all(color: NookColors.border),
+                ),
+                child: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  style: NookType.body,
+                  cursorColor: NookColors.primary,
+                  textCapitalization: TextCapitalization.words,
+                  onSubmitted: (value) => Navigator.of(context).pop(
+                    value.trim().isEmpty
+                        ? null
+                        : TripDraft(value.trim(), colour),
                   ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: NookSpacing.section,
-                    vertical: 18,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Japan 2027',
+                    hintStyle: NookType.body.copyWith(
+                      color: NookColors.textMuted,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: NookSpacing.section,
+                      vertical: 18,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: NookSpacing.block),
-            NookPrimaryButton(
-              label: 'Create Trip',
-              onPressed: () {
-                final value = controller.text.trim();
-                Navigator.of(context).pop(value.isEmpty ? null : value);
-              },
-            ),
-            const SizedBox(height: NookSpacing.tight),
-            NookSecondaryButton(
-              label: 'Cancel',
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
+              const SizedBox(height: NookSpacing.section),
+              Text('Folder colour', style: NookType.caption),
+              const SizedBox(height: NookSpacing.tight),
+              TripColorPicker(
+                selected: colour,
+                onSelected: (next) => setState(() => colour = next),
+              ),
+              const SizedBox(height: NookSpacing.block),
+              NookPrimaryButton(
+                label: editing ? 'Save trip' : 'Create trip',
+                onPressed: () {
+                  final value = controller.text.trim();
+                  Navigator.of(
+                    context,
+                  ).pop(value.isEmpty ? null : TripDraft(value, colour));
+                },
+              ),
+              const SizedBox(height: NookSpacing.tight),
+              NookSecondaryButton(
+                label: 'Cancel',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
         ),
       ),
     ),
   );
   controller.dispose();
-  return name;
+  return draft;
 }
 
 /// Shows a confirmation after the current route has been popped.

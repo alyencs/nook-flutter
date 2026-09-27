@@ -25,7 +25,7 @@ class NookDatabase extends _$NookDatabase {
   /// database it creates itself, so every database that already existed stayed
   /// on the old shape and no migration ever ran.
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -38,6 +38,7 @@ class NookDatabase extends _$NookDatabase {
       if (from < 3) await _upgradeToV3(m);
       if (from < 4) await _upgradeToV4(m);
       if (from < 5) await _upgradeToV5(m);
+      if (from < 6) await _upgradeToV6(m);
     },
     beforeOpen: (details) async {
       // SQLite does not enforce foreign keys unless asked to. Without
@@ -126,6 +127,17 @@ class NookDatabase extends _$NookDatabase {
     }
     if (!await _hasColumn('trips', 'deleted_at')) {
       await m.addColumn(trips, trips.deletedAt);
+    }
+  }
+
+  /// Version 6: the trip folder colour.
+  ///
+  /// Nullable, so every existing trip arrives with "nobody chose" rather than
+  /// needing a backfill — and [TripColor.forId] spreads those across the five
+  /// so an old library is not a wall of one colour.
+  Future<void> _upgradeToV6(Migrator m) async {
+    if (!await _hasColumn('trips', 'color_id')) {
+      await m.addColumn(trips, trips.colorId);
     }
   }
 

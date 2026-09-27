@@ -6,6 +6,9 @@ import '../../data/database.dart';
 import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
+import '../../theme/nook_motion.dart';
+import '../../widgets/flight.dart';
+import '../../widgets/tab_pulse.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/delete_flight.dart';
@@ -48,13 +51,19 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
     final overlay = Overlay.of(context, rootOverlay: true);
     final navigator = Navigator.of(context);
     final posts = AppScope.of(context).posts;
+    // Resolved now, with the rest of the inherited lookups, so nothing reads a
+    // BuildContext after an await.
+    final tabCentre = Flight.tabCentre(
+      MediaQuery.sizeOf(context),
+      MediaQuery.paddingOf(context),
+      DeleteFlight.tab,
+    );
 
     final confirmed = await showNookDialog(
       context,
       title: 'Delete this post?',
       message:
-          'It moves to Recently Deleted, where you can restore it — '
-          'including its note and its trip.',
+          'It moves to Recently Deleted. You can restore it from there.',
       confirmLabel: 'Delete Post',
       destructive: true,
     );
@@ -70,6 +79,12 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
       ..pop()
       ..pop();
 
+    // Let the two route transitions finish before the flight starts. They are
+    // 260ms each and they used to run over the top of it: the eye follows the
+    // page, not a small chip crossing it, which is most of why the animation
+    // seemed not to happen at all.
+    await Future<void>.delayed(NookMotion.normal + NookMotion.fast);
+
     // The card leaves for Profile — where Recently Deleted lives — and only
     // then is the row marked, so the two read as cause and effect rather than
     // the list twitching under a card that is still sitting there.
@@ -79,10 +94,22 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
     if (from != null) {
       try {
         await DeleteFlight.run(overlay, from: from, thumbnailUrl: thumbnail);
+        // The tab catches it, so the journey ends at something.
+        TabPulse.at(overlay, tabCentre);
       } catch (_) {
         // The post still has to go.
       }
     }
+
+    // Written after the flight has landed, so the confirmation follows
+    // something the user has just watched rather than narrating over it.
+    await posts.deletePost(widget.postId);
+    NookToast.show(
+      overlay,
+      'Moved to Recently Deleted',
+      icon: Icons.restore_from_trash_outlined,
+    );
+  }
 
     await posts.deletePost(widget.postId);
     NookToast.show(
@@ -225,7 +252,7 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                         ),
                         child: Row(
                           children: [
-                            const TripFolderTile(size: 32),
+                            TripFolderTile(colour: summary.colour, size: 32),
                             const SizedBox(width: NookSpacing.section),
                             Expanded(
                               child: Text(
