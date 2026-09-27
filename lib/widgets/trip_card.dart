@@ -5,6 +5,7 @@ import '../theme/nook_colors.dart';
 import '../theme/trip_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
+import 'folder_motion.dart';
 import 'nook_card.dart';
 
 /// A trip and how many posts are in it.
@@ -16,8 +17,9 @@ class TripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NookCard(
-      onTap: onTap,
+    final card = NookCard(
+      // `onTap` moves to FolderOpen, which runs it once the lid has lifted.
+      // Leaving it here as well would fire the navigation twice.
       padding: const EdgeInsets.all(10),
       child: Row(
         children: [
@@ -45,6 +47,11 @@ class TripCard extends StatelessWidget {
         ],
       ),
     );
+
+    // A card with nowhere to go does not open. Choose-a-trip lists pass no
+    // callback, and a folder that tips for nothing is a lie.
+    if (onTap == null) return card;
+    return FolderOpen(onTap: onTap!, child: card);
   }
 }
 

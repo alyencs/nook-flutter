@@ -575,7 +575,7 @@ void main() {
       await tester.pump();
       expect(landed, isFalse, reason: 'still in the air');
 
-      await tester.pump(NookMotion.slow);
+      await tester.pump(NookMotion.deliberate);
       await tester.pump(const Duration(milliseconds: 60));
       expect(landed, isTrue, reason: 'the delete waits on this');
       expect(find.byType(PostThumbnail), findsNothing);
@@ -596,6 +596,21 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       await tester.pump(const Duration(seconds: 1));
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('is slow enough to actually be seen', (tester) async {
+      // The original was 420ms with a fade over the last 15% — about 350ms of
+      // visible travel, which is why it looked like nothing happened.
+      expect(
+        NookMotion.deliberate.inMilliseconds,
+        greaterThanOrEqualTo(700),
+        reason: 'a delete has to be watchable',
+      );
+      expect(
+        NookMotion.deliberate.inMilliseconds,
+        lessThanOrEqualTo(1200),
+        reason: 'and not annoying',
+      );
     });
   });
 }

@@ -11,6 +11,7 @@ import '../../widgets/nook_empty_state.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/screen_title.dart';
 import '../../widgets/trip_card.dart';
+import '../../widgets/folder_motion.dart';
 import '../add/add_method_screen.dart';
 import 'trip_details_screen.dart';
 
@@ -61,8 +62,20 @@ class TripsScreenRoute extends StatelessWidget {
   }
 }
 
-class TripsBody extends StatelessWidget {
+class TripsBody extends StatefulWidget {
   const TripsBody({super.key});
+
+  @override
+  State<TripsBody> createState() => _TripsBodyState();
+}
+
+class _TripsBodyState extends State<TripsBody> {
+  /// The trip created a moment ago, so exactly one folder springs in.
+  ///
+  /// Cleared once it has played: without this the same folder would spring
+  /// again on every rebuild of the list, which is the "constantly bouncing"
+  /// failure mode this whole feature is trying to avoid.
+  int? _justCreated;
 
   @override
   Widget build(BuildContext context) {
@@ -107,12 +120,15 @@ class TripsBody extends StatelessWidget {
                   for (final summary in trips)
                     SizedBox(
                       width: width,
-                      child: TripCard(
-                        summary: summary,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                TripDetailsScreen(tripId: summary.trip.id),
+                      child: _maybeSpring(
+                        summary.trip.id,
+                        TripCard(
+                          summary: summary,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  TripDetailsScreen(tripId: summary.trip.id),
+                            ),
                           ),
                         ),
                       ),
@@ -125,11 +141,13 @@ class TripsBody extends StatelessWidget {
                         if (draft == null || !context.mounted) return;
                         final user = await scope.users.currentUser();
                         if (user == null) return;
-                        await scope.trips.createTrip(
+                        final id = await scope.trips.createTrip(
                           draft.name,
                           user.id,
                           colour: draft.colour,
                         );
+                        if (!context.mounted) return;
+                        setState(() => _justCreated = id);
                       },
                     ),
                   ),
@@ -140,6 +158,17 @@ class TripsBody extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// Wraps exactly one card — the one just created — in a spring, and forgets
+  /// it afterwards so it never plays twice.
+  Widget _maybeSpring(int tripId, Widget card) {
+    if (tripId != _justCreated) return card;
+    // Cleared after this frame, not during it: setState inside build throws.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _justCreated = null);
+    });
+    return FolderArrive(key: ValueKey('arrive-$tripId'), child: card);
   }
 }
 

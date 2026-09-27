@@ -13,6 +13,7 @@ import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_toast.dart';
 import '../../widgets/post_thumbnail.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/delete_flight.dart';
 
 /// Where deleted posts and trips wait.
 ///
@@ -171,13 +172,20 @@ class _EmptyAction extends StatelessWidget {
 
 /// One deleted post: what it was, and the two ways out.
 class _DeletedPostRow extends StatelessWidget {
-  const _DeletedPostRow({required this.post});
+  /// Not `const`: each row owns a key so the restore flight knows the rect it
+  /// is flying back into.
+  _DeletedPostRow({required this.post});
 
   final SavedPost post;
+
+  /// The row's own position on screen, read before the list rebuilds without
+  /// it.
+  final _rowKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     return _DeletedRow(
+      key: _rowKey,
       leading: PostThumbnail(
         url: post.thumbnailUrl,
         width: 48,
@@ -189,7 +197,29 @@ class _DeletedPostRow extends StatelessWidget {
       onRestore: () async {
         final scope = AppScope.of(context);
         final overlay = Overlay.of(context, rootOverlay: true);
+
+        // Read while the row is still on screen.
+        final box = _rowKey.currentContext?.findRenderObject() as RenderBox?;
+        final to = box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size;
+
+        // Written first here, unlike delete. The row has to leave this list
+        // for the gap to close, and the flight is what carries the eye from
+        // that gap to where the post has gone back to.
         await scope.posts.restorePost(post.id);
+
+        if (to != null) {
+          try {
+            await RestoreFlight.run(
+              overlay,
+              to: to,
+              thumbnailUrl: post.thumbnailUrl,
+            );
+          } catch (_) {
+            // The restore already happened; the animation is decoration.
+          }
+        }
         NookToast.show(overlay, 'Restored "${post.title}"');
       },
       onDeleteForever: () async {
@@ -275,6 +305,7 @@ class _DeletedTripRow extends StatelessWidget {
 /// The shared shape, so a deleted trip and a deleted post read as one list.
 class _DeletedRow extends StatelessWidget {
   const _DeletedRow({
+    super.key,
     required this.leading,
     required this.title,
     required this.subtitle,
