@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/nook_colors.dart';
 import '../theme/nook_motion.dart';
 
 /// The Nook mark assembling from its own four quarters.
@@ -172,11 +173,13 @@ class _LogoAssemblyState extends State<LogoAssembly>
         angle: spin,
         child: Opacity(
           opacity: eased.clamp(0.0, 1.0),
-          // fitWidth, not contain: the four cells already carry the artwork's
-          // own proportions, so anything that letterboxes would open a gap the
-          // original does not have.
+          // The artwork is a flat black glyph on transparency, so srcIn swaps
+          // the colour and keeps the alpha: the letter counters stay cut out
+          // and the edges stay anti-aliased. Nothing in the PNGs changes.
           child: Image.asset(
             piece.asset,
+            color: NookColors.primary,
+            colorBlendMode: BlendMode.srcIn,
             fit: BoxFit.fill,
             filterQuality: FilterQuality.high,
           ),
