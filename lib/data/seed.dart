@@ -137,8 +137,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     neighbourhood: 'Nakagyo',
     latitude: 35.005095,
     longitude: 135.76487,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Nishiki_Market_Kyoto.jpg?width=800',
+    imageUrl: 'assets/images/seed_kyoto_cafes.jpg',
   );
 
   await post(
@@ -160,8 +159,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     neighbourhood: 'Alfama',
     latitude: 38.7118,
     longitude: -9.1297,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Lisbon_Alfama_View.jpg?width=800',
+    imageUrl: 'assets/images/seed_lisbon_alfama.jpg',
   );
 
   await post(
@@ -183,32 +181,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     neighbourhood: 'Bacuit Bay',
     latitude: 11.1967,
     longitude: 119.4167,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/El_Nido_Palawan.jpg?width=800',
-  );
-
-  await post(
-    title: 'Best Street Food in Bangkok',
-    creator: '@bitesbytara',
-    url:
-        'https://www.tiktok.com/@bitesbytara/video/best-street-food-in-bangkok',
-    tripId: someday,
-    destination: 'Bangkok, Thailand',
-    country: 'Thailand',
-    category: 'Food',
-    summary:
-        'A stall-by-stall route through Yaowarat, ordered so nothing repeats and '
-        'nothing closes before you reach it. Cash only, and bring an appetite.',
-    bestTime: 'November–February',
-    budgetNote: '~฿600/day for food',
-    savedDaysAgo: 8,
-    viewedDaysAgo: 2,
-    placeName: 'Yaowarat Road',
-    neighbourhood: 'Chinatown',
-    latitude: 13.7403,
-    longitude: 100.5102,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Yaowarat_Road_Bangkok.jpg?width=800',
+    imageUrl: 'assets/images/seed_palawan.jpg',
   );
 
   await post(
@@ -226,8 +199,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     budgetNote: 'No cost beyond the bag itself',
     savedDaysAgo: 10,
     viewedDaysAgo: 3,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Carry_on_luggage.jpg?width=800',
+    imageUrl: 'assets/images/seed_carryon_packing.jpg',
   );
 
   await post(
@@ -249,51 +221,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     neighbourhood: 'Kintamani',
     latitude: -8.2422,
     longitude: 115.3753,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Mount_Batur_Bali.jpg?width=800',
-  );
-
-  await post(
-    title: 'Top 10 Hostels in Southeast Asia',
-    creator: '@budgetroamer',
-    url:
-        'https://www.tiktok.com/@budgetroamer/video/top-10-hostels-southeast-asia',
-    tripId: someday,
-    destination: 'Southeast Asia',
-    country: 'Multiple',
-    category: 'Accommodation',
-    summary:
-        'Ten hostels judged on the things that actually matter after a month on the '
-        'road: bed quality, water pressure and whether the common room is bearable.',
-    bestTime: 'November–March',
-    budgetNote: '~\$15/night for a dorm bed',
-    savedDaysAgo: 14,
-    viewedDaysAgo: 6,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Hostel_dormitory_room.jpg?width=800',
-  );
-
-  await post(
-    title: 'Kyoto Cafe Guide for First-Timers',
-    creator: '@wanderwithmia',
-    url:
-        'https://www.tiktok.com/@wanderwithmia/video/kyoto-cafe-guide-first-timers',
-    tripId: japan,
-    destination: 'Kyoto, Japan',
-    country: 'Japan',
-    category: 'Food',
-    summary:
-        'The starter set: four cafes near the main sights that are worth the detour, '
-        'with the two that take reservations flagged.',
-    bestTime: 'March–May',
-    budgetNote: '~¥2,500/day',
-    savedDaysAgo: 16,
-    placeName: 'Gion',
-    neighbourhood: 'Gion',
-    latitude: 35.0037,
-    longitude: 135.7753,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Gion_Kyoto.jpg?width=800',
+    imageUrl: 'assets/images/seed_mount_batur.jpg',
   );
 
   await post(
@@ -314,8 +242,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     neighbourhood: 'Fushimi',
     latitude: 34.9671,
     longitude: 135.7727,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Fushimi_Inari_Taisha_Kyoto.jpg?width=800',
+    imageUrl: 'assets/images/seed_fushimi_inari.jpg',
   );
 
   await post(
@@ -338,8 +265,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     neighbourhood: 'Ribeira',
     latitude: 41.1406,
     longitude: -8.611,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Porto_Ribeira.jpg?width=800',
+    imageUrl: 'assets/images/seed_porto_ribeira.jpg',
   );
 
   await post(
@@ -360,30 +286,7 @@ Future<void> seedDatabase(NookDatabase db) async {
     neighbourhood: 'Burnham Park',
     latitude: 16.4108,
     longitude: 120.5933,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Burnham_Park_Baguio.jpg?width=800',
-  );
-
-  await post(
-    title: 'Where to Watch the Sunset in Lisbon',
-    creator: '@backpackbetter',
-    url: 'https://www.youtube.com/watch?v=lisbon-sunset-viewpoints',
-    tripId: europe,
-    destination: 'Lisbon, Portugal',
-    country: 'Portugal',
-    category: 'Nightlife',
-    summary:
-        'Five miradouros ordered by how early you need to arrive to get a spot, and '
-        'which ones have a kiosk still serving after dark.',
-    bestTime: 'May–September',
-    budgetNote: '~€15/evening',
-    savedDaysAgo: 28,
-    placeName: 'Miradouro da Senhora do Monte',
-    neighbourhood: 'Graca',
-    latitude: 38.7172,
-    longitude: -9.1322,
-    imageUrl:
-        'https://commons.wikimedia.org/wiki/Special:FilePath/Miradouro_Senhora_do_Monte_Lisbon.jpg?width=800',
+    imageUrl: 'assets/images/seed_baguio.jpg',
   );
 
   // The searches drawn on the Search screen.
