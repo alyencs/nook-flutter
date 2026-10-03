@@ -35,6 +35,7 @@ Future<String?> showPhotoCrop(BuildContext context, Uint8List bytes) {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    enableDrag: false,
     builder: (context) => _PhotoCropSheet(bytes: bytes),
   );
 }
@@ -66,7 +67,6 @@ class _PhotoCropSheetState extends State<_PhotoCropSheet> {
   /// can be and still cover", which is where it starts.
   double _scale = 1;
 
-  Offset _startOffset = Offset.zero;
   double _startScale = 1;
 
   @override
@@ -108,7 +108,6 @@ class _PhotoCropSheetState extends State<_PhotoCropSheet> {
   }
 
   void _onScaleStart(ScaleStartDetails details) {
-    _startOffset = _offset;
     _startScale = _scale;
   }
 
@@ -117,7 +116,7 @@ class _PhotoCropSheetState extends State<_PhotoCropSheet> {
     if (image == null) return;
     setState(() {
       _scale = (_startScale * details.scale).clamp(1.0, 5.0);
-      _offset = _clamp(_startOffset + details.focalPointDelta, image);
+      _offset = _clamp(_offset + details.focalPointDelta, image);
     });
   }
 
