@@ -29,7 +29,8 @@ class _PressEffectState extends State<PressEffect> {
   bool _down = false;
 
   void _set(bool value) {
-    if (!widget.enabled || _down == value) return;
+    if (value && !widget.enabled) return;
+    if (_down == value) return;
     setState(() => _down = value);
   }
 

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show TickerCanceled;
 
 import '../theme/nook_motion.dart';
+
+/// True from the first tap until the lid is back down, so a second tap during
+/// the open is ignored rather than cancelling — and stranding — the first.
+bool _opening = false;
 
 /// A folder that opens when it is tapped, before its screen arrives.
 ///
@@ -44,16 +49,25 @@ class _FolderOpenState extends State<FolderOpen>
   }
 
   Future<void> _open() async {
-    // A controller disposed mid-open completes with TickerCanceled.
+    if (_opening) return;
+    _opening = true;
     try {
-      await _controller.forward();
-    } catch (_) {
-      return;
+      // orCancel, not the bare future. AnimationController.forward() hands back a
+      // TickerFuture whose *primary* future is never completed on cancellation —
+      // only orCancel reports it, as a TickerCanceled. Awaiting the bare future
+      // therefore hangs for ever when anything restarts or disposes the
+      // controller, and the tap is lost with no error and nothing on screen.
+      await _controller.forward().orCancel;
+      if (!mounted) return;
+      widget.onTap();
+      // Not awaited — the route is already on its way — but its cancellation is
+      // absorbed, so popping back mid-close cannot raise an unhandled error.
+      _controller.reverse().orCancel.catchError((_) {});
+    } on TickerCanceled {
+      // The widget went away mid-open, or the controller was restarted.
+    } finally {
+      _opening = false;
     }
-    if (!mounted) return;
-    widget.onTap();
-    // Closed again, for when the user comes back to this list.
-    _controller.reverse();
   }
 
   @override
