@@ -9,6 +9,7 @@ import '../../theme/nook_typography.dart';
 import '../../util/nook_date.dart';
 import '../../widgets/metadata_chip.dart';
 import '../../widgets/platform_badge.dart';
+import '../../widgets/creator_avatar.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
 import '../../widgets/nook_scaffold.dart';
@@ -120,14 +121,9 @@ class PostDetailsScreen extends StatelessWidget {
                 const SizedBox(height: NookSpacing.section),
                 Row(
                   children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: NookColors.placeholder,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: NookColors.border),
-                      ),
+                    CreatorAvatar(
+                      name: post.creator ?? post.creatorHandle,
+                      avatarUrl: post.creatorAvatarUrl,
                     ),
                     const SizedBox(width: NookSpacing.tight),
                     Expanded(

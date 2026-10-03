@@ -23,6 +23,7 @@ because they happened. For what Nook is now, read the
 | [3](#week-3) | 7–13 Sep 2026 | Review pass, and the extraction pipeline rebuilt twice | 9 |
 | [4](#week-4) | 14–20 Sep 2026 | No commits | 0 |
 | [5](#week-5) | 21–27 Sep 2026 | Editorial redesign, Recently Deleted, animations, documentation | 9 |
+| [6](#week-6) | 28 Sep – 4 Oct 2026 | The real logo, slower motion, a deterministic extractor | — |
 
 ---
 
@@ -480,3 +481,131 @@ its cause, and the documentation matching the code.
   blocked in the environment this was built in, so all five integrations are
   verified against documented payloads rather than against the services
   themselves.
+
+---
+
+<a id="week-6"></a>
+
+## Week 6 — the real logo, slower motion, and an extractor that answers the same way twice
+
+**Dates.** Monday 28 September – Sunday 4 October 2026.
+
+**Objectives.**
+
+- Replace the splash mark with the actual Nook logo, having realised the one on
+  screen was invented.
+- Make the three animations that carry meaning slow enough to read.
+- Find out why the same link extracts well one minute and thinly the next.
+- Close the two audit items left open last week.
+
+**Done — the logo was never Nook's.**
+
+The splash assembled four charcoal squares with a letter set in Manrope in each.
+That was wrong in a way the earlier "fix" had not touched: **Nook's mark is not
+type at all.** It is four tiles with the letterforms cut out of them as counters,
+and the two O tiles read as a check rather than a round O — which is almost
+certainly why an AI looking at the brief guessed `V` and produced a mark that
+spelled **NVVK**. Changing the Vs to Os in week 5 corrected the spelling of a
+logo that still did not exist.
+
+The mark now ships as four transparent tiles cut from `nook_logo.png` along its
+own gutters, at its own resolution. That the crops are faithful is checked rather
+than claimed: composited back together and differenced against the original, no
+pixel differs. Nothing redraws, re-traces or re-spaces anything.
+
+Only `N.svg` and two identical copies of `O.svg` were supplied — there is no
+`K.svg` — which is why all four quarters come from the PNG rather than three from
+vectors and one from somewhere else.
+
+**Done — motion that can be followed.**
+
+Three animations were running and saying very little, so the timings moved and
+the curve under the long ones changed:
+
+| | Was | Now |
+| --- | --- | --- |
+| Logo assembly | 1500ms, pieces 90ms apart | 2400ms, pieces ~260ms apart |
+| Delete and restore flight | 900ms on `easeOutCubic` | 1400ms on a new `travel` curve (`easeInOutCubic`) |
+| Tab pulse | 520ms | 700ms |
+| Folder lid | 340ms | 420ms |
+
+The curve mattered more than the duration. An ease-out spends two thirds of the
+distance in the first third of the time, which is what made a 900ms flight feel
+like a 300ms one; a curve that holds its middle is what makes the middle
+watchable. Restore also gained the same ring at the tab that delete lands into —
+there the bar catches something, here it lets it go.
+
+All four beats of a delete are now separately visible, confirmed by recording the
+real build frame by frame: the list settling, the card crossing, the tab
+answering, the confirmation.
+
+**Done — the extractor stopped giving different answers to the same question.**
+
+Two causes, both ours:
+
+- **Sampling was still live.** `temperature` was 0.2 — low, but enough for the
+  model to decide differently about an optional array between two identical
+  calls, which is exactly where the missing cafes were going. It is 0 now, with
+  a fixed `seed` and an explicit `candidateCount`.
+- **The reply was being cut off.** `maxOutputTokens` was 2048. A post naming five
+  venues with an address and a note each runs past that, and a reply cut off at
+  the ceiling is truncated JSON — so it failed the parse and was reported as
+  "couldn't be read", which pointed at the model rather than at the ceiling.
+  Worse, `MAX_TOKENS` was explicitly waved through alongside `STOP`, so the real
+  cause was hidden. The ceiling is 8192 and truncation now says what it is.
+
+**Done — three smaller things the pipeline was missing.**
+
+- **The summary is pinned to English.** The source may be in any language and
+  should be read in it; the summary is Nook's own sentence in an English
+  interface, so it is always English. Names stay as they are — 錦市場 is not
+  translated into "Nishiki Market".
+- **The creator's profile picture** is extracted where it legitimately exists,
+  which is YouTube and only YouTube, and only with a Data API key. Schema 7 adds
+  `creator_url` and `creator_avatar_url`; everywhere else the UI draws the
+  creator's initial rather than inventing a face.
+- **The onboarding photographs were never broken.** They were failing CORS: a
+  plain `Image.network` has CanvasKit fetch the bytes over HTTP, and the Commons
+  `Special:FilePath` redirect carries no CORS header, so every one fell through
+  to the error builder and left a flat block of tint. `PostThumbnail` had already
+  solved this; onboarding now renders through the same `<img>` path.
+
+**Done — the two audit items, decided rather than deferred.**
+
+Both were left last week as "the author's call", and both got the same answer —
+fix the behaviour, do not soften the sentence:
+
+- `clearAll()` clears `app_settings` too, so "this erases everything on this
+  device" is true and a device handed on comes back at defaults.
+- Export Data writes every column. Fifteen were missing while its own comment
+  claimed it wrote everything.
+
+**Done — the profile photo can be positioned.**
+
+Every avatar drew the picked image with `BoxFit.cover` — a centre crop decided by
+the middle of the file rather than by the person in it. There is a crop sheet
+now: drag to move, pinch or scroll to zoom, inside a round window. The crop is
+baked into the stored image rather than kept as an offset beside it, so
+`users.profilePicture` stays the single source of truth and Profile, Account and
+anything added later cannot disagree about it. No new dependency — a
+`GestureDetector`, a `Transform`, and `dart:ui` drawing one rectangle into
+another.
+
+**Challenges.**
+
+- *No `K.svg`.* Resolved by taking all four quarters from the supplied PNG, which
+  is also the only way to guarantee they match each other.
+- *Every image host is blocked in the build environment.* Wikimedia Commons and
+  OpenStreetMap both refuse at the proxy, so the onboarding CORS fix and the
+  seeded photographs are verified by reading the failure, not by watching them
+  load. That needs confirming on a normal network.
+- *No Gemini key in the container.* The determinism and language changes are
+  asserted against a scripted HTTP client at the network boundary rather than
+  against the real API.
+
+**Milestone.** The app ships Nook's own mark, motion that communicates, an
+extractor that answers the same question the same way, and documentation with no
+knowingly open contradictions.
+
+**Next.** The 40-link extraction test, on a real network with a real key. The
+demo video. Confirming the photographs load where the hosts are reachable.

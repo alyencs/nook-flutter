@@ -297,23 +297,32 @@ void main() {
         greaterThan(start.center.dx),
         reason: 'moving right towards tab 1 of 4',
       );
-      expect(
-        mid.center.dy,
-        greaterThan(start.center.dy),
-        reason: 'moving down towards the bar',
-      );
       expect(mid.width, lessThan(start.width), reason: 'shrinking');
+
+      // Not asserted at the midpoint any more. The flight now runs on an
+      // ease-in-out curve, so halfway through the time is halfway along the
+      // line — which is the apex of the arc. The lift there is 28pt and the
+      // whole descent to the bar is only 30pt, so the card is legitimately
+      // *higher* than it started at exactly that moment. It is on its way down
+      // by the end, which is what "towards the bar" has to mean for an arc.
+      await tester.pump(NookMotion.slow ~/ 3);
+      final late_ = flightIn(tester);
+      expect(
+        late_.center.dy,
+        greaterThan(start.center.dy),
+        reason: 'past the apex, falling towards the bar',
+      );
 
       // The arc is the point. Progress is recovered from the width, which is a
       // pure function of it — size == from.width * (1 - 0.72v) — and at that
       // progress the flight sits above the straight chord.
       final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
-      final v = (1 - mid.width / 72) / 0.72;
+      final v = (1 - late_.width / 72) / 0.72;
       const startCentreY = 500 + 72 / 2;
       final endCentreY = screen.height - 34;
       final chord = startCentreY + (endCentreY - startCentreY) * v;
       expect(
-        mid.center.dy,
+        late_.center.dy,
         lessThan(chord),
         reason: 'lifted above the chord by the arc',
       );
@@ -600,16 +609,24 @@ void main() {
 
     testWidgets('is slow enough to actually be seen', (tester) async {
       // The original was 420ms with a fade over the last 15% — about 350ms of
-      // visible travel, which is why it looked like nothing happened.
+      // visible travel, which is why it looked like nothing happened. 900ms
+      // fixed that on paper and not in the hand: on an ease-out curve most of
+      // the distance still went by in the first third. It runs for well over a
+      // second now, on a curve with a readable middle.
       expect(
         NookMotion.deliberate.inMilliseconds,
-        greaterThanOrEqualTo(700),
+        greaterThanOrEqualTo(1100),
         reason: 'a delete has to be watchable',
       );
       expect(
         NookMotion.deliberate.inMilliseconds,
-        lessThanOrEqualTo(1200),
+        lessThanOrEqualTo(1800),
         reason: 'and not annoying',
+      );
+      expect(
+        NookMotion.travel,
+        isNot(NookMotion.enter),
+        reason: 'a long journey needs a curve that holds its middle',
       );
     });
   });

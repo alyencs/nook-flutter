@@ -53,9 +53,10 @@ flutter:
     # which carries no key, so the deployed build runs the sample extractor.
     - .env
     - .env.example
-    # No image asset for the logo: `LogoAssembly` draws the mark in code, so
-    # there is nothing to bundle. If you later drop a real nook_mark.png into
-    # assets/images/, add it back here and switch that widget to Image.asset.
+    # The Nook mark, cut from the supplied nook_logo.png along its own gutters:
+    # four transparent tiles that reassemble into that file exactly. The splash
+    # flies them into place; NookLogo draws them still.
+    - assets/images/
 
   fonts:
     # Manrope, the UI typeface: body, labels, buttons, navigation. SIL OFL,

@@ -834,6 +834,28 @@ class $SavedPostsTable extends SavedPosts
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _creatorUrlMeta = const VerificationMeta(
+    'creatorUrl',
+  );
+  @override
+  late final GeneratedColumn<String> creatorUrl = GeneratedColumn<String>(
+    'creator_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _creatorAvatarUrlMeta = const VerificationMeta(
+    'creatorAvatarUrl',
+  );
+  @override
+  late final GeneratedColumn<String> creatorAvatarUrl = GeneratedColumn<String>(
+    'creator_avatar_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _sourceIdMeta = const VerificationMeta(
     'sourceId',
   );
@@ -1095,6 +1117,8 @@ class $SavedPostsTable extends SavedPosts
     thumbnailUrl,
     caption,
     creatorHandle,
+    creatorUrl,
+    creatorAvatarUrl,
     sourceId,
     mediaType,
     aiDestination,
@@ -1197,6 +1221,21 @@ class $SavedPostsTable extends SavedPosts
         creatorHandle.isAcceptableOrUnknown(
           data['creator_handle']!,
           _creatorHandleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('creator_url')) {
+      context.handle(
+        _creatorUrlMeta,
+        creatorUrl.isAcceptableOrUnknown(data['creator_url']!, _creatorUrlMeta),
+      );
+    }
+    if (data.containsKey('creator_avatar_url')) {
+      context.handle(
+        _creatorAvatarUrlMeta,
+        creatorAvatarUrl.isAcceptableOrUnknown(
+          data['creator_avatar_url']!,
+          _creatorAvatarUrlMeta,
         ),
       );
     }
@@ -1415,6 +1454,14 @@ class $SavedPostsTable extends SavedPosts
         DriftSqlType.string,
         data['${effectivePrefix}creator_handle'],
       ),
+      creatorUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}creator_url'],
+      ),
+      creatorAvatarUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}creator_avatar_url'],
+      ),
       sourceId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}source_id'],
@@ -1540,6 +1587,17 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
   /// The @handle, where the platform has one. [creator] is the display name.
   final String? creatorHandle;
 
+  /// The creator's page on the platform, from oEmbed's `author_url`.
+  final String? creatorUrl;
+
+  /// The creator's profile picture, when the platform publishes one.
+  ///
+  /// Null for most saves, and deliberately so: of the four platforms only
+  /// YouTube exposes an avatar through a route Nook can use, and only when a
+  /// `YOUTUBE_API_KEY` is configured. Nothing generates or guesses one — a post
+  /// without an avatar draws the creator's initial instead.
+  final String? creatorAvatarUrl;
+
   /// The platform's own id: a YouTube video id, an Instagram shortcode. Held so
   /// that it is available as metadata and never needed as a title — showing
   /// `Sf9ihvL0Usk` where a title belongs is what this column exists to prevent.
@@ -1602,6 +1660,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     this.thumbnailUrl,
     this.caption,
     this.creatorHandle,
+    this.creatorUrl,
+    this.creatorAvatarUrl,
     this.sourceId,
     this.mediaType,
     this.aiDestination,
@@ -1647,6 +1707,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     }
     if (!nullToAbsent || creatorHandle != null) {
       map['creator_handle'] = Variable<String>(creatorHandle);
+    }
+    if (!nullToAbsent || creatorUrl != null) {
+      map['creator_url'] = Variable<String>(creatorUrl);
+    }
+    if (!nullToAbsent || creatorAvatarUrl != null) {
+      map['creator_avatar_url'] = Variable<String>(creatorAvatarUrl);
     }
     if (!nullToAbsent || sourceId != null) {
       map['source_id'] = Variable<String>(sourceId);
@@ -1739,6 +1805,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       creatorHandle: creatorHandle == null && nullToAbsent
           ? const Value.absent()
           : Value(creatorHandle),
+      creatorUrl: creatorUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(creatorUrl),
+      creatorAvatarUrl: creatorAvatarUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(creatorAvatarUrl),
       sourceId: sourceId == null && nullToAbsent
           ? const Value.absent()
           : Value(sourceId),
@@ -1824,6 +1896,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       thumbnailUrl: serializer.fromJson<String?>(json['thumbnailUrl']),
       caption: serializer.fromJson<String?>(json['caption']),
       creatorHandle: serializer.fromJson<String?>(json['creatorHandle']),
+      creatorUrl: serializer.fromJson<String?>(json['creatorUrl']),
+      creatorAvatarUrl: serializer.fromJson<String?>(json['creatorAvatarUrl']),
       sourceId: serializer.fromJson<String?>(json['sourceId']),
       mediaType: serializer.fromJson<String?>(json['mediaType']),
       aiDestination: serializer.fromJson<String?>(json['aiDestination']),
@@ -1862,6 +1936,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       'thumbnailUrl': serializer.toJson<String?>(thumbnailUrl),
       'caption': serializer.toJson<String?>(caption),
       'creatorHandle': serializer.toJson<String?>(creatorHandle),
+      'creatorUrl': serializer.toJson<String?>(creatorUrl),
+      'creatorAvatarUrl': serializer.toJson<String?>(creatorAvatarUrl),
       'sourceId': serializer.toJson<String?>(sourceId),
       'mediaType': serializer.toJson<String?>(mediaType),
       'aiDestination': serializer.toJson<String?>(aiDestination),
@@ -1898,6 +1974,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     Value<String?> thumbnailUrl = const Value.absent(),
     Value<String?> caption = const Value.absent(),
     Value<String?> creatorHandle = const Value.absent(),
+    Value<String?> creatorUrl = const Value.absent(),
+    Value<String?> creatorAvatarUrl = const Value.absent(),
     Value<String?> sourceId = const Value.absent(),
     Value<String?> mediaType = const Value.absent(),
     Value<String?> aiDestination = const Value.absent(),
@@ -1933,6 +2011,10 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     creatorHandle: creatorHandle.present
         ? creatorHandle.value
         : this.creatorHandle,
+    creatorUrl: creatorUrl.present ? creatorUrl.value : this.creatorUrl,
+    creatorAvatarUrl: creatorAvatarUrl.present
+        ? creatorAvatarUrl.value
+        : this.creatorAvatarUrl,
     sourceId: sourceId.present ? sourceId.value : this.sourceId,
     mediaType: mediaType.present ? mediaType.value : this.mediaType,
     aiDestination: aiDestination.present
@@ -1980,6 +2062,12 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
       creatorHandle: data.creatorHandle.present
           ? data.creatorHandle.value
           : this.creatorHandle,
+      creatorUrl: data.creatorUrl.present
+          ? data.creatorUrl.value
+          : this.creatorUrl,
+      creatorAvatarUrl: data.creatorAvatarUrl.present
+          ? data.creatorAvatarUrl.value
+          : this.creatorAvatarUrl,
       sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
       mediaType: data.mediaType.present ? data.mediaType.value : this.mediaType,
       aiDestination: data.aiDestination.present
@@ -2042,6 +2130,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           ..write('thumbnailUrl: $thumbnailUrl, ')
           ..write('caption: $caption, ')
           ..write('creatorHandle: $creatorHandle, ')
+          ..write('creatorUrl: $creatorUrl, ')
+          ..write('creatorAvatarUrl: $creatorAvatarUrl, ')
           ..write('sourceId: $sourceId, ')
           ..write('mediaType: $mediaType, ')
           ..write('aiDestination: $aiDestination, ')
@@ -2080,6 +2170,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
     thumbnailUrl,
     caption,
     creatorHandle,
+    creatorUrl,
+    creatorAvatarUrl,
     sourceId,
     mediaType,
     aiDestination,
@@ -2117,6 +2209,8 @@ class SavedPost extends DataClass implements Insertable<SavedPost> {
           other.thumbnailUrl == this.thumbnailUrl &&
           other.caption == this.caption &&
           other.creatorHandle == this.creatorHandle &&
+          other.creatorUrl == this.creatorUrl &&
+          other.creatorAvatarUrl == this.creatorAvatarUrl &&
           other.sourceId == this.sourceId &&
           other.mediaType == this.mediaType &&
           other.aiDestination == this.aiDestination &&
@@ -2152,6 +2246,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
   final Value<String?> thumbnailUrl;
   final Value<String?> caption;
   final Value<String?> creatorHandle;
+  final Value<String?> creatorUrl;
+  final Value<String?> creatorAvatarUrl;
   final Value<String?> sourceId;
   final Value<String?> mediaType;
   final Value<String?> aiDestination;
@@ -2185,6 +2281,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.thumbnailUrl = const Value.absent(),
     this.caption = const Value.absent(),
     this.creatorHandle = const Value.absent(),
+    this.creatorUrl = const Value.absent(),
+    this.creatorAvatarUrl = const Value.absent(),
     this.sourceId = const Value.absent(),
     this.mediaType = const Value.absent(),
     this.aiDestination = const Value.absent(),
@@ -2219,6 +2317,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     this.thumbnailUrl = const Value.absent(),
     this.caption = const Value.absent(),
     this.creatorHandle = const Value.absent(),
+    this.creatorUrl = const Value.absent(),
+    this.creatorAvatarUrl = const Value.absent(),
     this.sourceId = const Value.absent(),
     this.mediaType = const Value.absent(),
     this.aiDestination = const Value.absent(),
@@ -2256,6 +2356,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Expression<String>? thumbnailUrl,
     Expression<String>? caption,
     Expression<String>? creatorHandle,
+    Expression<String>? creatorUrl,
+    Expression<String>? creatorAvatarUrl,
     Expression<String>? sourceId,
     Expression<String>? mediaType,
     Expression<String>? aiDestination,
@@ -2290,6 +2392,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
       if (caption != null) 'caption': caption,
       if (creatorHandle != null) 'creator_handle': creatorHandle,
+      if (creatorUrl != null) 'creator_url': creatorUrl,
+      if (creatorAvatarUrl != null) 'creator_avatar_url': creatorAvatarUrl,
       if (sourceId != null) 'source_id': sourceId,
       if (mediaType != null) 'media_type': mediaType,
       if (aiDestination != null) 'ai_destination': aiDestination,
@@ -2326,6 +2430,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     Value<String?>? thumbnailUrl,
     Value<String?>? caption,
     Value<String?>? creatorHandle,
+    Value<String?>? creatorUrl,
+    Value<String?>? creatorAvatarUrl,
     Value<String?>? sourceId,
     Value<String?>? mediaType,
     Value<String?>? aiDestination,
@@ -2360,6 +2466,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       caption: caption ?? this.caption,
       creatorHandle: creatorHandle ?? this.creatorHandle,
+      creatorUrl: creatorUrl ?? this.creatorUrl,
+      creatorAvatarUrl: creatorAvatarUrl ?? this.creatorAvatarUrl,
       sourceId: sourceId ?? this.sourceId,
       mediaType: mediaType ?? this.mediaType,
       aiDestination: aiDestination ?? this.aiDestination,
@@ -2415,6 +2523,12 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
     }
     if (creatorHandle.present) {
       map['creator_handle'] = Variable<String>(creatorHandle.value);
+    }
+    if (creatorUrl.present) {
+      map['creator_url'] = Variable<String>(creatorUrl.value);
+    }
+    if (creatorAvatarUrl.present) {
+      map['creator_avatar_url'] = Variable<String>(creatorAvatarUrl.value);
     }
     if (sourceId.present) {
       map['source_id'] = Variable<String>(sourceId.value);
@@ -2500,6 +2614,8 @@ class SavedPostsCompanion extends UpdateCompanion<SavedPost> {
           ..write('thumbnailUrl: $thumbnailUrl, ')
           ..write('caption: $caption, ')
           ..write('creatorHandle: $creatorHandle, ')
+          ..write('creatorUrl: $creatorUrl, ')
+          ..write('creatorAvatarUrl: $creatorAvatarUrl, ')
           ..write('sourceId: $sourceId, ')
           ..write('mediaType: $mediaType, ')
           ..write('aiDestination: $aiDestination, ')
@@ -3710,6 +3826,8 @@ typedef $$SavedPostsTableCreateCompanionBuilder =
       Value<String?> thumbnailUrl,
       Value<String?> caption,
       Value<String?> creatorHandle,
+      Value<String?> creatorUrl,
+      Value<String?> creatorAvatarUrl,
       Value<String?> sourceId,
       Value<String?> mediaType,
       Value<String?> aiDestination,
@@ -3745,6 +3863,8 @@ typedef $$SavedPostsTableUpdateCompanionBuilder =
       Value<String?> thumbnailUrl,
       Value<String?> caption,
       Value<String?> creatorHandle,
+      Value<String?> creatorUrl,
+      Value<String?> creatorAvatarUrl,
       Value<String?> sourceId,
       Value<String?> mediaType,
       Value<String?> aiDestination,
@@ -3844,6 +3964,16 @@ class $$SavedPostsTableFilterComposer
 
   ColumnFilters<String> get creatorHandle => $composableBuilder(
     column: $table.creatorHandle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get creatorUrl => $composableBuilder(
+    column: $table.creatorUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get creatorAvatarUrl => $composableBuilder(
+    column: $table.creatorAvatarUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4035,6 +4165,16 @@ class $$SavedPostsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get creatorUrl => $composableBuilder(
+    column: $table.creatorUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get creatorAvatarUrl => $composableBuilder(
+    column: $table.creatorAvatarUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get sourceId => $composableBuilder(
     column: $table.sourceId,
     builder: (column) => ColumnOrderings(column),
@@ -4213,6 +4353,16 @@ class $$SavedPostsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get creatorUrl => $composableBuilder(
+    column: $table.creatorUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get creatorAvatarUrl => $composableBuilder(
+    column: $table.creatorAvatarUrl,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get sourceId =>
       $composableBuilder(column: $table.sourceId, builder: (column) => column);
 
@@ -4364,6 +4514,8 @@ class $$SavedPostsTableTableManager
                 Value<String?> thumbnailUrl = const Value.absent(),
                 Value<String?> caption = const Value.absent(),
                 Value<String?> creatorHandle = const Value.absent(),
+                Value<String?> creatorUrl = const Value.absent(),
+                Value<String?> creatorAvatarUrl = const Value.absent(),
                 Value<String?> sourceId = const Value.absent(),
                 Value<String?> mediaType = const Value.absent(),
                 Value<String?> aiDestination = const Value.absent(),
@@ -4397,6 +4549,8 @@ class $$SavedPostsTableTableManager
                 thumbnailUrl: thumbnailUrl,
                 caption: caption,
                 creatorHandle: creatorHandle,
+                creatorUrl: creatorUrl,
+                creatorAvatarUrl: creatorAvatarUrl,
                 sourceId: sourceId,
                 mediaType: mediaType,
                 aiDestination: aiDestination,
@@ -4432,6 +4586,8 @@ class $$SavedPostsTableTableManager
                 Value<String?> thumbnailUrl = const Value.absent(),
                 Value<String?> caption = const Value.absent(),
                 Value<String?> creatorHandle = const Value.absent(),
+                Value<String?> creatorUrl = const Value.absent(),
+                Value<String?> creatorAvatarUrl = const Value.absent(),
                 Value<String?> sourceId = const Value.absent(),
                 Value<String?> mediaType = const Value.absent(),
                 Value<String?> aiDestination = const Value.absent(),
@@ -4465,6 +4621,8 @@ class $$SavedPostsTableTableManager
                 thumbnailUrl: thumbnailUrl,
                 caption: caption,
                 creatorHandle: creatorHandle,
+                creatorUrl: creatorUrl,
+                creatorAvatarUrl: creatorAvatarUrl,
                 sourceId: sourceId,
                 mediaType: mediaType,
                 aiDestination: aiDestination,

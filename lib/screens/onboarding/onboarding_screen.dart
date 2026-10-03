@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../theme/nook_colors.dart';
+import '../../theme/nook_motion.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_buttons.dart';
@@ -299,6 +301,30 @@ class _Photo extends StatelessWidget {
         Image.network(
           'https://commons.wikimedia.org/wiki/Special:FilePath/$name?width=900',
           fit: BoxFit.cover,
+          // The reason these pages were showing a flat block of colour.
+          //
+          // On the web CanvasKit fetches an image's bytes over HTTP, so the
+          // response has to carry CORS headers. `Special:FilePath` answers with
+          // a 302 to upload.wikimedia.org and that redirect carries none, so
+          // every one of these failed the check and fell straight through to
+          // errorBuilder — the photograph was never the problem, the fetch was.
+          //
+          // `prefer` renders through a plain <img> element instead, which is
+          // not subject to that check, exactly as PostThumbnail already does.
+          webHtmlElementStrategy: kIsWeb
+              ? WebHtmlElementStrategy.prefer
+              : WebHtmlElementStrategy.never,
+          // Fades in over the tint rather than snapping, so a slow photograph
+          // arrives rather than flashes.
+          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+            if (wasSynchronouslyLoaded) return child;
+            return AnimatedOpacity(
+              opacity: frame == null ? 0 : 1,
+              duration: NookMotion.slow,
+              curve: NookMotion.enter,
+              child: child,
+            );
+          },
           errorBuilder: (_, _, _) => const SizedBox.shrink(),
           loadingBuilder: (context, child, progress) =>
               progress == null ? child : const SizedBox.shrink(),

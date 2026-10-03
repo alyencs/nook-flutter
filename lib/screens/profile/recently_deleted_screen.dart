@@ -14,6 +14,8 @@ import '../../widgets/nook_toast.dart';
 import '../../widgets/post_thumbnail.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/delete_flight.dart';
+import '../../widgets/flight.dart';
+import '../../widgets/tab_pulse.dart';
 
 /// Where deleted posts and trips wait.
 ///
@@ -224,6 +226,14 @@ class _DeletedPostRowState extends State<_DeletedPostRow> {
             ? null
             : box.localToGlobal(Offset.zero) & box.size;
 
+        // Resolved before the write, so nothing reads a BuildContext across an
+        // await and the ring is aimed at the same tab a delete flies to.
+        final tabCentre = Flight.tabCentre(
+          MediaQuery.sizeOf(context),
+          MediaQuery.paddingOf(context),
+          DeleteFlight.tab,
+        );
+
         // Written first here, unlike delete. The row has to leave this list
         // for the gap to close, and the flight is what carries the eye from
         // that gap to where the post has gone back to.
@@ -231,6 +241,11 @@ class _DeletedPostRowState extends State<_DeletedPostRow> {
 
         if (to != null) {
           try {
+            // The same ring the delete lands into, played at the other end of
+            // the interaction: there it was the tab catching something, here it
+            // is the tab letting it go. Fire and forget, so the flight is not
+            // waiting on it.
+            TabPulse.at(overlay, tabCentre);
             await RestoreFlight.run(
               overlay,
               to: to,

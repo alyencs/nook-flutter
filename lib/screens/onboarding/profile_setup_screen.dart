@@ -8,6 +8,7 @@ import '../../theme/nook_colors.dart';
 import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../widgets/photo_crop.dart';
 import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_text_field.dart';
@@ -56,11 +57,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       imageQuality: 80,
     );
     if (file == null) return;
-    // Stored as a data URI rather than a path: on the web there is no file path
-    // to keep, and either way the image never leaves the device.
     final bytes = await file.readAsBytes();
     if (!mounted) return;
-    setState(() => _picture = 'data:image/jpeg;base64,${base64Encode(bytes)}');
+    // The crop sheet decides which part of the photograph is the avatar, and
+    // hands back a square. Stored as a data URI rather than a path: on the web
+    // there is no file path to keep, and either way the image never leaves the
+    // device.
+    final cropped = await showPhotoCrop(context, bytes);
+    if (!mounted || cropped == null) return;
+    setState(() => _picture = cropped);
   }
 
   Future<void> _continue() async {

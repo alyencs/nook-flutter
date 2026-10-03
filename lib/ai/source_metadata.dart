@@ -46,6 +46,8 @@ class SourceMetadata {
     this.description,
     this.creator,
     this.creatorHandle,
+    this.creatorUrl,
+    this.creatorAvatarUrl,
     this.thumbnailUrl,
     this.mediaType = PostMediaType.unknown,
     this.fetched = false,
@@ -81,6 +83,34 @@ class SourceMetadata {
 
   /// `@handle`, when the URL or the payload carries one.
   final String? creatorHandle;
+
+  /// The creator's page on the platform, from oEmbed's `author_url`.
+  ///
+  /// All four providers return this, so it is the one piece of creator identity
+  /// that is available everywhere a lookup succeeds at all.
+  final String? creatorUrl;
+
+  /// The creator's profile picture, when the platform actually publishes one.
+  ///
+  /// In practice that means **YouTube and only YouTube**, and only with a
+  /// `YOUTUBE_API_KEY`: the Data API will give a channel's thumbnails if asked
+  /// for them by channel id. Nobody else exposes an avatar through a route Nook
+  /// can legitimately use —
+  ///
+  /// * YouTube oEmbed has no avatar field, which is why this needs the second
+  ///   Data API call rather than coming free with the title.
+  /// * TikTok oEmbed returns `author_name` and `author_url` and nothing else
+  ///   about the author.
+  /// * Instagram and Facebook oEmbed through the Graph API return the author's
+  ///   name and page URL. A profile picture needs a different permission and,
+  ///   for a person rather than a page, their consent.
+  ///
+  /// So this is null far more often than it is set, and that is the honest
+  /// answer rather than a gap to paper over. Nook never derives an avatar from
+  /// a handle, a letter or a generated image: either the platform gave one or
+  /// the UI draws its own initial.
+  final String? creatorAvatarUrl;
+
   final String? thumbnailUrl;
   final PostMediaType mediaType;
 
@@ -91,6 +121,10 @@ class SourceMetadata {
   bool get hasText =>
       (title != null && title!.trim().isNotEmpty) ||
       (description != null && description!.trim().isNotEmpty);
+
+  /// Whether this source carries a creator avatar at all.
+  bool get hasCreatorAvatar =>
+      creatorAvatarUrl != null && creatorAvatarUrl!.trim().isNotEmpty;
 
   /// The source, written out for the model to read.
   ///
@@ -325,6 +359,14 @@ abstract final class SourceMetadataFetcher {
         return trimmed.isEmpty ? null : trimmed;
       }
 
+      // The channel id is the only route to a creator's avatar that any of the
+      // four platforms offers Nook. It costs one more call on the same key.
+      final channelId = text('channelId');
+      final avatar = channelId == null
+          ? source.creatorAvatarUrl
+          : await _youTubeChannelAvatar(channelId, apiKey, client) ??
+                source.creatorAvatarUrl;
+
       return SourceMetadata(
         platform: source.platform,
         url: source.url,
@@ -333,12 +375,57 @@ abstract final class SourceMetadataFetcher {
         description: text('description') ?? source.description,
         creator: text('channelTitle') ?? source.creator,
         creatorHandle: source.creatorHandle,
+        creatorUrl:
+            source.creatorUrl ??
+            (channelId == null
+                ? null
+                : 'https://www.youtube.com/channel/$channelId'),
+        creatorAvatarUrl: avatar,
         thumbnailUrl: source.thumbnailUrl,
         mediaType: source.mediaType,
         fetched: true,
       );
     } catch (_) {
       return source;
+    }
+  }
+
+  /// A channel's profile picture, from the Data API.
+  ///
+  /// Returns null rather than throwing on anything at all: an avatar is the
+  /// least important thing in an extraction, and losing the whole save because
+  /// a decorative image 403'd would be absurd. The largest published size is
+  /// preferred, because the UI draws it at 2x or 3x.
+  static Future<String?> _youTubeChannelAvatar(
+    String channelId,
+    String apiKey,
+    http.Client? client,
+  ) async {
+    final uri = Uri.parse(
+      'https://www.googleapis.com/youtube/v3/channels'
+      '?part=snippet&id=$channelId&key=$apiKey',
+    );
+    try {
+      final response = client != null
+          ? await client.get(uri).timeout(timeout)
+          : await http.get(uri).timeout(timeout);
+      if (response.statusCode != 200) return null;
+
+      final json = jsonDecode(utf8.decode(response.bodyBytes));
+      if (json is! Map) return null;
+      final items = json['items'];
+      if (items is! List || items.isEmpty) return null;
+      final thumbnails =
+          ((items.first as Map)['snippet'] as Map?)?['thumbnails'];
+      if (thumbnails is! Map) return null;
+
+      for (final size in const ['high', 'medium', 'default']) {
+        final url = (thumbnails[size] as Map?)?['url'];
+        if (url is String && url.trim().isNotEmpty) return url.trim();
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -370,6 +457,10 @@ abstract final class SourceMetadataFetcher {
       description: text('description'),
       creator: text('author_name'),
       creatorHandle: handle,
+      creatorUrl: authorUrl ?? fallback.creatorUrl,
+      // oEmbed carries no avatar on any of the four. YouTube's arrives later,
+      // from the Data API, if there is a key for it.
+      creatorAvatarUrl: fallback.creatorAvatarUrl,
       thumbnailUrl: text('thumbnail_url') ?? fallback.thumbnailUrl,
       mediaType: PostMediaType.parse(text('type')) == PostMediaType.unknown
           ? fallback.mediaType

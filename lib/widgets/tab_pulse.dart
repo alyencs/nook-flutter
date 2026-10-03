@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/nook_colors.dart';
+import '../theme/nook_motion.dart';
 
 /// A ring that expands once out of a bottom-bar tab.
 ///
@@ -10,7 +11,7 @@ import '../theme/nook_colors.dart';
 /// indicator.
 abstract final class TabPulse {
   /// How long the ring takes to expand and fade.
-  static const duration = Duration(milliseconds: 520);
+  static const duration = NookMotion.acknowledge;
 
   /// Draws a ring centred on [centre] in global coordinates.
   ///

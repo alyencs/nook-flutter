@@ -23,10 +23,38 @@ abstract final class NookMotion {
   /// Long enough to read as travel rather than a flicker. The save flight stays
   /// at [slow] — it confirms something already done — but a delete has to be
   /// watched, because it is answering "where did it go".
-  static const deliberate = Duration(milliseconds: 900);
+  ///
+  /// Raised from 900ms. At that length the card crossed most of the screen
+  /// inside the front-loaded part of an ease-out curve, so the eye caught the
+  /// start and the landing and very little in between. A delete and its mirror
+  /// are the two animations in Nook with something to say, and the only ones
+  /// worth a second and a half.
+  static const deliberate = Duration(milliseconds: 1400);
+
+  /// The curve for something travelling a long way that is meant to be read.
+  ///
+  /// [enter] is right for an arrival — fast, then settling — but on a journey
+  /// this long it spends two thirds of the distance in the first third of the
+  /// time, which is what made a 900ms flight feel like a 300ms one. This eases
+  /// at both ends and holds a steady middle, so the middle is watchable.
+  static const travel = Curves.easeInOutCubic;
 
   /// A folder opening, a tile settling. Between [normal] and [slow].
-  static const settle = Duration(milliseconds: 340);
+  static const settle = Duration(milliseconds: 420);
+
+  /// How long the bar's ring takes to expand and fade after a flight lands.
+  ///
+  /// It is the fourth beat of a delete — the destination answering — so it runs
+  /// after a 1400ms flight and needs to be long enough to still be arriving
+  /// when the eye gets there.
+  static const acknowledge = Duration(milliseconds: 700);
+
+  /// The pause between a route transition finishing and a flight starting.
+  ///
+  /// Two page transitions run over the top of a flight that starts immediately,
+  /// and the eye follows the page. This is the gap that lets the screen settle
+  /// first, so the flight begins on a still background: beat one of four.
+  static const beforeFlight = Duration(milliseconds: 460);
 
   /// Springy, for something that arrives and should feel physical. Used by the
   /// folder lid and the logo pieces; never by anything that travels far, where

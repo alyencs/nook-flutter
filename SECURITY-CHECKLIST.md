@@ -2,8 +2,8 @@
 
 **Project:** Nook — Applications Development and Emerging Technologies (6ADET), Holy Angel University
 **Repository:** public, in the author's own GitHub account
-**Checked against:** commit `4d8b587`, schema version 6
-**Date:** 2026-09-27
+**Checked against:** commit `10464e3` plus the October fixes below, schema version 7
+**Date:** 2026-10-03 (first audited 2026-09-27)
 
 This is the audited version. Every line below was checked against the code in
 this repository rather than assumed, and the four statuses mean different
@@ -30,7 +30,7 @@ value that is not privileged, and one is not a secret at all.
 | Variable | What it is | Privileged? | Required? |
 | --- | --- | --- | --- |
 | `GEMINI_API_KEY` | Google AI Studio key for extraction | **Yes — billable** | No. Without it Nook runs `SampleExtractor` and says so on screen. |
-| `YOUTUBE_API_KEY` | YouTube Data API v3 key, used to read a video's description | **Yes — quota-bearing** | No. Without it a YouTube post reaches the model as a title only. |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 key, used to read a video's description and the creator's channel avatar | **Yes — quota-bearing** | No. Without it a YouTube post reaches the model as a title only, and no creator picture is available. |
 | `FACEBOOK_TOKEN` | `APP_ID\|CLIENT_TOKEN` for Meta's oEmbed endpoints | **Yes — app-scoped** | No. Without it Instagram and Facebook links extract from the URL alone. |
 | `GEMINI_MODEL` | An optional model id to pin | No — it is a configuration string | No. Without it the app asks the API which models the key can reach. |
 
@@ -164,8 +164,9 @@ Nook talks to five hosts, all over HTTPS, all at the user's initiative.
 ## 4. Local database and storage
 
 - [x] **PASS — one Drift (SQLite) database on the device, five tables, schema
-      version 6.** `users`, `trips`, `saved_posts`, `recent_searches`,
-      `app_settings` — `lib/data/database.dart:9`. On the web it lives in the
+      version 7.** `users`, `trips`, `saved_posts`, `recent_searches`,
+      `app_settings` — `lib/data/database.dart:9`. Version 7 added the creator's
+      page URL and profile picture. On the web it lives in the
       browser's own storage (IndexedDB or OPFS, whichever the browser supports),
       which is per-origin and per-browser.
 - [x] **PASS — nothing is uploaded, shared or synced.** There is no backend URL
@@ -236,25 +237,29 @@ Nook talks to five hosts, all over HTTPS, all at the user's initiative.
       `saved_posts`, `trips`, `users` and `recent_searches` in one batch,
       including anything soft-deleted, and the launch gate returns the app to
       onboarding on its own.
-- [ ] **REVIEW — `clearAll()` does not clear `app_settings`.**
-      The four Settings toggles survive "Delete my profile". They hold no
-      personal data — they are booleans such as *auto-categorize* — so this is
-      not a disclosure risk, but it does mean the wipe is not total and the
-      wording "erases everything on this device"
-      (`lib/screens/profile/account_screen.dart:77`) is broader than the code.
-      Deliberately left as found: this is a documentation audit, and changing
-      deletion behaviour is a code decision for the author.
-- [ ] **REVIEW — "Export Data" exports most of the database, not all of it.**
-      `lib/data/export_service.dart` writes the profile, trips, saved posts,
-      searches and settings as JSON. The post columns added in schema 3 and 4 are
-      **not** in the export: `caption`, `creator_handle`, `source_id`,
-      `media_type`, `ai_place_name`, `ai_address`, `ai_neighbourhood`,
-      `ai_city`, `ai_region`, `ai_places`, `ai_highlights`, and `deleted_at`;
-      nor are the trips' `color_id` and `deleted_at`. The service's own comment
-      still claims "everything Nook holds about you", which is now more than it
-      does. Anyone treating the export as a complete personal-data copy should
-      know it is a subset. Flagged, not silently fixed, for the same reason as
-      above.
+- [x] **RESOLVED — `clearAll()` now clears `app_settings` too.**
+      It did not, so "Delete my profile" left the Settings toggles behind while
+      the dialog said it erased everything on this device. Two ways to settle
+      that: soften the dialog, or make the wipe match it. The wipe matches it —
+      a settings row is the user's own choice about their own library, and a
+      device handed on should come back at defaults rather than remembering
+      preferences nobody can see. Anything absent falls back to
+      `NookSettings.defaults`, so emptying the table *is* the reset.
+      `lib/data/database.dart#clearAll`.
+- [x] **RESOLVED — "Export Data" now exports the whole database.**
+      It wrote the columns `saved_posts` had when the feature was first built and
+      never grew with it, so thirteen post columns added in schemas 3 to 7 — the
+      caption, the handle, the source id and media type, the whole
+      specific-location chain, the named places and highlights, the creator's
+      page and picture — were silently absent, along with a trip's colour and
+      both `deleted_at` columns. Its own comment claimed it wrote everything.
+      Again two options: narrow the sentence or widen the export. The export is
+      widened, because the honest version of a personal-data export is the
+      complete one. `places` and `highlights` are decoded back into real JSON
+      rather than exported as escaped strings, soft-deleted rows are included
+      with their timestamps, and `format_version` is 2 to mark the change.
+      `lib/data/export_service.dart`.
+
 - [x] **PASS — the export never leaves the device.**
       On the web the browser downloads it; on a device it is written to the app's
       documents directory (`export_web.dart` / `export_io.dart`). Nothing is
@@ -342,7 +347,7 @@ Nook talks to five hosts, all over HTTPS, all at the user's initiative.
       `web/flutter_bootstrap.js` loads CanvasKit from the app's own folder rather
       than Google's CDN, and both typefaces are bundled locally. The deployed
       build fetches no third-party script.
-- [x] **PASS — `flutter analyze` is clean and 275 tests pass** at `4d8b587`.
+- [x] **PASS — `flutter analyze` is clean and 279 tests pass.**
 - [x] **PASS — the deploy workflow has least-privilege permissions.**
       `contents: read`, `pages: write`, `id-token: write`.
 - [x] **PASS — `google_generative_ai` was removed.** It raised 5xx as a
@@ -356,27 +361,22 @@ Nook talks to five hosts, all over HTTPS, all at the user's initiative.
 
 These are the items above that are **not** clean, gathered so nothing is buried:
 
-1. **`clearAll()` leaves `app_settings` behind.** Four non-personal booleans
-   survive "Delete my profile", while the dialog says "everything on this
-   device". Needs either a one-line code change or a reworded dialog — the
-   author's call.
-2. **"Export Data" is a subset.** Thirteen post columns and two trip columns
-   added in schemas 3–6 are missing, and the code comment overstates what it
-   produces. Needs review before the export is described to anyone as a complete
-   personal-data copy.
-3. **The retention purge is opportunistic.** 30-day expiry is enforced when
+**Two of the original seven are now fixed** — `clearAll()` and the export, both
+above. Five remain:
+
+1. **The retention purge is opportunistic.** 30-day expiry is enforced when
    Recently Deleted is opened, not on a timer. Correct for an app with no
    server; worth knowing.
-4. **Two credentials travel in query strings.** Forced by the YouTube Data API
+2. **Two credentials travel in query strings.** Forced by the YouTube Data API
    and Meta Graph API. HTTPS protects them in transit; a TLS-terminating proxy
    or the browser's own inspector can still see them.
-5. **The local database is not encrypted.** Device and browser-profile security
+3. **The local database is not encrypted.** Device and browser-profile security
    is the only thing protecting it.
-6. **Live third-party calls are unverified from this environment.** Every
+4. **Live third-party calls are unverified from this environment.** Every
    integration is tested against documented payloads with a scripted client;
    none has been exercised against the real service here. Confirm on a normal
    network.
-7. **Saved URLs are not safety-checked.** Nook is a bookmark store and treats
+5. **Saved URLs are not safety-checked.** Nook is a bookmark store and treats
    them as bookmarks.
 
 ---
@@ -389,8 +389,8 @@ These are the items above that are **not** clean, gathered so nothing is buried:
 | Secrets in the deployed build | None. The workflow builds from a keyless `.env.example`. |
 | Personal data in the repository | None. The demo library is invented. |
 | Data leaving the device | The pasted link and what the platform already published about it, only when the user taps Analyze. |
-| Deletion | Reversible for 30 days, then permanent; "Delete my profile" clears the user's content (see limitation 1). |
-| Open items | Seven, listed above. Two of them (1 and 2) are code decisions left for the author rather than changed during a documentation audit. |
+| Deletion | Reversible for 30 days, then permanent; "Delete my profile" now clears every table, matching its dialog. |
+| Open items | Five, listed above. The two that were code decisions — the wipe and the export — have since been implemented. |
 
 Companion document: [docs/06-security-and-privacy.md](docs/06-security-and-privacy.md),
 which explains *why* the key handling is shaped this way. This file is the

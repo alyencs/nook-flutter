@@ -18,10 +18,12 @@ the [README](../README.md#environment-variables).
 
 ## Suggested run, about three to four minutes
 
-1. **Cold start.** Launch with no profile: the logo assembling from its four
-   quarters, the four onboarding pages, Get Started, Set Up Profile. It asks
-   what to call you and offers a photo — no email, no password, because there is
-   no account. Type a name and continue to Home.
+1. **Cold start.** Launch with no profile: Nook's mark assembling from its own
+   four quarters over about two and a half seconds, then the four onboarding
+   pages, Get Started, Set Up Profile. It asks what to call you and offers a
+   photo — no email, no password, because there is no account. **Add a photo and
+   drag it around in the crop window**, so the framing is visibly a choice rather
+   than a centre crop. Type a name and continue to Home.
 2. **Home.** The greeting, Recent Saves, Your Trips with their folder colours,
    Recently Viewed. Say that the library is seeded demo data and entirely
    fictional.
@@ -44,16 +46,26 @@ the [README](../README.md#environment-variables).
 7. **Search.** Search a destination and show results matching on destination
    rather than title.
 8. **Delete, and undo it.** Delete a post and follow the card flying to the
-   Profile tab. Open Profile → Recently Deleted, show the 30-day window stated on
-   the row, and restore it. Show it back in its trip, with the count restored and
-   no duplicate. This is the safety net the confirmation dialog used to be.
+   Profile tab — it runs for 1.4 seconds and the tab pulses as it lands, so there
+   is time to narrate the four beats: the list settling, the card crossing, the
+   tab answering, the confirmation. Open Profile → Recently Deleted, show the
+   30-day window stated on the row, and restore it: the same arc read backwards,
+   out of the bar and back into the row. Show it back in its trip, with the count
+   restored and no duplicate.
 9. **Persistence.** Reload the browser and show the saved post still there —
    this is the storage decision working.
 10. **Failure, honestly.** Paste something that is not a link, or an opaque URL,
     and show the error state with Retry and Enter manually. Note that the message
     is plain English: no vendor name, no model id, no status code.
 
-Optional, if there is time: **Export Data** in Settings, and **Share to Nook** —
+Worth a beat if the run includes a YouTube link with a key configured: the
+creator's **profile picture** appears beside their name on Post Details. On the
+other three platforms it is their initial instead, because no route Nook can
+legitimately use exposes an avatar there — worth saying out loud rather than
+letting it look like a bug.
+
+Optional, if there is time: **Export Data** in Settings, which now writes every
+column rather than most of them, and **Share to Nook** —
 with the app installed to a home screen it appears in the Android share sheet,
 and picking it opens Nook with analysis already running.
 
@@ -80,3 +92,5 @@ invisible tokens per save.
 - [ ] Nothing personal is on screen: no real bookmarks, tabs, notifications or names
 - [ ] The seeded demo library is intact — a fresh browser profile is the simplest way
 - [ ] Recorded at phone proportions, or with the `device_preview` frame visible
+- [ ] A photograph ready to use for the profile picture, so the crop window has
+      something to position
