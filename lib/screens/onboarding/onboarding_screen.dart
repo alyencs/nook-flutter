@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../theme/nook_colors.dart';
@@ -44,7 +43,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Tips, itineraries and recommendations from TikTok, Instagram, '
           'Facebook and YouTube.',
-      image: 'Nishiki_Market_Kyoto.jpg',
+      image: 'assets/images/onboarding_1.jpg',
+      alignment: Alignment.center,
       tint: Color(0xFFF7E7BE),
     ),
     (
@@ -53,7 +53,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Destinations, places and prices are pulled out of the content '
           'itself — not just the title.',
-      image: 'Fushimi_Inari_Taisha_Kyoto.jpg',
+      image: 'assets/images/onboarding_2.jpg',
+      alignment: Alignment.center,
       tint: Color(0xFFD7E6F2),
     ),
     (
@@ -62,7 +63,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Group what you save into trips — Japan 2027, a weekend in Porto, '
           'someday.',
-      image: 'Porto_Ribeira.jpg',
+      image: 'assets/images/onboarding_3.jpg',
+      alignment: Alignment.center,
       tint: Color(0xFFD9E8DA),
     ),
     (
@@ -71,7 +73,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Search everything you have saved, by place, by creator, by the '
           'note you left yourself.',
-      image: 'El_Nido_Palawan.jpg',
+      image: 'assets/images/onboarding_4.jpg',
+      alignment: Alignment.center,
       tint: Color(0xFFF6DEDE),
     ),
   ];
@@ -143,6 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   headline: page.headline,
                   body: page.body,
                   image: page.image,
+                  alignment: page.alignment,
                   tint: page.tint,
                 );
               },
@@ -186,6 +190,7 @@ class _OnboardingPage extends StatelessWidget {
     required this.headline,
     required this.body,
     required this.image,
+    required this.alignment,
     required this.tint,
   });
 
@@ -195,6 +200,7 @@ class _OnboardingPage extends StatelessWidget {
   final String headline;
   final String body;
   final String image;
+  final Alignment alignment;
   final Color tint;
 
   String get _number => (index + 1).toString().padLeft(2, '0');
@@ -246,7 +252,7 @@ class _OnboardingPage extends StatelessWidget {
                   child: SizedBox(
                     height: imageHeight,
                     width: double.infinity,
-                    child: _Photo(name: image, tint: tint),
+                    child: _Photo(name: image, alignment: alignment, tint: tint),
                   ),
                 ),
               ),
@@ -287,9 +293,14 @@ class _OnboardingPage extends StatelessWidget {
 /// arrives. Each page's tint is one of the five folder colours, so the
 /// onboarding and the trips it is describing are drawn from one palette.
 class _Photo extends StatelessWidget {
-  const _Photo({required this.name, required this.tint});
+  const _Photo({
+    required this.name, 
+    required this.alignment,
+    required this.tint
+    });
 
   final String name;
+  final Alignment alignment;
   final Color tint;
 
   @override
@@ -298,24 +309,13 @@ class _Photo extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         ColoredBox(color: tint),
-        Image.network(
-          'https://commons.wikimedia.org/wiki/Special:FilePath/$name?width=900',
+        Image.asset(
+          name,
           fit: BoxFit.cover,
-          // The reason these pages were showing a flat block of colour.
-          //
-          // On the web CanvasKit fetches an image's bytes over HTTP, so the
-          // response has to carry CORS headers. `Special:FilePath` answers with
-          // a 302 to upload.wikimedia.org and that redirect carries none, so
-          // every one of these failed the check and fell straight through to
-          // errorBuilder — the photograph was never the problem, the fetch was.
-          //
-          // `prefer` renders through a plain <img> element instead, which is
-          // not subject to that check, exactly as PostThumbnail already does.
-          webHtmlElementStrategy: kIsWeb
-              ? WebHtmlElementStrategy.prefer
-              : WebHtmlElementStrategy.never,
-          // Fades in over the tint rather than snapping, so a slow photograph
-          // arrives rather than flashes.
+          alignment: alignment,
+          filterQuality: FilterQuality.medium,
+          // Fades in rather than snapping, so a decode on a slow device
+          // arrives instead of flashing.
           frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
             if (wasSynchronouslyLoaded) return child;
             return AnimatedOpacity(
@@ -325,9 +325,9 @@ class _Photo extends StatelessWidget {
               child: child,
             );
           },
+          // Kept: a missing or corrupt file falls back to the tint rather
+          // than throwing a grey error box into the layout.
           errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          loadingBuilder: (context, child, progress) =>
-              progress == null ? child : const SizedBox.shrink(),
         ),
         // A hairline grid, borrowed from the section marks used through the
         // app, so the photograph reads as part of a laid-out page.
