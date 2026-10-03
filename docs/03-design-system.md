@@ -124,3 +124,15 @@ build their own buttons or cards.
 | Dialog | `showNookDialog` | White rounded modal, subtle shadow; destructive actions in Soft Red | Title, message, Cancel, Confirm |
 | Card surface | `NookCard` | The one white card surface, one shadow | Anything |
 | Thumbnail | `ThumbPlaceholder` | Pale panel crossed corner to corner with a small image glyph | — |
+
+## The mark
+
+Nook's logo is a 2×2 grid of solid tiles whose letterforms are **counters** —
+cut out of the tile rather than set on top of it. The two O tiles read as a check
+rather than a round O, which is a property of the mark and not an error in it.
+
+It is never reproduced in type. `assets/images/nook_mark_*.png` are four
+transparent tiles cut from the supplied `nook_logo.png` along its own gutters;
+laid out at 427/852 across and 423/846 down they reassemble into that file
+exactly. `LogoAssembly` flies them into place on the splash; `NookLogo` draws
+them still, wherever the logo is wanted without the performance.

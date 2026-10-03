@@ -75,6 +75,17 @@ class SavedPosts extends Table {
   /// The @handle, where the platform has one. [creator] is the display name.
   TextColumn get creatorHandle => text().nullable()();
 
+  /// The creator's page on the platform, from oEmbed's `author_url`.
+  TextColumn get creatorUrl => text().nullable()();
+
+  /// The creator's profile picture, when the platform publishes one.
+  ///
+  /// Null for most saves, and deliberately so: of the four platforms only
+  /// YouTube exposes an avatar through a route Nook can use, and only when a
+  /// `YOUTUBE_API_KEY` is configured. Nothing generates or guesses one — a post
+  /// without an avatar draws the creator's initial instead.
+  TextColumn get creatorAvatarUrl => text().nullable()();
+
   /// The platform's own id: a YouTube video id, an Instagram shortcode. Held so
   /// that it is available as metadata and never needed as a title — showing
   /// `Sf9ihvL0Usk` where a title belongs is what this column exists to prevent.

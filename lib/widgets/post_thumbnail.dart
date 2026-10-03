@@ -46,29 +46,45 @@ class PostThumbnail extends StatelessWidget {
     final source = url;
     if (source == null || source.isEmpty) return placeholder;
 
-    Widget image = Image.network(
-      source,
-      width: width,
-      height: height,
-      fit: BoxFit.cover,
-      webHtmlElementStrategy: kIsWeb
-          ? WebHtmlElementStrategy.prefer
-          : WebHtmlElementStrategy.never,
-      errorBuilder: (context, _, _) => placeholder,
-      // Fades from the placeholder to the image rather than snapping. A grid of
-      // cards popping in one by one is the most visible jank on Home.
-      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-        if (wasSynchronouslyLoaded) return child;
-        return AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
-          duration: NookMotion.normal,
-          curve: NookMotion.enter,
-          child: child,
-        );
-      },
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : placeholder,
-    );
+    final isAsset = source.startsWith('assets/');
+
+    Widget fade(
+      BuildContext context,
+      Widget child,
+      int? frame,
+      bool wasSynchronouslyLoaded,
+    ) {
+      if (wasSynchronouslyLoaded) return child;
+      return AnimatedOpacity(
+        opacity: frame == null ? 0 : 1,
+        duration: NookMotion.normal,
+        curve: NookMotion.enter,
+        child: child,
+      );
+    }
+
+    Widget image = isAsset
+        ? Image.asset(
+            source,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (context, _, _) => placeholder,
+            frameBuilder: fade,
+          )
+        : Image.network(
+            source,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            webHtmlElementStrategy: kIsWeb
+                ? WebHtmlElementStrategy.prefer
+                : WebHtmlElementStrategy.never,
+            errorBuilder: (context, _, _) => placeholder,
+            frameBuilder: fade,
+            loadingBuilder: (context, child, progress) =>
+                progress == null ? child : placeholder,
+          );
 
     if (aspectRatio != null) {
       image = AspectRatio(aspectRatio: aspectRatio!, child: image);

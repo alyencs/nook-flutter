@@ -7,7 +7,7 @@ import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/sub_screen_nav.dart';
-import '../onboarding/splash_screen.dart';
+import '../../widgets/logo_assembly.dart';
 import 'content_screen.dart';
 
 /// P5.
@@ -24,7 +24,7 @@ class AboutScreen extends StatelessWidget {
         children: [
           const NookAppBar(title: 'About Nook'),
           const SizedBox(height: NookSpacing.block),
-          const Center(child: NookMark(size: 88)),
+          const Center(child: NookLogo(size: 88)),
           const SizedBox(height: NookSpacing.section),
           Center(child: Text('Nook', style: NookType.heading)),
           const SizedBox(height: 2),

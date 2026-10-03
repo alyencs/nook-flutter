@@ -1025,10 +1025,12 @@ void main() {
   });
 
   group('the request asks the model not to think', () {
-    Map<String, Object?> configOf(_Server server) {
-      final body = jsonDecode(server.generateCalls.first.body) as Map;
-      return (body['generationConfig'] as Map).cast<String, Object?>();
-    }
+    Map<String, Object?> bodyOf(_Server server) =>
+        (jsonDecode(server.generateCalls.first.body) as Map)
+            .cast<String, Object?>();
+
+    Map<String, Object?> configOf(_Server server) =>
+        (bodyOf(server)['generationConfig'] as Map).cast<String, Object?>();
 
     test('thinking is budgeted to zero on every extraction', () async {
       // The root cause of the "busy" failures. Gemini 2.5 models think by
@@ -1050,8 +1052,52 @@ void main() {
 
       final max = configOf(server)['maxOutputTokens'];
       expect(max, isA<int>());
-      expect(max as int, lessThanOrEqualTo(4096));
-      expect(max, greaterThan(512), reason: 'the schema still has to fit');
+      // Raised from 2048. A post naming five venues with an address and a note
+      // each ran past that ceiling, and a reply cut off at the ceiling is
+      // truncated JSON — which failed the parse and was reported as an
+      // unreadable extraction. The cap is still a runaway guard; it is just one
+      // a complete answer fits inside.
+      expect(max as int, lessThanOrEqualTo(8192));
+      expect(
+        max,
+        greaterThanOrEqualTo(4096),
+        reason: 'a long post with places and highlights has to fit',
+      );
+    });
+
+    test('sampling is pinned, so the same post extracts the same way', () async {
+      final server = _Server(_withModelList([_reply(200, _extraction())]));
+      await _extractor(server).extract(_url);
+
+      final config = configOf(server);
+      // The other half of "the same link gave five cafes, then one". At 0.2 the
+      // sampler was still live enough to drop an optional array between two
+      // identical calls. There is one right answer to "copy what the source
+      // says into this schema", so there is nothing for sampling to buy.
+      expect(config['temperature'], 0);
+      expect(
+        config['seed'],
+        isA<int>(),
+        reason: 'a fixed seed is what makes two identical calls identical',
+      );
+      expect(config['candidateCount'], 1);
+    });
+
+    test('the summary is pinned to English, whatever the source speaks', () async {
+      final server = _Server(_withModelList([_reply(200, _extraction())]));
+      await _extractor(server).extract(_url);
+
+      final text =
+          ((bodyOf(server)['contents'] as List).first
+                  as Map)['parts']
+              as List;
+      final prompt = (text.first as Map)['text'] as String;
+      expect(prompt, contains('ALWAYS write this in English'));
+
+      final summary =
+          ((configOf(server)['responseSchema'] as Map)['properties']
+              as Map)['summary'];
+      expect((summary as Map)['description'], contains('English'));
     });
 
     test('a model that rejects the field is asked again without it', () async {

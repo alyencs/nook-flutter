@@ -75,6 +75,8 @@ class _ReviewSaveScreenState extends State<ReviewSaveScreen> {
         caption: Value(draft.caption),
         creator: Value(draft.creator),
         creatorHandle: Value(draft.creatorHandle),
+        creatorUrl: Value(draft.creatorUrl),
+        creatorAvatarUrl: Value(draft.creatorAvatarUrl),
         platform: draft.platform,
         originalUrl: Value(draft.url),
         sourceId: Value(draft.sourceId),

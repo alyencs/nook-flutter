@@ -18,14 +18,15 @@ class NookDatabase extends _$NookDatabase {
   /// type and the specific location parts; 4 added the places and highlights a
   /// post mentions, and relaxed `users.email` now that nothing collects it; 5
   /// added `deleted_at` to posts and trips, which is what Recently Deleted is
-  /// built on.
+  /// built on; 6 added a trip's folder colour; 7 added the creator's page URL
+  /// and profile picture.
   ///
   /// They were added at version 1 without bumping this, which is the bug behind
   /// "no such table: app_settings": drift creates the whole schema only for a
   /// database it creates itself, so every database that already existed stayed
   /// on the old shape and no migration ever ran.
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -39,6 +40,7 @@ class NookDatabase extends _$NookDatabase {
       if (from < 4) await _upgradeToV4(m);
       if (from < 5) await _upgradeToV5(m);
       if (from < 6) await _upgradeToV6(m);
+      if (from < 7) await _upgradeToV7(m);
     },
     beforeOpen: (details) async {
       // SQLite does not enforce foreign keys unless asked to. Without
@@ -141,6 +143,23 @@ class NookDatabase extends _$NookDatabase {
     }
   }
 
+  /// Version 7: who made the post, beyond a name.
+  ///
+  /// `creator_url` is available on all four platforms through oEmbed's
+  /// `author_url`; `creator_avatar_url` is available on YouTube alone, and only
+  /// with a Data API key. Both are nullable and stay null for every post saved
+  /// before this, which every screen already renders as the creator's initial.
+  Future<void> _upgradeToV7(Migrator m) async {
+    for (final entry in <String, GeneratedColumn<String>>{
+      'creator_url': savedPosts.creatorUrl,
+      'creator_avatar_url': savedPosts.creatorAvatarUrl,
+    }.entries) {
+      if (!await _hasColumn('saved_posts', entry.key)) {
+        await m.addColumn(savedPosts, entry.value);
+      }
+    }
+  }
+
   Future<bool> _hasTable(String name) async {
     final rows = await customSelect(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -175,13 +194,26 @@ class NookDatabase extends _$NookDatabase {
   }
 
   /// Wipes everything, leaving the app at onboarding. Behind "Delete my
-  /// account" on the Account screen.
+  /// profile" on the Account screen.
+  ///
+  /// `app_settings` is in this list, and was not always. The dialog says "this
+  /// erases everything on this device", and four of the five tables went —
+  /// which made the sentence not quite true and left the next profile created
+  /// on the device inheriting a stranger's toggles. Two ways to fix that: soften
+  /// the dialog, or make the wipe match it.
+  ///
+  /// The wipe matches it. A settings row is the user's choice about their own
+  /// library, so it belongs to the profile being deleted; and a device handed on
+  /// or reset should come back at defaults rather than remembering preferences
+  /// nobody can see any more. Anything absent falls back to
+  /// [NookSettings.defaults], so emptying the table is the reset.
   Future<void> clearAll() async {
     await batch((b) {
       b.deleteAll(savedPosts);
       b.deleteAll(trips);
       b.deleteAll(users);
       b.deleteAll(recentSearches);
+      b.deleteAll(appSettings);
     });
   }
 }

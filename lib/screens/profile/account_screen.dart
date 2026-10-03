@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -15,6 +14,7 @@ import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_toast.dart';
 import '../../widgets/sub_screen_nav.dart';
 import '../../widgets/nook_text_field.dart';
+import '../../widgets/photo_crop.dart';
 import '../onboarding/profile_setup_screen.dart';
 
 /// P2.
@@ -64,10 +64,11 @@ class _AccountScreenState extends State<AccountScreen> {
     if (file == null) return;
     final bytes = await file.readAsBytes();
     if (!mounted) return;
-    await AppScope.of(context).users.updateProfile(
-      id,
-      profilePicture: 'data:image/jpeg;base64,${base64Encode(bytes)}',
-    );
+    // The same sheet onboarding uses, so a photograph changed later is framed
+    // the same way it was framed the first time.
+    final cropped = await showPhotoCrop(context, bytes);
+    if (!mounted || cropped == null) return;
+    await AppScope.of(context).users.updateProfile(id, profilePicture: cropped);
   }
 
   Future<void> _deleteAccount() async {

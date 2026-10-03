@@ -18,6 +18,8 @@ class PostDraft {
       caption = result.caption,
       creator = result.creator,
       creatorHandle = result.creatorHandle,
+      creatorUrl = result.creatorUrl,
+      creatorAvatarUrl = result.creatorAvatarUrl,
       destination = result.destination,
       placeName = result.placeName,
       address = result.address,
@@ -47,6 +49,8 @@ class PostDraft {
       caption = null,
       creator = null,
       creatorHandle = null,
+      creatorUrl = null,
+      creatorAvatarUrl = null,
       destination = null,
       placeName = null,
       address = null,
@@ -75,6 +79,8 @@ class PostDraft {
       caption = null,
       creator = null,
       creatorHandle = null,
+      creatorUrl = null,
+      creatorAvatarUrl = null,
       destination = null,
       placeName = null,
       address = null,
@@ -107,6 +113,8 @@ class PostDraft {
   String? caption;
   String? creator;
   String? creatorHandle;
+  String? creatorUrl;
+  String? creatorAvatarUrl;
   String? destination;
   String? placeName;
   String? address;

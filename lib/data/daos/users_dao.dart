@@ -19,7 +19,7 @@ class UsersDao {
   ///
   /// The seed inserts a nameless row so trips have a user to belong to, so this
   /// fills that row in rather than adding a second one. Only if there is no row
-  /// at all — after "Clear All Data" — does it insert.
+  /// at all — after "Delete my profile" — does it insert.
   Future<int> saveProfile({
     required String name,
     String? email,

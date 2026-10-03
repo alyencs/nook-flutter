@@ -96,8 +96,9 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
     // Let the two route transitions finish before the flight starts. They are
     // 260ms each and they used to run over the top of it: the eye follows the
     // page, not a small chip crossing it, which is most of why the animation
-    // seemed not to happen at all.
-    await Future<void>.delayed(NookMotion.normal + NookMotion.fast);
+    // seemed not to happen at all. This is beat one of four — the list settling
+    // so there is something still for the card to cross.
+    await Future<void>.delayed(NookMotion.beforeFlight);
 
     // Started here, not awaited, so the row leaves its place at the same
     // moment the card lifts off it. Waiting until the flight landed meant the

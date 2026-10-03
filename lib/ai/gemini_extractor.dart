@@ -267,13 +267,36 @@ class GeminiExtractor implements AiExtractor {
       },
     ],
     'generationConfig': {
-      'temperature': 0.2,
+      // Zero, not 0.2, and a fixed seed beside it.
+      //
+      // This is the fix for "the same link extracts five cafes one minute and
+      // one the next". Sampling was still live at 0.2: enough for the model to
+      // decide differently about an optional array from one call to the next,
+      // which is exactly where the information was going. The task has one
+      // right answer — copy what the source says into a fixed schema — so there
+      // is nothing for sampling to be useful for.
+      'temperature': 0,
+      // Pins the sampler, so identical input gives identical output as far as
+      // the API allows. Not a guarantee across model versions, and it is not
+      // treated as one; it removes the run-to-run variance that is ours to
+      // remove.
+      'seed': 7,
+      'candidateCount': 1,
       'responseMimeType': 'application/json',
       'responseSchema': _responseSchema,
-      // A ceiling on the reply. The schema is a fixed set of short fields, so
-      // anything beyond this is a model that has lost the plot — and an
-      // uncapped reply is one that can run until it times out.
-      'maxOutputTokens': 2048,
+      // The other half of the lost information.
+      //
+      // This was 2048, which sounds generous until a post names five cafes with
+      // an address and a note each, and the reply is cut off mid-object. A
+      // truncated reply is not valid JSON, so it failed the parse and came back
+      // as "couldn't be read" — and on a model that rejects thinkingConfig, the
+      // resend runs with thinking ON, whose tokens come out of this same
+      // budget, which made truncation far more likely on exactly the long
+      // posts that had the most to say.
+      //
+      // Still a ceiling, because an uncapped reply is one that runs until it
+      // times out. Just one a complete answer fits inside.
+      'maxOutputTokens': 8192,
       // The fix for the "busy" failures, and the most important line in this
       // file.
       //
@@ -351,7 +374,9 @@ class GeminiExtractor implements AiExtractor {
         'nullable': true,
         'description':
             'Two or three sentences about what a traveller finds, '
-            'drawn only from the source.',
+            'drawn only from the source. ALWAYS written in English, whatever '
+            'language the source post is in. This is Nook\'s own sentence '
+            'about the post, not a quotation from it.',
       },
       'best_time': {
         'type': 'STRING',
@@ -461,6 +486,21 @@ nulls; you will be wrong if you guess.
   a date, a price or a cost.
 - category: exactly one of the listed values. Use "Other" when unsure.
 
+LANGUAGE. The source may be in any language, and you should read it in whatever
+language it is written in — a Japanese caption names Japanese places perfectly
+well. Two rules follow from that:
+
+- summary: ALWAYS write this in English, whatever language the source is in.
+  It is Nook's own sentence about the post, not a quotation from it, and it sits
+  in an English interface beside eleven other posts. Understand the source in
+  its own language and write the summary in English.
+- Everything else keeps the source's own language, because those fields are
+  quotations rather than prose. A place is called what it is called:
+  "Nishiki Market" stays "Nishiki Market" and 錦市場 stays 錦市場. Do not
+  translate title, caption, place_name, address, neighbourhood, or the names in
+  places. best_time, budget_note and highlights are short notes rather than
+  names, so write those in English too.
+
 Return JSON only, matching the schema.
 ''';
 
@@ -495,7 +535,18 @@ Return JSON only, matching the schema.
 
     final candidate = candidates.first as Map;
     final finish = candidate['finishReason'];
-    if (finish is String && finish != 'STOP' && finish != 'MAX_TOKENS') {
+    // MAX_TOKENS used to be waved through alongside STOP. It should never have
+    // been: a reply cut off at the ceiling is truncated JSON, so it failed the
+    // parse a few lines below and was reported as unreadable — which hid the
+    // real cause behind a message that suggested the model had misbehaved.
+    // Named separately now, so if it ever happens again it says what it is.
+    if (finish is String && finish == 'MAX_TOKENS') {
+      throw const ExtractionException(
+        'This post had more in it than we could read in one go. Please try '
+        'again, or enter the details yourself.',
+      );
+    }
+    if (finish is String && finish != 'STOP') {
       throw const ExtractionException(
         "We couldn't finish analysing this post. Please try again.",
       );
@@ -582,6 +633,10 @@ Return JSON only, matching the schema.
       caption: string('caption') ?? source.description,
       creator: creator,
       creatorHandle: string('creator_handle') ?? source.creatorHandle,
+      // Both taken from the source alone. The model is never asked for these:
+      // it cannot know a URL, and asked for one it invents a convincing 404.
+      creatorUrl: source.creatorUrl,
+      creatorAvatarUrl: source.creatorAvatarUrl,
       destination: _destinationFrom(
         placeName: placeName,
         neighbourhood: neighbourhood,

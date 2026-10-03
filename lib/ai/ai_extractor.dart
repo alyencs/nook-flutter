@@ -12,6 +12,8 @@ class ExtractionResult {
     this.caption,
     this.creator,
     this.creatorHandle,
+    this.creatorUrl,
+    this.creatorAvatarUrl,
     this.destination,
     this.placeName,
     this.address,
@@ -44,6 +46,17 @@ class ExtractionResult {
 
   final String? creator;
   final String? creatorHandle;
+
+  /// The creator's page on the platform, when oEmbed gave one.
+  final String? creatorUrl;
+
+  /// The creator's profile picture, when the platform actually publishes one.
+  ///
+  /// Read from the source, never from the model: a language model asked for a
+  /// creator's avatar will produce a plausible URL to an image that does not
+  /// exist. In practice only YouTube supplies this, and only with a
+  /// `YOUTUBE_API_KEY` — see [SourceMetadata.creatorAvatarUrl].
+  final String? creatorAvatarUrl;
 
   /// The one-line display location, composed from the parts below.
   final String? destination;

@@ -375,15 +375,73 @@ void main() {
   });
 
   group('LogoAssembly', () {
-    testWidgets('spells the name it is assembling', (tester) async {
+    /// One quarter of the mark, found by the asset it draws.
+    ///
+    /// The pieces are images cut from the supplied artwork, so this is also the
+    /// assertion that the mark is the real one: a text approximation would
+    /// match nothing here.
+    Finder piece(NookMarkPiece p) => find.byWidgetPredicate(
+      (w) =>
+          w is Image &&
+          w.image is AssetImage &&
+          (w.image as AssetImage).assetName == p.asset,
+    );
+
+    double opacityOf(WidgetTester tester, NookMarkPiece p) => tester
+        .widget<Opacity>(
+          find.ancestor(of: piece(p), matching: find.byType(Opacity)).first,
+        )
+        .opacity;
+
+    testWidgets('is built from the four supplied quarters, not from type', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Center(child: LogoAssembly())),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('N'), findsOneWidget);
-      expect(find.text('O'), findsNWidgets(2));
-      expect(find.text('K'), findsOneWidget);
+      for (final p in NookMarkPiece.values) {
+        expect(piece(p), findsOneWidget, reason: '${p.name} is on screen once');
+      }
+      expect(
+        find.byType(Text),
+        findsNothing,
+        reason: 'the mark carries its letters as counters, not as glyphs — '
+            'setting them in a font is what produced the wrong logo before',
+      );
+
+      // The two O tiles are the same glyph in the artwork but separate crops,
+      // so each lands in its own cell.
+      expect(NookMarkPiece.o1.asset, isNot(NookMarkPiece.o2.asset));
+      tester.takeException();
+    });
+
+    testWidgets('lays the quarters out on the artwork own gutters', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Center(child: LogoAssembly(size: 852))),
+      );
+      await tester.pumpAndSettle();
+
+      final n = tester.getRect(piece(NookMarkPiece.n));
+      final o1 = tester.getRect(piece(NookMarkPiece.o1));
+      final o2 = tester.getRect(piece(NookMarkPiece.o2));
+      final k = tester.getRect(piece(NookMarkPiece.k));
+
+      // 427 and 425 of 852 across; 423 and 423 of 846 down. Those are the
+      // artwork's own numbers, and the four cells have to tile without a seam.
+      expect(n.width, closeTo(427, 0.5));
+      expect(o1.width, closeTo(425, 0.5));
+      expect(n.height, closeTo(423, 0.5));
+      expect(o2.height, closeTo(423, 0.5));
+
+      expect(n.right, closeTo(o1.left, 0.5), reason: 'no seam across the top');
+      expect(o2.right, closeTo(k.left, 0.5), reason: 'none across the bottom');
+      expect(n.bottom, closeTo(o2.top, 0.5), reason: 'none down the left');
+      expect(o1.bottom, closeTo(k.top, 0.5), reason: 'none down the right');
+      tester.takeException();
     });
 
     testWidgets('arrives a piece at a time, not all at once', (tester) async {
@@ -391,23 +449,25 @@ void main() {
         const MaterialApp(home: Center(child: LogoAssembly())),
       );
 
-      double opacityOf(String glyph) => tester
-          .widget<Opacity>(
-            find.ancestor(of: find.text(glyph), matching: find.byType(Opacity)),
-          )
-          .opacity;
-
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(opacityOf('N'), greaterThan(0), reason: 'first piece is moving');
+      // A quarter of the way in, the first quarter is well on its way and the
+      // last has not left yet — its beat is a third of the way through. That
+      // gap is the whole effect.
+      await tester.pump(LogoAssembly.duration ~/ 4);
       expect(
-        opacityOf('K'),
+        opacityOf(tester, NookMarkPiece.n),
+        greaterThan(0),
+        reason: 'first piece is moving',
+      );
+      expect(
+        opacityOf(tester, NookMarkPiece.k),
         0,
         reason: 'the last piece has not left yet — that stagger is the effect',
       );
 
       await tester.pumpAndSettle();
-      expect(opacityOf('N'), 1);
-      expect(opacityOf('K'), 1);
+      expect(opacityOf(tester, NookMarkPiece.n), 1);
+      expect(opacityOf(tester, NookMarkPiece.k), 1);
+      tester.takeException();
     });
 
     testWidgets('each piece travels to its corner', (tester) async {
@@ -415,15 +475,31 @@ void main() {
         const MaterialApp(home: Center(child: LogoAssembly())),
       );
       await tester.pump(const Duration(milliseconds: 120));
-      final start = tester.getCenter(find.text('N'));
+      final start = tester.getRect(piece(NookMarkPiece.n)).center;
 
       await tester.pumpAndSettle();
-      final settled = tester.getCenter(find.text('N'));
+      final settled = tester.getRect(piece(NookMarkPiece.n)).center;
 
       expect(
         (start - settled).distance,
         greaterThan(60),
         reason: 'a piece that barely moves is a fade wearing a costume',
+      );
+      tester.takeException();
+    });
+
+    testWidgets('runs long enough to be watched', (tester) async {
+      // It used to be 1500ms across four staggered pieces, which read as a
+      // fade. This is the one animation a person sees exactly once.
+      expect(
+        LogoAssembly.duration.inMilliseconds,
+        greaterThanOrEqualTo(2000),
+        reason: 'slow enough to see it assemble',
+      );
+      expect(
+        LogoAssembly.duration.inMilliseconds,
+        lessThanOrEqualTo(3200),
+        reason: 'and not a wait',
       );
     });
 
@@ -440,6 +516,7 @@ void main() {
 
       await tester.pumpAndSettle();
       expect(done, isTrue);
+      tester.takeException();
     });
 
     testWidgets('torn down mid-assembly does not throw or call back', (
@@ -454,8 +531,7 @@ void main() {
       await tester.pump(LogoAssembly.duration ~/ 3);
 
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-      await tester.pump(const Duration(seconds: 2));
-      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(seconds: 3));
       expect(done, isFalse, reason: 'no setState on a disposed screen');
     });
   });

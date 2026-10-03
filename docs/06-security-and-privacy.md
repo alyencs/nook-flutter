@@ -2,7 +2,7 @@
 
 This repository is public.
 
-**Last checked:** 2026-09-27, against commit `4d8b587` and schema version 6.
+**Last checked:** 2026-10-03, against schema version 7.
 
 This document explains *why* Nook handles data and secrets the way it does.
 The line-by-line audit — every item checked, with the file that proves it and
@@ -15,13 +15,14 @@ agree; where this one says "see the checklist", that is where the evidence is.
 | Data | Where it lives | Who can see it |
 | --- | --- | --- |
 | Local profile: name, optional photo | On the device, in a Drift (SQLite) database | Only that user |
-| Saved posts: title, caption, creator and handle, platform, URL, extracted travel metadata, personal note | Same local database | Only that user |
+| Saved posts: title, caption, creator (name, handle, page and profile picture), platform, URL, extracted travel metadata, personal note | Same local database | Only that user |
 | Trips, including their folder colour | Same local database | Only that user |
 | Recent searches | Same local database | Only that user |
 | Four settings toggles | Same local database | Only that user |
 
 Five tables — `users`, `trips`, `saved_posts`, `recent_searches`,
-`app_settings` — at schema version 6. Nothing is uploaded, shared or synced.
+`app_settings` — at schema version 7, which added the creator's page URL and
+profile picture. Nothing is uploaded, shared or synced.
 There is no account, no server and no analytics. On the web the database lives
 in the browser's own storage (IndexedDB or OPFS, whichever the browser
 supports), which is per-origin and per-browser.
@@ -65,11 +66,12 @@ safety net — and a confirmation asks before you know you were wrong.
 - **Permanent deletion is permanent.** "Delete permanently" on a row removes it.
   Since nothing is stored anywhere else, that is the whole deletion process —
   there is no copy on a server to request the removal of.
-- **"Delete my profile"** on the Account screen empties `saved_posts`, `trips`,
-  `users` and `recent_searches` in one batch, including anything soft-deleted,
-  and the launch gate returns the app to onboarding on its own. It does not
-  currently clear `app_settings`; those four booleans hold no personal data, but
-  the gap is recorded as limitation 1 in the checklist rather than glossed over.
+- **"Delete my profile"** on the Account screen empties all five tables in one
+  batch, including anything soft-deleted, and the launch gate returns the app to
+  onboarding on its own. `app_settings` is in that list now and was not always:
+  the dialog said it erased everything on this device while four of five tables
+  went, which left the next profile created on the device inheriting a stranger's
+  toggles. The wipe was widened rather than the sentence narrowed.
 
 Settings also has **Clear Search History** (empties `recent_searches`) and
 **Clear Cache** (empties Flutter's image cache, the only cache Nook has).
@@ -80,12 +82,15 @@ Settings also has **Clear Search History** (empties `recent_searches`) and
 settings to a JSON file — downloaded by the browser on the web, written to the
 app's documents directory on a device. Nothing is uploaded.
 
-It is a near-complete copy rather than a total one: the post columns added in
-schemas 3 and 4 — caption, creator handle, source id, media type, the specific
-location parts, places and highlights — are not in the file, and neither is a
-trip's colour. That is limitation 2 in the checklist. It matters here because an
-export is the thing a person would reach for if they wanted their data out, and
-it should not be described as everything when it is not.
+It is now genuinely everything, and was not. The post columns added in schemas 3
+to 7 — caption, creator handle, creator page and picture, source id, media type,
+the specific location parts, places and highlights — were missing, as were a
+trip's colour and both `deleted_at` columns, while the code comment claimed the
+file held everything. An export is the thing a person reaches for when they want
+their data out, so the export was widened to match the claim rather than the
+claim narrowed to match the export. `places` and `highlights` are decoded back
+into real JSON instead of being written as escaped strings, soft-deleted rows are
+included with their timestamps, and `format_version` is 2 to mark the change.
 
 ## Secrets
 
@@ -94,7 +99,7 @@ Nook reads four values from `.env`. Three are credentials; one is not.
 | Variable | What it is | Privileged | Needed to run |
 | --- | --- | --- | --- |
 | `GEMINI_API_KEY` | Extraction: destination, category, summary, coordinates | **Yes, billable** | No — without it the sample extractor runs, and says so |
-| `YOUTUBE_API_KEY` | A YouTube video's description, via the Data API | **Yes, quota-bearing** | No — without it extraction works from the title alone |
+| `YOUTUBE_API_KEY` | A YouTube video's description and the creator's channel picture, via the Data API | **Yes, quota-bearing** | No — without it extraction works from the title alone and no creator picture is available |
 | `FACEBOOK_TOKEN` | `APP_ID\|CLIENT_TOKEN` for Meta's oEmbed endpoints | **Yes, app-scoped** | No — without it Instagram and Facebook extract from the URL alone |
 | `GEMINI_MODEL` | An optional model id to pin | No | No — without it the app asks the API what the key can reach |
 
@@ -150,7 +155,7 @@ what the platform has already published about it:
 | --- | --- | --- |
 | `generativelanguage.googleapis.com` | Gemini extraction and model listing | `GEMINI_API_KEY`, as a header |
 | `www.youtube.com/oembed` | Title, channel, thumbnail | none — public |
-| `www.googleapis.com/youtube/v3` | The video description | `YOUTUBE_API_KEY`, as a query parameter |
+| `www.googleapis.com/youtube/v3` | The video description, then the channel's picture | `YOUTUBE_API_KEY`, as a query parameter |
 | `www.tiktok.com/oembed` | Caption, author, thumbnail | none — public |
 | `graph.facebook.com/v21.0` | Instagram and Facebook oEmbed | `FACEBOOK_TOKEN`, as a query parameter |
 | `tile.openstreetmap.org` | Map tiles for a post that has coordinates | none — public |
@@ -167,6 +172,24 @@ Instagram and Facebook withdrew public oEmbed in October 2020. Without
 itself says, and the prompt states outright that it is working blind. The
 Connected Platforms screen says per platform how much of a post Nook can read,
 because the four are genuinely not equivalent.
+
+## The creator's profile picture
+
+Added in schema 7, and null for most saves on purpose.
+
+Of the four platforms, only **YouTube** exposes a creator's avatar through a
+route Nook can legitimately use, and only with a `YOUTUBE_API_KEY`: the Data API
+returns a channel's thumbnails when asked for them by channel id, which costs one
+more call on the key already in use. TikTok's oEmbed returns the author's name
+and page and nothing else about them. Instagram and Facebook return the same
+through the Graph API — a profile picture there needs a different permission and,
+for a person rather than a page, their consent.
+
+So Nook asks YouTube, takes what it gives, and draws the creator's initial
+everywhere else. It never derives a face from a handle, picks a stock portrait,
+or generates one. The avatar URL is read from the platform and never from the
+model: a language model asked for a creator's picture returns a convincing URL to
+an image that does not exist.
 
 ## Logging, errors and extracted content
 
@@ -238,8 +261,9 @@ summary:
 - [x] No real personal data in the code, the seed data, the screenshots or the video
 - [x] No `student.json`, no student number
 - [x] Deletion is reversible for 30 days and permanent afterwards
-- [x] `flutter analyze` is clean and 275 tests pass
+- [x] `flutter analyze` is clean and 279 tests pass
 - [x] Dependencies are pinned by `pubspec.lock`, which is committed
-- [ ] **Seven open items** are recorded in the checklist, including a wipe that
-      leaves `app_settings` behind, an export that is a subset of the database,
-      and live third-party calls that this environment could not exercise
+- [x] Deletion clears every table, and the export writes every column
+- [ ] **Five open items** remain in the checklist, including an opportunistic
+      retention purge, two credentials that travel in query strings, and live
+      third-party calls that this environment could not exercise

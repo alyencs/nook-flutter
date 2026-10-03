@@ -83,28 +83,3 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
-
-/// The app mark: a bookmark in a soft circle. Used on the splash, the About
-/// screen and the empty state, so the app has one recognisable glyph.
-class NookMark extends StatelessWidget {
-  const NookMark({super.key, this.size = 72});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        color: NookColors.placeholder,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.bookmark_outline_rounded,
-        size: size * 0.45,
-        color: NookColors.primary,
-      ),
-    );
-  }
-}

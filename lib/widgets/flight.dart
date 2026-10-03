@@ -113,7 +113,7 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
   /// so one per build leaks one per build.
   late final Animation<double> _t = CurvedAnimation(
     parent: _controller,
-    curve: NookMotion.enter,
+    curve: NookMotion.travel,
   );
 
   @override
