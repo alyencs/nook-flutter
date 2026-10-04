@@ -1,11 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart' show TickerCanceled;
 
 import '../theme/nook_motion.dart';
-
-/// True from the first tap until the lid is back down, so a second tap during
-/// the open is ignored rather than cancelling — and stranding — the first.
-bool _opening = false;
 
 /// A folder that opens when it is tapped, before its screen arrives.
 ///
@@ -41,33 +38,48 @@ class _FolderOpenState extends State<FolderOpen>
     curve: NookMotion.enter,
   );
 
+  /// True from this folder's tap until its lid is back down, so a second tap
+  /// during the open is ignored rather than restarting it.
+  ///
+  /// One per folder, not one per app. Shared between every FolderOpen, a lid
+  /// part-way through its tip silenced every other folder on every screen —
+  /// and a tap that never resolved left all of them silenced for good.
+  bool _opening = false;
+
+  /// The wait between the lid lifting and the tap running.
+  ///
+  /// A timer rather than the controller's own future: a ticker is muted while
+  /// its screen sits under another route, and a muted ticker neither ticks nor
+  /// cancels, so anything awaiting one waits for ever. A timer runs on the
+  /// clock and always lands.
+  Timer? _run;
+
   @override
   void dispose() {
+    // Cancelled, so tearing the tree down takes the pending tap with it.
+    _run?.cancel();
     (_t as CurvedAnimation).dispose();
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _open() async {
+  void _open() {
     if (_opening) return;
     _opening = true;
-    try {
-      // orCancel, not the bare future. AnimationController.forward() hands back a
-      // TickerFuture whose *primary* future is never completed on cancellation —
-      // only orCancel reports it, as a TickerCanceled. Awaiting the bare future
-      // therefore hangs for ever when anything restarts or disposes the
-      // controller, and the tap is lost with no error and nothing on screen.
-      await _controller.forward().orCancel;
-      if (!mounted) return;
-      widget.onTap();
-      // Not awaited — the route is already on its way — but its cancellation is
-      // absorbed, so popping back mid-close cannot raise an unhandled error.
-      _controller.reverse().orCancel.catchError((_) {});
-    } on TickerCanceled {
-      // The widget went away mid-open, or the controller was restarted.
-    } finally {
+    _controller.forward(from: 0);
+    _run = Timer(NookMotion.settle, () {
       _opening = false;
-    }
+      if (!mounted) return;
+      // Another screen arrived while the lid was lifting — a second tap landed
+      // on something that navigates — so this tap is stale. The folder closes
+      // again rather than pushing a route on top of wherever the user now is.
+      if (ModalRoute.of(context)?.isCurrent == false) {
+        _controller.value = 0;
+        return;
+      }
+      widget.onTap();
+      _controller.reverse();
+    });
   }
 
   @override
