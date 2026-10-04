@@ -13,15 +13,12 @@ import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_text_field.dart';
 
-/// LO1. Personalisation, not registration.
+/// Personalisation, not registration.
 ///
-/// This writes the single row in the `users` table, and it asks for one thing:
-/// what to call you. There is no email and no password, because Nook keeps
-/// everything on this device and talks to no server — there is no account for
-/// either to identify, and asking for them only made a local app feel like a
-/// sign-up form.
-///
-/// A photo is optional, and can be added later from Account.
+/// Writes the single row in the `users` table, and asks for one thing: what to
+/// call you. No email and no password, because there is no server and so no
+/// account for either to identify. A photo is optional and can be added later
+/// from Account.
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
 

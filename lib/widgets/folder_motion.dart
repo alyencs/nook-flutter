@@ -6,14 +6,12 @@ import '../theme/nook_motion.dart';
 
 /// A folder that opens when it is tapped, before its screen arrives.
 ///
-/// The lid tips back on an X rotation for the length of one tap and no longer.
-/// Folders do not move on their own: a grid of six tiles breathing in place is
-/// decoration, and Nook's rule is that motion means something happened.
+/// The lid tips back for the length of one tap and no longer; folders do not
+/// move on their own.
 ///
-/// The tap is run *after* the open completes, so the folder is visibly open
-/// before the route changes under it. That ordering is the whole effect — run
-/// them together and the animation is hidden by the page transition, which is
-/// exactly the mistake the delete flight was making.
+/// The tap runs *after* the open completes, so the folder is visibly open
+/// before the route changes under it. Run together, the page transition hides
+/// the animation entirely.
 class FolderOpen extends StatefulWidget {
   const FolderOpen({super.key, required this.child, required this.onTap});
 
@@ -41,17 +39,15 @@ class _FolderOpenState extends State<FolderOpen>
   /// True from this folder's tap until its lid is back down, so a second tap
   /// during the open is ignored rather than restarting it.
   ///
-  /// One per folder, not one per app. Shared between every FolderOpen, a lid
-  /// part-way through its tip silenced every other folder on every screen —
-  /// and a tap that never resolved left all of them silenced for good.
+  /// One per folder, not one per app: shared, a single lid part-way through its
+  /// tip silences every other folder on every screen.
   bool _opening = false;
 
   /// The wait between the lid lifting and the tap running.
   ///
-  /// A timer rather than the controller's own future: a ticker is muted while
-  /// its screen sits under another route, and a muted ticker neither ticks nor
-  /// cancels, so anything awaiting one waits for ever. A timer runs on the
-  /// clock and always lands.
+  /// A timer rather than the controller's future: a ticker is muted while its
+  /// screen sits under another route, and a muted ticker neither ticks nor
+  /// cancels, so anything awaiting one waits for ever.
   Timer? _run;
 
   @override
@@ -97,16 +93,13 @@ class _FolderOpenState extends State<FolderOpen>
             alignment: Alignment.bottomCenter,
             transform: Matrix4.identity()
               // Perspective, so the tip reads as a lid opening rather than the
-              // tile shearing. Deeper than it first was: on a card only 72pt
-              // tall, 0.0015 with a 13-degree tilt moved the top edge about
-              // two pixels — running, and invisible, which is the same as not
-              // running at all.
+              // tile shearing. On a card 72pt tall a shallower value moves the
+              // top edge about two pixels, which is invisible.
               ..setEntry(3, 2, 0.0028)
               ..rotateX(-0.42 * v)
-              // Lifted off the grid and brought a little closer, so it leaves
-              // the page rather than folding into it.
-              // translateByDouble, not translate: the Vector-math overload is
-              // deprecated in current Flutter and raises an analyzer info.
+              // Lifted off the grid and brought closer, so it leaves the page
+              // rather than folding into it. translateByDouble, because the
+              // Vector-math overload is deprecated.
               ..translateByDouble(0.0, -10.0 * v, 0.0, 1.0)
               ..scaleByDouble(
                 1 + 0.06 * v,
@@ -123,11 +116,8 @@ class _FolderOpenState extends State<FolderOpen>
   }
 }
 
-/// A folder that springs once, when it first appears.
-///
-/// For a trip that was just created or just restored — the two moments when a
-/// folder is new to the screen and worth pointing at. It plays once on mount
-/// and never again.
+/// A folder that springs once, when it first appears: a trip just created or
+/// just restored. Plays on mount and never again.
 class FolderArrive extends StatefulWidget {
   const FolderArrive({super.key, required this.child});
 

@@ -609,3 +609,76 @@ knowingly open contradictions.
 
 **Next.** The 40-link extraction test, on a real network with a real key. The
 demo video. Confirming the photographs load where the hosts are reachable.
+
+## Week 7 — Explore Itinerary, a new AI provider, and a tap that stopped registering
+
+**Done — Explore Itinerary is built.**
+
+The itinerary generator had been drawn, disabled and labelled a stretch goal
+since the proposal. It is a feature now, and the shape it took is narrower than
+the proposal imagined: it plans from the posts already saved into a trip rather
+than from a destination typed into a box. That is the version worth having —
+the material is already there, it is the traveller's own, and a planner that
+ignores it would be a second app bolted on rather than Nook doing more with what
+it holds.
+
+Three screens: a trip picker, a plan screen with the source posts listed above a
+row of duration chips, and the result. The duration is one to seven days and the
+generator is held to it — more days than asked for are trimmed, fewer is
+reported rather than padded out with a day nobody planned. A trip with nothing
+in it, or one whose posts are only titles, is refused before a call is made.
+
+`SampleItineraryGenerator` is the keyless half, and it is not a stub: it takes
+the places, tips and notes out of the saved posts, orders them and spreads them
+across the days. The deployed build runs it, and the screen says so.
+
+**Done — the AI provider moved to Claude Haiku 4.5.**
+
+`lib/ai/` kept its shape. `AiExtractor` and `ItineraryGenerator` did not change,
+the prompts did not change, and the itinerary models did not change. What
+changed is the three files underneath: a Messages API client in place of the
+Gemini one, and the two implementations rewritten against it.
+
+The one substantive difference is how structure is asked for. Gemini had
+`responseSchema`; the replacement is a tool the model is forced to call, with a
+JSON Schema for its arguments. The reply then arrives as a decoded object rather
+than as text that has to be found inside prose and parsed — strictly better than
+what it replaced. Model discovery went with it: a dated model id is pinned,
+with the rolling alias behind it as a fallback, which is two fewer requests per
+session and one less thing to go stale.
+
+`GEMINI_API_KEY` and `GEMINI_MODEL` became `ANTHROPIC_API_KEY` and
+`CLAUDE_MODEL`. The security position is unchanged and so is its limit: the key
+is still read from a git-ignored `.env`, still bundled as an asset in any build
+made with one, and still absent from the deployed build.
+
+**Done — taps stopped being swallowed.**
+
+A tap on a trip folder would sometimes do nothing, and the number of taps that
+worked before one went missing varied between one and three. `FolderOpen` held
+its re-entrancy guard in a library-level variable rather than in its State, so
+one folder part-way through its lid animation silenced every folder on every
+screen for the length of that animation. Worse, the guard was released only when
+an awaited `TickerFuture` completed — and a ticker is muted, not cancelled, when
+its screen sits under another route, so a lid frozen that way never released it
+at all.
+
+The flag is per-instance now, and the wait is a `Timer` rather than a ticker
+future, so it lands whether or not the screen is on top. A tap that is stale by
+the time it fires — because another screen arrived first — closes the folder
+instead of pushing a route over wherever the user now is.
+
+**Challenges.**
+
+- *Reproducing the tap bug took a measurement, not a reading.* It looked like a
+  gesture problem and was not. Tapping two folders at a fixed interval and
+  counting how many callbacks fired put the dead window at 420ms and made the
+  cause obvious.
+- *The screenshots were out of date.* Onboarding and the seeded posts have real
+  photographs now; the README still showed the versions without them. Recaptured
+  from the current build with the phone frame off.
+
+**Next.** The 40-link extraction test, still outstanding, on a real network with
+a real key. Five tests in `dao_test.dart` and `widget_test.dart` assert counts
+and coordinates that the current demo seed no longer matches, and need updating
+to the fixture rather than the other way round. The demo video.

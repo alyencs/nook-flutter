@@ -61,16 +61,13 @@ class ItineraryActivity {
 
 /// Turns a decoded model reply into days, or reports why it could not.
 ///
-/// Everything here is defensive. A reply can be well-formed JSON and still be
-/// unusable — a day with no activities, a day number the model repeated, a
-/// description that runs to three thousand characters — and none of those
-/// should reach a screen or a crash.
+/// Defensive throughout: a reply can be well-formed and still unusable — a day
+/// with no activities, a repeated day number, a three-thousand-character
+/// description — and none of that should reach a screen.
 abstract final class ItineraryParsing {
-  /// The longest a single field is allowed to be before it is cut.
-  ///
-  /// Not a style preference: a model that loses its footing can emit a
-  /// paragraph where a title belongs, and a 4,000-character "title" inside a
-  /// card is a layout failure rather than content.
+  /// The longest a single field may be before it is cut. A model that loses its
+  /// footing can emit a paragraph where a title belongs, and that is a layout
+  /// failure rather than content.
   static const maxTitle = 140;
   static const maxDescription = 1200;
   static const maxOverview = 400;

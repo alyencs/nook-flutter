@@ -15,7 +15,7 @@ import 'connected_platforms_screen.dart';
 import 'help_screen.dart';
 import 'settings_screen.dart';
 
-/// P1.
+/// The Profile tab: the local profile, and the way into every sub-screen.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key, required this.nav});
 

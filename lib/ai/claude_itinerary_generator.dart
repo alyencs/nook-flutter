@@ -8,15 +8,10 @@ import 'itinerary_generator.dart';
 
 /// Builds a day-by-day plan out of what the traveller has already saved.
 ///
-/// The same transport as extraction — [ClaudeClient], its retry policy and its
-/// status handling — so there is one place in the app that knows how to talk to
-/// the model and one place that decides whether a failure is worth retrying.
-///
-/// What differs from extraction is the budget. Extraction copies a handful of
-/// short fields out of text that is already in the prompt; this reads several
-/// posts and has to organise them, so the reply is longer and the wait is
-/// longer, and the timeouts say so rather than inheriting a 20-second cap set
-/// for a different job.
+/// Shares [ClaudeClient] with extraction, so one place knows how to talk to the
+/// model and one place decides whether a failure is worth retrying. The budget
+/// is its own: this reads several posts and organises them, so the reply and
+/// the wait are both longer than an extraction's.
 class ClaudeItineraryGenerator implements ItineraryGenerator {
   ClaudeItineraryGenerator({
     required String apiKey,
@@ -30,9 +25,9 @@ class ClaudeItineraryGenerator implements ItineraryGenerator {
          retry: retry,
        );
 
-  /// Longer than extraction's, because the job is bigger. Three attempts
-  /// rather than four: a plan that has failed twice is not usually one wait
-  /// away from working, and the traveller is watching a spinner.
+  /// Three attempts rather than four: a plan that has failed twice is not
+  /// usually one wait away from working, and the traveller is watching a
+  /// spinner.
   static const planningRetry = RetryPolicy(
     maxAttempts: 3,
     baseDelay: Duration(milliseconds: 800),
@@ -41,16 +36,12 @@ class ClaudeItineraryGenerator implements ItineraryGenerator {
     deadline: Duration(seconds: 100),
   );
 
-  /// Room for a long trip. Seven days of four activities with a sentence each
-  /// sits comfortably inside this; an uncapped reply is one that can run until
-  /// it times out.
+  /// Room for seven days of four activities with a sentence each, and no more:
+  /// an uncapped reply is one that can run until it times out.
   static const maxOutputTokens = 6144;
 
-  /// How many days the traveller may ask for.
-  ///
-  /// Not an arbitrary ceiling: beyond about a week the plan stops being an
-  /// itinerary and becomes a list, and the saved posts behind it run out of
-  /// material long before that.
+  /// How many days the traveller may ask for. Beyond about a week the saved
+  /// posts run out of material and the plan becomes a list.
   static const maxDays = 7;
 
   /// The name the model calls to hand the plan back. The reply is the tool's
@@ -118,9 +109,9 @@ class ClaudeItineraryGenerator implements ItineraryGenerator {
 
   /// Asks each candidate model in turn until one answers.
   ///
-  /// A model id that is gone moves to the next candidate, an overloaded service
-  /// gets one more candidate because that is nearly free, and a rejected key or
-  /// an exhausted quota stops rather than failing the same way three times.
+  /// A gone id or an overloaded service moves to the next candidate; a rejected
+  /// key or an exhausted quota stops, because it would fail the same way three
+  /// times.
   Future<Map<String, dynamic>> _ask(
     ItineraryRequest request,
     ItineraryStage? onStage,
@@ -184,18 +175,14 @@ class ClaudeItineraryGenerator implements ItineraryGenerator {
             'with every day the traveller asked for.',
         schema: _responseSchema,
         maxTokens: maxOutputTokens,
-        // Not zero, unlike extraction. Extraction copies facts and has one
-        // right answer, so sampling there was pure variance. Writing an
-        // itinerary is a choice about order and pacing, and a little room makes
-        // the difference between a plan and a sorted list. Low enough that it
-        // still respects the sources.
+        // Not zero, unlike extraction: order and pacing are choices, and a
+        // little room is the difference between a plan and a sorted list. Low
+        // enough that it still respects the sources.
         temperature: 0.4,
       );
 
-  /// The shape the plan has to come back in, as JSON Schema.
-  ///
-  /// A nullable field is written as a two-member type rather than a flag, which
-  /// is how JSON Schema says it and what the tool validator reads.
+  /// The shape the plan has to come back in, as JSON Schema. Nullable is a
+  /// two-member type, as JSON Schema writes it.
   static final Map<String, Object?> _responseSchema = {
     'type': 'object',
     'properties': {
@@ -297,8 +284,8 @@ prose, and do not call it more than once.
   /// Digs the plan out of the response envelope.
   ///
   /// Three ways a reply can be well-formed HTTP and still carry no answer: a
-  /// refusal, a message cut off at the token ceiling before the tool call was
-  /// finished, and a content list with no tool call in it at all.
+  /// refusal, a message cut off at the ceiling, and a content list with no tool
+  /// call in it.
   GeneratedItinerary _itineraryFrom(
     Map<String, dynamic> response,
     ItineraryRequest request,
@@ -356,11 +343,9 @@ prose, and do not call it more than once.
     );
   }
 
-  /// What the traveller reads when a plan cannot be built.
-  ///
-  /// Free of vendor names, model ids and status codes, like every other
-  /// message in the app. The configuration failures are the exception and name
-  /// the `.env` setting rather than the service behind it.
+  /// What the traveller reads when a plan cannot be built. No vendor names,
+  /// model ids or status codes; the configuration failures name the `.env`
+  /// setting rather than the service behind it.
   String _friendly(ClaudeApiException e) {
     if (e.isAuthFailure) {
       return 'Nook could not authenticate with its AI service. Check '

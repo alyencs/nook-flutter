@@ -2,19 +2,14 @@ import 'package:drift/drift.dart';
 
 /// The local profile. One row, always.
 ///
-/// There is no password column and no session: the proposal's storage decision
-/// (Drift, on device, no server) means there is nothing to authenticate
-/// against. This is a profile, not an account.
+/// No password column and no session: storage is on the device and there is no
+/// server to authenticate against. This is a profile, not an account.
 class Users extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
 
-  /// Nullable, and no longer collected.
-  ///
-  /// Nook stores everything on the device and talks to no server, so there was
-  /// never an account for an email address to identify. Onboarding now asks
-  /// what to call you and nothing else. The column stays so that profiles
-  /// created before this keep their data; nothing reads it.
+  /// Nullable, and no longer collected: there is no account for an address to
+  /// identify. Kept so profiles created before this keep their data.
   TextColumn get email => text().nullable()();
 
   /// A base64 data URI. `image_picker` returns bytes rather than a path on the
@@ -22,11 +17,10 @@ class Users extends Table {
   TextColumn get profilePicture => text().nullable()();
 }
 
-/// Formerly "collections". A saved post belongs to exactly one trip.
+/// A saved post belongs to exactly one trip.
 ///
-/// The proposal lists an `item_count` field here. It is computed by
-/// [TripsDao.watchTripSummaries] instead of stored, so the number on a trip
-/// card can never disagree with the rows behind it.
+/// The item count is computed by [TripsDao.watchTripSummaries] rather than
+/// stored, so the number on a trip card cannot disagree with the rows.
 class Trips extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -34,20 +28,15 @@ class Trips extends Table {
       integer().customConstraint('NOT NULL REFERENCES users(id)')();
   DateTimeColumn get createdAt => dateTime()();
 
-  /// Which of the five folder colours this trip is, by [TripColor.id].
-  ///
-  /// Nullable so every trip that existed before the feature keeps working:
-  /// null means "nobody chose", and the UI spreads those across the palette by
-  /// id rather than leaving them all one colour.
+  /// Which of the five folder colours this trip is, by [TripColor.id]. Null
+  /// means "nobody chose", and the UI spreads those across the palette.
   TextColumn get colorId => text().nullable()();
 
   /// When this trip was moved to Recently Deleted, or null while it is live.
   ///
-  /// Deleting a trip does not touch the posts in it — that was always true, and
-  /// is what the confirmation now says out loud. What changed is that the trip
-  /// row itself survives too, with its posts' `trip_id` left exactly as it was,
-  /// so restoring puts the same posts back in the same trip. Nothing is copied,
-  /// so nothing can be duplicated.
+  /// Deleting a trip does not touch the posts in it, and the row itself
+  /// survives with its posts' `trip_id` untouched, so restoring puts the same
+  /// posts back in the same trip. Nothing is copied, so nothing duplicates.
   DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
@@ -78,26 +67,21 @@ class SavedPosts extends Table {
   /// The creator's page on the platform, from oEmbed's `author_url`.
   TextColumn get creatorUrl => text().nullable()();
 
-  /// The creator's profile picture, when the platform publishes one.
-  ///
-  /// Null for most saves, and deliberately so: of the four platforms only
-  /// YouTube exposes an avatar through a route Nook can use, and only when a
-  /// `YOUTUBE_API_KEY` is configured. Nothing generates or guesses one — a post
-  /// without an avatar draws the creator's initial instead.
+  /// The creator's profile picture, when the platform publishes one. YouTube
+  /// only, and only with a `YOUTUBE_API_KEY`; nothing guesses one, and a post
+  /// without it draws the creator's initial.
   TextColumn get creatorAvatarUrl => text().nullable()();
 
-  /// The platform's own id: a YouTube video id, an Instagram shortcode. Held so
-  /// that it is available as metadata and never needed as a title — showing
-  /// `Sf9ihvL0Usk` where a title belongs is what this column exists to prevent.
+  /// The platform's own id: a YouTube video id, an Instagram shortcode. Held as
+  /// metadata so it is never needed as a title.
   TextColumn get sourceId => text().nullable()();
 
   /// video | image | carousel | unknown. Not assumed: a photo post is not a
   /// video, and the badge over its thumbnail should not say so.
   TextColumn get mediaType => text().nullable()();
 
-  // --- Extraction results. Every one may be null: the proposal's second risk
-  // is that a destination comes back vague or absent, so every screen renders
-  // an em dash rather than assuming a value.
+  // --- Extraction results. Every one may be null: a destination can come back
+  // vague or absent, and every screen renders an em dash rather than assuming.
   TextColumn get aiDestination => text().nullable()();
   TextColumn get aiCategory => text().nullable()();
   TextColumn get aiSummary => text().nullable()();
@@ -107,9 +91,9 @@ class SavedPosts extends Table {
   TextColumn get aiBestTime => text().nullable()();
   TextColumn get aiBudgetNote => text().nullable()();
 
-  // The location, from most specific to least. [aiDestination] stays as the
-  // one-line display string composed from these; these are what make it
-  // possible to store "a cafe in Nakazakicho, Osaka" rather than "Japan".
+  // The location, from most specific to least. [aiDestination] is the one-line
+  // display string composed from these, which are what make "a cafe in
+  // Nakazakicho, Osaka" storable rather than just "Japan".
   TextColumn get aiPlaceName => text().nullable()();
   TextColumn get aiAddress => text().nullable()();
   TextColumn get aiNeighbourhood => text().nullable()();
@@ -118,9 +102,9 @@ class SavedPosts extends Table {
 
   /// Specific places the source named — the five cafes in "5 Cafes in Kyoto".
   ///
-  /// A JSON array of `{name, kind, area, note}`, because the count varies per
-  /// post and a column per place would be a schema that depends on content.
-  /// Read and written through [PostPlace].
+  /// A JSON array of `{name, kind, area, note}`: the count varies per post, so
+  /// a column per place would be a schema that depends on content. Read and
+  /// written through [PostPlace].
   TextColumn get aiPlaces => text().nullable()();
 
   /// Activities, recommendations and tips the source gave, as a JSON array of
@@ -139,22 +123,21 @@ class SavedPosts extends Table {
   TextColumn get personalNote => text().nullable()();
   DateTimeColumn get dateSaved => dateTime()();
 
-  /// Drives the "Recently Viewed" section on Home. See decision 7.
+  /// Drives the "Recently Viewed" section on Home.
   DateTimeColumn get lastViewedAt => dateTime().nullable()();
 
-  /// Drawn as "Last edited …" on the Personal Notes screen. See decision 7.
+  /// Drawn as "Last edited …" on the Personal Notes screen.
   DateTimeColumn get noteEditedAt => dateTime().nullable()();
 
   /// When this post was moved to Recently Deleted, or null while it is live.
   ///
-  /// Every query that feeds a screen filters on this, so a deleted post leaves
-  /// Home, search, its trip and the counts at once while the row — and its
-  /// extraction, its note, its trip membership — stays intact for restoring.
+  /// Every screen query filters on this, so a deleted post leaves Home, search,
+  /// its trip and the counts at once while the row stays intact for restoring.
   DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 @DataClassName('RecentSearch')
-/// Backs the "Recent Searches" list and its per-item delete. See decision 7.
+/// Backs the "Recent Searches" list and its per-item delete.
 class RecentSearches extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get query => text()();

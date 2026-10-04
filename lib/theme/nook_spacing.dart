@@ -10,11 +10,8 @@ abstract final class NookSpacing {
   /// spans 342 of the 390pt frame, which is exactly 24 either side.
   static const screenEdge = 24.0;
 
-  /// Between major blocks on a screen.
-  ///
-  /// Vertical only. The screen edge was doing this job too, which is what made
-  /// the screens taller than the mockup: 24 is right at the sides and too much
-  /// between stacked sections.
+  /// Between major blocks on a screen. Vertical only: the screen-edge value is
+  /// right at the sides and too much between stacked sections.
   static const block = 20.0;
 
   /// Vertical padding inside a list row.

@@ -11,7 +11,7 @@ import '../../widgets/nook_toast.dart';
 import '../../widgets/sub_screen_nav.dart';
 import 'content_screen.dart';
 
-/// P6.
+/// Help & Support.
 ///
 /// The search field filters the topics, and each one opens a real answer.
 class HelpScreen extends StatefulWidget {

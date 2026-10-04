@@ -6,22 +6,12 @@ import '../theme/nook_typography.dart';
 
 /// The person who made a post, as a circle.
 ///
-/// Draws the creator's real profile picture when the platform published one,
-/// and their initial when it did not — which is most of the time, and on
-/// purpose.
+/// The real profile picture when the platform published one, and their initial
+/// when it did not — which is most of the time: only YouTube exposes an avatar
+/// through a route Nook can use, and only with a `YOUTUBE_API_KEY`.
 ///
-/// **Why this is usually an initial.** Of the four platforms Nook reads, only
-/// YouTube exposes a creator's avatar through a route the app can legitimately
-/// use, and only when a `YOUTUBE_API_KEY` is configured: the Data API will give
-/// a channel's thumbnails if asked for them by channel id. TikTok's oEmbed
-/// returns the author's name and page and nothing else about them. Instagram
-/// and Facebook return the same through the Graph API; a profile picture there
-/// needs a different permission, and for a person rather than a page, their
-/// consent.
-///
-/// So the choice was between an initial and inventing something. Nothing here
-/// derives a face from a handle, picks a stock portrait, or generates an image:
-/// a missing avatar is drawn as a missing avatar.
+/// Nothing here derives a face from a handle or generates an image. A missing
+/// avatar is drawn as a missing avatar.
 class CreatorAvatar extends StatelessWidget {
   const CreatorAvatar({
     super.key,
@@ -74,9 +64,9 @@ class CreatorAvatar extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
-        // The same reason PostThumbnail does this: on the web CanvasKit fetches
-        // the bytes over HTTP, so a host without CORS headers fails. An <img>
-        // element is not subject to that check.
+        // As in PostThumbnail: on the web CanvasKit fetches the bytes over
+        // HTTP, so a host without CORS headers fails. An <img> element does
+        // not go through that check.
         webHtmlElementStrategy: kIsWeb
             ? WebHtmlElementStrategy.prefer
             : WebHtmlElementStrategy.never,

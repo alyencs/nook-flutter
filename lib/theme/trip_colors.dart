@@ -4,14 +4,12 @@ import 'nook_colors.dart';
 
 /// The five colours a trip folder can be.
 ///
-/// Five, not a picker: a wheel would let someone choose a colour that fights
-/// the app, and the point is to tell four trips apart at a glance, not to
-/// paint. Each is desaturated to sit under Nook's warm background without
-/// competing with the orange, which stays the app's only saturated colour.
+/// Five, not a wheel: the point is to tell four trips apart at a glance, not to
+/// paint. Each is desaturated enough to sit under the warm background without
+/// competing with the orange, which stays the only saturated colour.
 ///
-/// Sand is first and is the default, because it is Soft Butter — the tone the
-/// app already uses behind its own cards — so a trip nobody has customised
-/// still looks deliberate.
+/// Sand is the default because it is the tone already behind the app's cards,
+/// so a trip nobody has customised still looks deliberate.
 enum TripColor {
   sand('sand', Color(0xFFF7E7BE), Color(0xFF8A6B2F)),
   sky('sky', Color(0xFFD7E6F2), Color(0xFF3F6A8C)),
@@ -43,11 +41,9 @@ enum TripColor {
     return fallback;
   }
 
-  /// The colour a trip gets when nobody has chosen one.
-  ///
-  /// Spread by id rather than random, so the seeded trips and any trip created
-  /// before this feature arrive in different colours instead of a wall of
-  /// sand — and so the same trip is the same colour on every launch.
+  /// The colour a trip gets when nobody has chosen one. Spread by id rather
+  /// than at random, so trips differ from each other and a trip keeps its
+  /// colour across launches.
   static TripColor forId(int id) => values[id.abs() % values.length];
 
   /// What the picker calls it.

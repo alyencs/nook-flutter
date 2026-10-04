@@ -3,10 +3,9 @@ import 'post_place.dart';
 
 /// One saved post, flattened into the facts an itinerary can be built from.
 ///
-/// A value type rather than the Drift row on purpose: `lib/ai` knows nothing
-/// about the database, the same way [AiExtractor] does not, so the generator
-/// can be tested without one and the data layer can change shape without
-/// reaching in here.
+/// A value type rather than the Drift row: `lib/ai` knows nothing about the
+/// database, so the generator can be tested without one and the data layer can
+/// change shape without reaching in here.
 class ItinerarySource {
   const ItinerarySource({
     required this.title,
@@ -157,11 +156,8 @@ class ItineraryRequest {
   }
 }
 
-/// Where generation has got to.
-///
-/// Three phases, and the screen chooses the words — the same arrangement
-/// [ExtractionPhase] uses, and for the same reason: a vendor name, a model id
-/// or an HTTP status is never the traveller's problem.
+/// Where generation has got to. Three phases, and the screen chooses the words
+/// — the same arrangement [ExtractionPhase] uses, and for the same reason.
 enum ItineraryPhase {
   /// Gathering the saved posts for the trip.
   readingSaves,

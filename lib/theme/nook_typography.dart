@@ -4,37 +4,22 @@ import 'nook_colors.dart';
 
 /// The type scale.
 ///
-/// Two faces, with a clear division of labour.
-///
-/// **Manrope** does the work: body, labels, buttons, navigation, every piece of
-/// functional UI. It is the voice of the app.
-///
-/// **[editorialFamily]** is the accent, and it is deliberately rationed. It is
-/// for the two or three words on a screen that should catch the eye first — not
-/// for whole headings, and never for anything a person has to read quickly. The
-/// pattern is one phrase inside an otherwise Manrope line:
+/// Manrope does the functional work — body, labels, buttons, navigation.
+/// [editorialFamily] is the accent and is rationed to the two or three words on
+/// a screen that should catch the eye first:
 ///
 /// ```dart
 /// NookHeadline('Never lose your *next favourite find*')
 /// ```
 ///
-/// A screen with editorial type in more than one place is almost certainly
-/// overusing it.
+/// Editorial type in more than one place on a screen is almost certainly
+/// overuse.
 ///
-/// ---
-///
-/// **On PP Editorial New.** The design direction calls for it, and it cannot be
-/// committed to this repository: it is a licensed face from Pangram Pangram,
-/// free for personal use only. What ships here is Instrument Serif (SIL OFL) —
-/// a high-contrast editorial serif chosen to sit in the same role. To swap in
-/// the real thing once you hold a licence:
-///
-/// 1. Drop `PPEditorialNew-Regular.otf` and `PPEditorialNew-Italic.otf` into
-///    `assets/fonts/`.
-/// 2. Point the `EditorialSerif` family in `pubspec.yaml` at them.
-///
-/// Nothing else changes: every editorial style in the app resolves through
-/// [editorialFamily], so the swap is those two edits and nothing more.
+/// The design calls for PP Editorial New, which is licensed and cannot be
+/// committed; Instrument Serif (SIL OFL) stands in. Swapping it is two edits —
+/// the font files into `assets/fonts/`, and the `EditorialSerif` family in
+/// `pubspec.yaml` — because every editorial style resolves through
+/// [editorialFamily].
 abstract final class NookType {
   /// The UI face. Everything functional.
   static const family = 'Manrope';
@@ -99,10 +84,8 @@ abstract final class NookType {
     color: NookColors.textMuted,
   );
 
-  /// Section labels above a field: "DETECTED DESTINATION".
-  ///
-  /// Wider tracking than before, because these now sit on a rule and read as
-  /// editorial section marks rather than form labels.
+  /// Section labels above a field: "DETECTED DESTINATION". Tracked wide,
+  /// because these sit on a rule and read as section marks, not form labels.
   static const overline = TextStyle(
     fontFamily: family,
     fontSize: 10,
@@ -125,12 +108,8 @@ abstract final class NookType {
   // emphasised phrase sits on the same line as the words around it.
 
   /// The emphasised phrase inside a [display] line.
-  /// The editorial face is always Nook's orange.
-  ///
-  /// Emphasis and brand colour are one decision, not two: a serif italic in
-  /// charcoal reads as a different font rather than as the same voice raised.
-  /// Using the orange already in the palette keeps the accent recognisably
-  /// Nook rather than introducing a second highlight colour.
+  /// The editorial face is always Nook's orange: a serif italic in charcoal
+  /// reads as a different font rather than as the same voice raised.
   static const accentColor = NookColors.primary;
 
   static const displayAccent = TextStyle(
@@ -182,17 +161,13 @@ abstract final class NookType {
 
 /// A headline where one phrase is set in the editorial face.
 ///
-/// The emphasis is written inline, wrapped in asterisks, so the call site reads
-/// as the sentence it renders:
-///
 /// ```dart
 /// NookHeadline('Never lose your *next favourite find*')
 /// ```
 ///
-/// Everything outside the asterisks is [style]; everything inside is its
-/// editorial counterpart. This exists so that emphasis is a property of the
-/// copy rather than a layout of nested `Text` widgets, which is what makes it
-/// survive translation, wrapping and a change of type scale.
+/// Outside the asterisks is [style], inside is its editorial counterpart.
+/// Emphasis as a property of the copy rather than nested `Text` widgets, so it
+/// survives wrapping and a change of type scale.
 class NookHeadline extends StatelessWidget {
   const NookHeadline(
     this.template, {

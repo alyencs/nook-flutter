@@ -9,22 +9,18 @@ import 'post_place.dart';
 import 'source_metadata.dart';
 import 'thumbnail_from_url.dart';
 
-/// Feature #2, for real.
+/// Reads a saved link into structured travel metadata.
 ///
-/// One call per saved link, asking for structured JSON so the reply is parsed
-/// rather than scraped. The key comes from a git-ignored `.env` and is never
+/// One call per link. The key comes from a git-ignored `.env` and is never
 /// compiled into a deployed build — see `docs/06-security-and-privacy.md`.
 ///
-/// A note on what the model is given: a browser cannot fetch a TikTok or
-/// Instagram page directly (CORS), so this works from the link itself — its
-/// host, its slug, its handle — plus what the model already knows. A URL whose
-/// slug reads `5-hidden-cafes-in-kyoto` extracts well; an opaque
-/// `/reel/C8xK2p/` may come back with nulls, which is exactly the risk the
-/// proposal names and why every field here is optional.
+/// What the model gets is the link plus whatever the platform published about
+/// it, because a browser cannot fetch a TikTok or Instagram page directly
+/// (CORS). An opaque `/reel/C8xK2p/` may come back with nulls, which is why
+/// every field is optional.
 ///
-/// Nothing here ever invents a result. Every failure path throws, and
-/// [SampleExtractor] is reached only by having no key at all, never as a quiet
-/// substitute for a call that did not work.
+/// Nothing here invents a result: every failure path throws, and
+/// [SampleExtractor] is reached only by having no key at all.
 class ClaudeExtractor implements AiExtractor {
   ClaudeExtractor({
     required String apiKey,
@@ -43,16 +39,15 @@ class ClaudeExtractor implements AiExtractor {
          retry: retry,
        );
 
-  /// The model ids to try this session, best first. A pinned `CLAUDE_MODEL`
-  /// goes to the front; the defaults follow it, so a typo in `.env` degrades to
-  /// something that works rather than breaking the app.
+  /// The ids to try this session, best first. A pinned `CLAUDE_MODEL` goes
+  /// first, with the defaults behind it, so a typo in `.env` degrades to
+  /// something that works.
   final List<String> _candidates;
   final String? _youTubeApiKey;
 
-  /// `APP_ID|CLIENT_TOKEN` for Meta's Graph API, which is the only way to read
-  /// an Instagram or Facebook post's text since their public oEmbed was
-  /// withdrawn. Optional: without it those two extract from the URL alone, and
-  /// the prompt says so rather than letting the model fill the gap.
+  /// `APP_ID|CLIENT_TOKEN` for Meta's Graph API — the only way to read an
+  /// Instagram or Facebook post's text since public oEmbed was withdrawn.
+  /// Without it those two extract from the URL alone, and the prompt says so.
   final String? _facebookToken;
   final ClaudeClient _client;
 
@@ -74,9 +69,8 @@ class ClaudeExtractor implements AiExtractor {
   /// arguments, so there is no prose to find JSON inside of.
   static const toolName = 'record_post_details';
 
-  /// A ceiling, because an uncapped reply is one that runs until it times out.
-  /// Just one that a complete answer fits inside: a post naming five venues
-  /// with an address and a note each is a long object.
+  /// A ceiling, so a reply cannot run until it times out — set high enough for
+  /// a post that names five venues with an address and a note each.
   static const maxOutputTokens = 4096;
 
   @override
@@ -138,10 +132,9 @@ class ClaudeExtractor implements AiExtractor {
 
   /// Asks each candidate model in turn until one answers.
   ///
-  /// A model id that is gone moves us to the next candidate; anything else — a
-  /// rejected key, a refusal, an exhausted quota — is final and is reported as
-  /// itself. Transient failures never get this far: [ClaudeClient] has already
-  /// retried them with backoff.
+  /// A model id that is gone moves to the next candidate; a rejected key, a
+  /// refusal or an exhausted quota is final. Transient failures never get this
+  /// far — [ClaudeClient] has already retried them.
   Future<Map<String, dynamic>> _generate(
     SourceMetadata source,
     ExtractionStage? onStage,
@@ -208,25 +201,18 @@ class ClaudeExtractor implements AiExtractor {
             'null.',
         schema: _responseSchema,
         maxTokens: maxOutputTokens,
-        // Zero, not 0.2.
-        //
-        // This is the fix for "the same link extracts five cafes one minute and
-        // one the next". Sampling at 0.2 was enough for the model to decide
-        // differently about an optional array from one call to the next, which
-        // is exactly where the information was going. The task has one right
-        // answer — copy what the source says into a fixed schema — so there is
-        // nothing for sampling to be useful for.
+        // Zero: the task has one right answer — copy what the source says into
+        // a fixed schema — so sampling only makes the same link extract five
+        // cafes one minute and one the next.
         temperature: 0,
       );
 
   /// The shape the answer has to come back in, as JSON Schema.
   ///
-  /// The location fields step from most specific to least on purpose. Asking
-  /// for one "destination" is what produced "Japan": there was nowhere to put a
-  /// neighbourhood, so a neighbourhood in the source had nowhere to go.
-  ///
-  /// A nullable field is written as a two-member type rather than a flag, which
-  /// is how JSON Schema says it and what the tool validator reads.
+  /// The location fields step from most specific to least on purpose: one
+  /// "destination" field leaves a neighbourhood nowhere to go, and the answer
+  /// comes back as "Japan". Nullable is a two-member type, as JSON Schema
+  /// writes it.
   static final Map<String, Object?> _responseSchema = {
     'type': 'object',
     'properties': {
@@ -395,12 +381,11 @@ Hand your answer back by calling $toolName. Do not answer in prose, and do not
 call it more than once.
 ''';
 
-  /// Digs the model's answer out of the response envelope.
+  /// Digs the answer out of the response envelope.
   ///
-  /// The reply can be well-formed HTTP and still carry no answer: a refusal, a
-  /// message cut off at the token ceiling before the tool call was finished, a
-  /// content list with no tool call in it. Each of those is reported as what it
-  /// is.
+  /// A reply can be well-formed HTTP and still carry no answer — a refusal, a
+  /// message cut off at the ceiling, a content list with no tool call in it —
+  /// and each is reported as what it is.
   ExtractionResult _resultFrom(
     Map<String, dynamic> response, {
     required String url,
@@ -478,9 +463,8 @@ call it more than once.
     final creator = source.creator ?? string('creator');
 
     // A pin needs somewhere specific to point. Country-level coordinates are
-    // dropped even when the model returns them, because a marker in the middle
-    // of Japan claims a precision the post never had — Travel Details shows the
-    // placeholder and says why instead.
+    // dropped even when the model returns them: a marker in the middle of Japan
+    // claims a precision the post never had.
     final specific =
         placeName != null ||
         neighbourhood != null ||
@@ -567,15 +551,10 @@ call it more than once.
 
   /// What the person reads when extraction cannot finish.
   ///
-  /// Deliberately free of vendor names, model ids and HTTP status codes.
-  /// "Server Error [503]: UNAVAILABLE" told someone pasting a TikTok link
-  /// nothing they could act on. The rule here is: say what happened in their
-  /// terms, and say what they can do — retry, wait, or type it in themselves.
-  ///
-  /// The configuration failures are the exception. A rejected key and an empty
-  /// balance are the developer's to fix, cannot be retried past, and the
-  /// message is the only place that instruction can live — but even those name
-  /// the `.env` setting rather than the service behind it.
+  /// No vendor names, model ids or status codes: say what happened in their
+  /// terms and what they can do. The configuration failures are the exception,
+  /// because only the developer can fix them — and even those name the `.env`
+  /// setting rather than the service behind it.
   String _friendly(ClaudeApiException e) {
     if (e.isAuthFailure) {
       return 'Nook could not authenticate with its AI service. Check '

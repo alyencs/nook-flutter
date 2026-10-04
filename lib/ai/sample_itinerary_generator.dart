@@ -3,17 +3,12 @@ import 'itinerary_generator.dart';
 
 /// What plans a trip when there is no key — which is every deployed build.
 ///
-/// It is not a stub. The published site has no billable key by design, so this
-/// is the itinerary most people will ever see, and a screen of placeholder
-/// text would be worse than no feature. So it does the real work the cheap
-/// way: it takes the places, tips and notes out of the saved posts, orders
-/// them, and spreads them across the days that were asked for.
+/// Not a stub: it takes the places, tips and notes out of the saved posts,
+/// orders them and spreads them across the days asked for. What it cannot do is
+/// write, so it arranges the material and lets it speak for itself.
 ///
-/// What it cannot do is write. A model turns "Nacpan Beach · 40 minutes north"
-/// into a sentence about renting a motorbike; this arranges the material and
-/// lets it speak for itself. It is deterministic, so the same trip and the
-/// same number of days always give the same plan, and
-/// [GeneratedItinerary.isSample] is true so the screen says where it came from.
+/// Deterministic, and [GeneratedItinerary.isSample] is true so the screen says
+/// where the plan came from.
 class SampleItineraryGenerator implements ItineraryGenerator {
   const SampleItineraryGenerator();
 
@@ -83,10 +78,8 @@ class SampleItineraryGenerator implements ItineraryGenerator {
     return buffer.toString();
   }
 
-  /// Everything in the saved posts that could be a thing to do, best first.
-  ///
-  /// A named venue beats a tip, and a tip beats the post it came from: the more
-  /// specific the material, the better a day reads around it.
+  /// Everything in the saved posts that could be a thing to do, best first: a
+  /// named venue beats a tip, and a tip beats the post it came from.
   List<ItineraryActivity> _candidates(ItineraryRequest request) {
     final seen = <String>{};
     final venues = <ItineraryActivity>[];
@@ -156,11 +149,9 @@ class SampleItineraryGenerator implements ItineraryGenerator {
     return [...venues, ...posts, ...tips];
   }
 
-  /// Lays the material out over the days that were asked for.
-  ///
-  /// Always returns exactly [ItineraryRequest.days] days with at least two
-  /// things on each. Where the posts run out, the filler is honest about being
-  /// unplanned time rather than inventing a venue nobody saved.
+  /// Lays the material out over the days that were asked for: always exactly
+  /// [ItineraryRequest.days] days, two things on each. Where the posts run out
+  /// the filler says it is unplanned time rather than inventing a venue.
   List<ItineraryDay> _spread(
     List<ItineraryActivity> candidates,
     ItineraryRequest request,
@@ -204,8 +195,7 @@ class SampleItineraryGenerator implements ItineraryGenerator {
     }
 
     // Anything left over goes onto the middle days rather than being dropped:
-    // a saved post that never reaches the plan is the one failure this whole
-    // feature exists to avoid.
+    // a saved post that never reaches the plan is the failure to avoid.
     var cursor = 0;
     while (next < candidates.length) {
       final index = total == 1 ? 0 : 1 + (cursor % (total - 1).clamp(1, total));
@@ -242,11 +232,9 @@ class SampleItineraryGenerator implements ItineraryGenerator {
     timing: 'Morning',
   );
 
-  /// Unbooked time, phrased differently each time it is needed.
-  ///
-  /// Two identical "Rest" rows read as the planner giving up. These are honest
-  /// about being unplanned while still suggesting something to do with the
-  /// time, and [slot] keeps consecutive days from repeating one another.
+  /// Unbooked time, phrased differently each time it is needed: two identical
+  /// "Rest" rows read as the planner giving up. [slot] keeps consecutive days
+  /// from repeating one another.
   ItineraryActivity _unplanned(String destination, int slot) {
     const options = [
       (

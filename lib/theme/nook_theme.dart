@@ -26,10 +26,8 @@ abstract final class NookTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      // Manrope. This said 'Inter' long after Inter stopped being bundled, so
-      // every widget that did not reach for NookType explicitly — a Material
-      // default, a stray Text — fell back to the platform's own font and the
-      // app quietly ran two typefaces.
+      // Set here as well as in NookType, so a Material default or a stray Text
+      // cannot fall back to the platform font and leave the app on two faces.
       fontFamily: NookType.family,
       // Screens paint the warm gradient themselves; a solid colour behind it
       // would show through on over-scroll.
@@ -61,10 +59,8 @@ abstract final class NookTheme {
       ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          // One transition on every platform, so the app moves the same way in
-          // a browser as it does on a phone. The default on web is no
-          // transition at all, which is what makes the flow feel like a slide
-          // deck rather than an app.
+          // One transition on every platform. The default on web is none at
+          // all, which makes the flow feel like a slide deck.
           TargetPlatform.android: _NookPageTransition(),
           TargetPlatform.iOS: _NookPageTransition(),
           TargetPlatform.macOS: _NookPageTransition(),
@@ -89,10 +85,9 @@ class _NookPageTransition extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    // CurveTween, not CurvedAnimation: buildTransitions runs on every rebuild
-    // of the route, and a CurvedAnimation adds a status listener to its parent
-    // in the constructor that only dispose() removes. A tween holds nothing —
-    // it evaluates the curve on read.
+    // CurveTween, not CurvedAnimation: buildTransitions runs on every rebuild,
+    // and a CurvedAnimation would add a status listener each time. A tween
+    // holds nothing and evaluates the curve on read.
     //
     // One curve rather than a separate reverseCurve: run easeOutCubic backwards
     // and you already get its mirror, which is the settling-on-exit shape the

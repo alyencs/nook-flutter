@@ -4,10 +4,9 @@ import '../data/database.dart';
 
 /// Turns the posts saved into a trip into the context a plan is built from.
 ///
-/// This is the seam between the database and `lib/ai`: the generator takes
-/// value types and knows nothing about Drift, so the mapping lives here.
-/// Nothing is invented and nothing is summarised — every field below is one
-/// the extractor already filled in, handed over as it was stored.
+/// The seam between the database and `lib/ai`: the generator takes value types
+/// and knows nothing about Drift. Nothing is invented or summarised here —
+/// every field is one the extractor already filled in.
 abstract final class ItineraryContext {
   /// The request for [trip], built from [posts].
   static ItineraryRequest requestFor({
@@ -43,11 +42,9 @@ abstract final class ItineraryContext {
     highlights: PostHighlights.decode(post.aiHighlights),
   );
 
-  /// Where this set of posts is, as a single string.
-  ///
-  /// The commonest destination rather than the first: a trip with four Kyoto
-  /// posts and one about packing is a Kyoto trip, and the odd post out should
-  /// not get to name it. Null when nothing was ever extracted.
+  /// Where this set of posts is, as a single string: the commonest destination
+  /// rather than the first, so the odd post out does not name the trip. Null
+  /// when nothing was ever extracted.
   static String? destinationOf(List<SavedPost> posts) {
     final counts = <String, int>{};
     for (final post in posts) {

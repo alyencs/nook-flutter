@@ -5,29 +5,15 @@ import '../theme/nook_motion.dart';
 
 /// The Nook mark assembling from its own four quarters.
 ///
-/// The mark is a 2×2 grid of tiles, so it takes itself apart along lines that
-/// are already there — no pieces are invented for the sake of the animation.
-/// Each quarter flies in from the direction it belongs to (the top-left one
-/// from the top left, and so on), so the motion reads as things returning to
-/// where they go rather than swirling.
+/// The mark is a 2×2 grid, so it comes apart along lines that already exist.
+/// Each quarter flies in from the corner it belongs to, so the motion reads as
+/// things returning to where they go rather than swirling.
 ///
-/// ---
-///
-/// **The pieces are the real artwork.** An earlier version drew four rounded
-/// charcoal squares and set a Manrope letter in each. That was a text
-/// approximation of the logo, not the logo: Nook's mark carries its letters as
-/// *counters* cut out of solid tiles, and the two O tiles read as a check or a
-/// V rather than as a round O. Describing it in a font could never have been
-/// right, and the glyphs it chose were wrong as well.
-///
-/// What ships now are [NookMarkPiece.values] — four transparent PNGs cut from
-/// the supplied `nook_logo.png` along its own gutters, at its own resolution.
-/// Laid out at [columnSplit] and [rowSplit] they reassemble that file pixel for
-/// pixel, which is checked rather than asserted: the four crops were composited
-/// back together and differenced against the original, and nothing differed.
-///
-/// Nothing here redraws, re-traces or re-spaces the logo. The only numbers are
-/// where the artwork's own gutters fall.
+/// The pieces are the artwork itself: [NookMarkPiece.values] are four
+/// transparent PNGs cut from `nook_logo.png` along its own gutters, which
+/// reassemble it pixel for pixel at [columnSplit] and [rowSplit]. Nothing here
+/// redraws or re-spaces the logo — the only numbers are where its gutters
+/// fall.
 class LogoAssembly extends StatefulWidget {
   const LogoAssembly({super.key, this.size = 116, this.onComplete});
 
@@ -36,11 +22,7 @@ class LogoAssembly extends StatefulWidget {
   final VoidCallback? onComplete;
 
   /// The whole sequence, from the first piece leaving to the last one landing.
-  ///
-  /// Longer than it was. At 1500ms each quarter crossed its distance in about
-  /// 800ms behind a curve that spends most of its travel in the first third,
-  /// which is quick enough that the mark looked like it faded in rather than
-  /// assembled. The point of this animation is to be watched once.
+  /// Long enough that the mark reads as assembling rather than fading in.
   static const duration = Duration(milliseconds: 2400);
 
   /// The mark is 852 × 846 in the supplied artwork — near square, not square.
@@ -89,17 +71,12 @@ class _LogoAssemblyState extends State<LogoAssembly>
     duration: LogoAssembly.duration,
   );
 
-  /// The beat each piece arrives on, as a fraction of the timeline.
-  ///
-  /// Wider spacing than before. The pieces used to land 90ms apart at 1500ms,
-  /// which at speed read as one event; at 2400ms these are about 260ms apart,
-  /// far enough to count four arrivals.
+  /// The beat each piece arrives on, as a fraction of the timeline. Spaced far
+  /// enough apart to count four arrivals rather than read as one event.
   static const _delays = [0.00, 0.11, 0.22, 0.33];
 
-  /// The share of the timeline each piece gets for its own journey.
-  ///
-  /// 0.33 + 0.52 = 0.85, so the last piece is home with a beat to spare before
-  /// the controller finishes and the wordmark is called in.
+  /// The share of the timeline each piece gets for its own journey. The last
+  /// one is home with a beat to spare before the wordmark is called in.
   static const _span = 0.52;
 
   @override
@@ -173,9 +150,9 @@ class _LogoAssemblyState extends State<LogoAssembly>
         angle: spin,
         child: Opacity(
           opacity: eased.clamp(0.0, 1.0),
-          // The artwork is a flat black glyph on transparency, so srcIn swaps
-          // the colour and keeps the alpha: the letter counters stay cut out
-          // and the edges stay anti-aliased. Nothing in the PNGs changes.
+          // The artwork is a flat glyph on transparency, so srcIn swaps the
+          // colour and keeps the alpha: the counters stay cut out and the edges
+          // stay anti-aliased.
           child: Image.asset(
             piece.asset,
             color: NookColors.primary,

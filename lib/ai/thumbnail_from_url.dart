@@ -7,19 +7,11 @@ import 'source_metadata.dart';
 
 /// Works out a preview image for a saved link.
 ///
-/// Two routes, and both are honest about what they cannot do:
-///
-/// * **YouTube** — the thumbnail URL is derivable from the video id, with no
-///   network call and no API key. This always works.
-/// * **TikTok** — its public oEmbed endpoint returns a `thumbnail_url`. It is
-///   attempted with a short timeout and failure is silent, because a browser
-///   can only read it if TikTok sends CORS headers, and that is their call to
-///   make, not ours.
-///
-/// **Instagram and Facebook return nothing.** Both retired their public oEmbed
-/// endpoints; reading a thumbnail from either now needs a Meta app, an access
-/// token and review. Those posts keep the drawn placeholder rather than a
-/// broken image.
+/// * YouTube — derivable from the video id, with no network call and no key.
+/// * TikTok — from its public oEmbed, on a short timeout. Failure is silent:
+///   a browser can only read it if TikTok sends CORS headers.
+/// * Instagram and Facebook — nothing. Both retired public oEmbed, so those
+///   posts keep the drawn placeholder rather than a broken image.
 abstract final class PostThumbnails {
   /// Short on purpose. A thumbnail is a nicety; waiting on one is not worth
   /// making the user watch a spinner, and a browser blocked by CORS may never

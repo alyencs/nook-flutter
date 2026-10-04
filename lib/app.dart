@@ -27,14 +27,13 @@ class NookApp extends StatelessWidget {
 
 /// Decides where launch lands.
 ///
-/// There is no sign-in to perform — the storage decision means there is no
-/// server to sign in to. The only question is whether this device has a local
-/// profile yet: if it does, straight to Home; if not, the onboarding run
-/// (LA1-LA6) followed by Set Up Profile (LO1).
+/// There is no sign-in: storage is on the device, so there is no server to sign
+/// in to. The only question is whether this device has a local profile — if it
+/// does, straight to Home; if not, onboarding and then Set Up Profile.
 ///
-/// "Has a profile" means a row with a name in it. The seeded demo library needs
-/// a user row for its trips to point at, so a row exists from first launch; if
-/// its presence alone counted, onboarding would never be reachable.
+/// "Has a profile" means a row with a *name* in it. The seeded demo library
+/// needs a user row for its trips to point at, so a row exists from first
+/// launch and its presence alone cannot be the test.
 class _LaunchGate extends StatefulWidget {
   const _LaunchGate();
 
@@ -45,10 +44,9 @@ class _LaunchGate extends StatefulWidget {
 class _LaunchGateState extends State<_LaunchGate> {
   /// A link another app shared into Nook, waiting for the shell to exist.
   ///
-  /// Read once, at launch, and cleared from the address bar immediately so a
-  /// reload cannot save the same post twice. It is opened after the first
-  /// frame, because the add flow is a pushed route and there is no Navigator
-  /// to push onto until the shell is mounted.
+  /// Read once and cleared from the address bar immediately, so a reload cannot
+  /// save the same post twice. Opened after the first frame, because there is
+  /// no Navigator to push the add flow onto until the shell is mounted.
   String? _shared;
 
   @override

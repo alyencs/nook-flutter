@@ -81,12 +81,10 @@ class NookTextField extends StatelessWidget {
 /// The multiline note field, with the character counter the mockup draws in its
 /// bottom-right corner.
 ///
-/// Sized by [minLines] rather than by an [Expanded] inside a fixed-height box.
-/// The earlier version put an `Expanded` in a Column with no bounded height —
-/// these fields live inside scroll views — so the field collapsed to nothing and
-/// the note could not be typed at all. Growing with its content is also the
-/// right behaviour: a long note pushes the counter down instead of scrolling
-/// inside a cramped box.
+/// Sized by [minLines], not by an [Expanded]: these fields live inside scroll
+/// views, where a Column has no bounded height and the field would collapse to
+/// nothing. Growing with its content is the right behaviour anyway — a long
+/// note pushes the counter down instead of scrolling inside a cramped box.
 class NookNoteField extends StatelessWidget {
   const NookNoteField({
     super.key,

@@ -13,23 +13,15 @@ import 'nook_rule.dart';
 
 /// Lets someone choose which part of their photograph is their profile picture.
 ///
-/// Before this, a picked image was stored whole and every avatar drew it with
-/// `BoxFit.cover` — a centre crop, decided by the middle of the file rather than
-/// by the person in it. A photograph with its subject high, or off to one side,
-/// came out as a crop of their shoulder.
-///
 /// Returns a `data:` URI for a square PNG, or null if the sheet was dismissed.
 ///
-/// **The crop is baked into the stored image on purpose.** The alternative —
-/// keeping an offset and a zoom beside the picture and asking every avatar to
-/// apply them — means a second piece of state that Profile, Account and any
-/// future screen have to agree about, and the first one that forgets is a bug
-/// nobody notices. `users.profilePicture` stays the single source of truth: what
-/// is stored is exactly what is shown, everywhere, with no interpretation.
+/// The crop is baked into the stored image rather than kept beside it as an
+/// offset and a zoom: that would be a second piece of state every avatar has to
+/// apply, and the first screen that forgets is a bug nobody notices.
+/// `users.profilePicture` stays the single source of truth.
 ///
-/// No new dependency. The pan and zoom are a `GestureDetector` and a
-/// `Transform`; the crop is `dart:ui` drawing one rectangle of the decoded
-/// image into another.
+/// No new dependency — pan and zoom are a `GestureDetector` and a `Transform`,
+/// and the crop is `dart:ui` drawing one rectangle of the image into another.
 Future<String?> showPhotoCrop(BuildContext context, Uint8List bytes) {
   return showModalBottomSheet<String>(
     context: context,
@@ -120,11 +112,8 @@ class _PhotoCropSheetState extends State<_PhotoCropSheet> {
     });
   }
 
-  /// The part of the photograph the window is showing, in image pixels.
-  ///
-  /// The inverse of what the preview does: the window's centre sits over the
-  /// image's centre shifted back by the drag, and the window is [_frame] wide
-  /// at [effective] logical pixels per image pixel.
+  /// The part of the photograph the window is showing, in image pixels — the
+  /// inverse of what the preview draws.
   Rect _sourceRect(ui.Image image) {
     final effective = _baseScale(image) * _scale;
     final side = _frame / effective;
@@ -227,8 +216,8 @@ class _PhotoCropSheetState extends State<_PhotoCropSheet> {
               ),
             ),
             const SizedBox(height: NookSpacing.block),
-            // A slider as well as the pinch, because a mouse has no second
-            // finger and this screen is opened in a browser as often as not.
+            // A slider as well as the pinch: a mouse has no second finger, and
+            // this screen is opened in a browser as often as not.
             Row(
               children: [
                 const Icon(

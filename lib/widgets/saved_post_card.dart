@@ -28,10 +28,9 @@ class SavedPostGridCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 16:9, matching the shape of the thumbnails themselves. At 1.25
-            // a 16:9 image was cropped down its sides while the letterboxing it
-            // arrived with stayed put — black bars top and bottom on every
-            // card. The source is 16:9 now, and so is the box.
+            // 16:9, matching the thumbnails themselves. A squarer box crops a
+            // 16:9 image down its sides and keeps the letterboxing it arrived
+            // with, which puts black bars on every card.
             PostThumbnail(url: post.thumbnailUrl, aspectRatio: 16 / 9),
             const SizedBox(height: NookSpacing.tight),
             Text(
@@ -104,18 +103,15 @@ class SavedPostRowCard extends StatelessWidget {
                 Text(
                   post.title,
                   style: NookType.bodyStrong,
-                  // One line, always. These rows are a compact index of what
-                  // you looked at recently, and a title that wraps to two
-                  // makes the list lurch as you scroll past long ones.
+                  // One line, always: a title that wraps makes the list lurch
+                  // as you scroll past long ones.
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
-                // A Row, not a Wrap: the mockup keeps the creator, the
-                // platform and the category on one line. In a Wrap the chips
-                // dropped underneath the creator as soon as the text was long.
-                // Here the creator yields instead — it is the part that can be
-                // shortened without losing meaning.
+                // A Row, not a Wrap: creator, platform and category stay on one
+                // line, and the creator yields first because it is the part
+                // that can be shortened without losing meaning.
                 Row(
                   children: [
                     if (caption.isNotEmpty) ...[

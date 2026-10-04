@@ -64,16 +64,25 @@ The revision table from the mockup brief, and what the built app does about each
 | Profile: Account | Drop "Change Password" | Yes |
 | Profile: Connected Platforms | Keep, label as stretch, keep out of the demo path | Yes — drawn, disabled, labelled |
 
-## Two screens the mockup never drew
+## Screens the mockup never drew
 
 The tab bar has a **Trips** tab and MVP feature #3 needs somewhere to browse
-them, but no frame exists for either. Both were designed from the same cards,
-grid and spacing as the drawn screens:
+them, but no frame exists for either. Explore Itinerary arrived later still.
+All of these were designed from the same cards, grid and spacing as the drawn
+screens:
 
 - **Trips** — the trip grid over every trip, with a New Trip tile and an empty
   state.
 - **Trip Details** — one trip's saved posts as row cards, with rename and delete
   behind the "…" action.
+- **Explore itineraries** — the trip picker, one row per trip with a count of
+  the posts there are to plan from.
+- **Plan a trip** — the chosen trip, the posts the plan will be built from, and
+  a row of duration chips from one day to seven, over a Generate button.
+- **Itinerary** — the finished plan: an overview line, a chip row (days, posts
+  used, things to do), then one ruled section per day with its activities as
+  cards. Regenerate and Change number of days sit in the bottom bar, where every
+  other screen keeps its primary action.
 
 ## Where the built app departs from a frame
 

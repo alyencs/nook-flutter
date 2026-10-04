@@ -10,7 +10,7 @@ import '../../widgets/sub_screen_nav.dart';
 import '../../widgets/logo_assembly.dart';
 import 'content_screen.dart';
 
-/// P5.
+/// About Nook: what it is, what it stores, and the credits.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 

@@ -20,10 +20,9 @@ import '../trips/trip_details_screen.dart';
 import '../trips/trips_screen.dart';
 import 'post_list_screen.dart';
 
-/// H1 / H2 / H3 / H4. The screen a returning traveller lives in.
-///
-/// Section order follows H1, the canonical "Home (Default)" frame: Recent
-/// Saves, then Your Trips, then Recently Viewed.
+/// The screen a returning traveller lives in: Recent Saves, then Your Trips,
+/// then Recently Viewed, with search as a state of this tab rather than a
+/// separate route.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,

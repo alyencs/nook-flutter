@@ -2,10 +2,9 @@ import 'package:flutter/widgets.dart';
 
 /// Every colour in Nook, and nothing else.
 ///
-/// The first six come straight from the design system document. The last three
-/// were added during the build, because the mockup clearly draws captions and
-/// inactive navigation in a lighter grey than the one body colour the document
-/// names, and draws a warm gradient behind every screen.
+/// The first six are the design system's. The rest were measured off the
+/// mockup, which draws captions and inactive navigation in a lighter grey than
+/// the one body colour the document names, and a warm gradient behind.
 abstract final class NookColors {
   /// Primary buttons, active navigation, links, accents.
   static const primary = Color(0xFFDD700B);

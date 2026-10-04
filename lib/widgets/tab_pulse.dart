@@ -3,12 +3,9 @@ import 'package:flutter/material.dart';
 import '../theme/nook_colors.dart';
 import '../theme/nook_motion.dart';
 
-/// A ring that expands once out of a bottom-bar tab.
-///
-/// The delete flight ends at the Profile tab; without this it ends *at*
-/// nothing. The ring is the tab acknowledging the catch — the other half of
-/// the sentence. One pulse, no repeat: it marks an event, it is not an
-/// indicator.
+/// A ring that expands once out of a bottom-bar tab: the tab acknowledging the
+/// delete flight that just landed on it. One pulse, no repeat — it marks an
+/// event rather than indicating a state.
 abstract final class TabPulse {
   /// How long the ring takes to expand and fade.
   static const duration = NookMotion.acknowledge;
@@ -78,12 +75,11 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
       animation: _t,
       builder: (context, _) {
         final v = _t.value;
-        // 12 to 34, so the ring stays inside the 68pt bar instead of expanding
-        // over the page above it, where most of it was being drawn.
+        // Sized to stay inside the 68pt bar rather than expanding over the
+        // page above it.
         final radius = 12 + 22 * v;
-        // Held at full strength for the first third and faded after. A linear
-        // fade over the whole 520ms left the ring at a third of its opacity by
-        // the time it was big enough to notice.
+        // Held at full strength for the first third: a linear fade leaves the
+        // ring nearly transparent by the time it is big enough to notice.
         final opacity = v < 0.35 ? 1.0 : 1 - (v - 0.35) / 0.65;
 
         return Positioned(

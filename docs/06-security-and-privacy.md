@@ -98,13 +98,10 @@ Nook reads four values from `.env`. Three are credentials; one is not.
 
 | Variable | What it is | Privileged | Needed to run |
 | --- | --- | --- | --- |
-| `GEMINI_API_KEY` | Extraction: destination, category, summary, coordinates | **Yes, billable** | No — without it the sample extractor runs, and says so |
+| `ANTHROPIC_API_KEY` | Extraction (destination, category, summary, coordinates) and Explore Itinerary | **Yes, billable** | No — without it the sample extractor and sample planner run, and say so |
 | `YOUTUBE_API_KEY` | A YouTube video's description and the creator's channel picture, via the Data API | **Yes, quota-bearing** | No — without it extraction works from the title alone and no creator picture is available |
 | `FACEBOOK_TOKEN` | `APP_ID\|CLIENT_TOKEN` for Meta's oEmbed endpoints | **Yes, app-scoped** | No — without it Instagram and Facebook extract from the URL alone |
-| `GEMINI_MODEL` | An optional model id to pin | No | No — without it the app asks the API what the key can reach |
-
-The last two arrived after this document was first written, and they are the
-reason it needed re-checking rather than re-dating.
+| `CLAUDE_MODEL` | An optional model id to pin | No | No — without it the app uses the fast tier it pins itself |
 
 - **Where they live locally:** `.env`, which is git-ignored. `.gitignore` has
   ignored `.env` since the very first commit, before any such file existed in
@@ -117,8 +114,8 @@ reason it needed re-checking rather than re-dating.
 - **What the deployed build carries that a visitor could read:** nothing
   sensitive. No backend URL, no publishable key, no project identifier, because
   there is no backend.
-- **How they travel when they are set.** `GEMINI_API_KEY` is sent as an
-  `x-goog-api-key` header. `YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` are sent as
+- **How they travel when they are set.** `ANTHROPIC_API_KEY` is sent as an
+  `x-api-key` header. `YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` are sent as
   query parameters, because that is the only form the YouTube Data API and the
   Meta Graph API accept. All three go over HTTPS. A query string is encrypted in
   transit but is visible in the browser's network inspector and to any proxy that
@@ -130,30 +127,30 @@ reason it needed re-checking rather than re-dating.
 
 ### Why the keys are handled this way
 
-A Gemini key is billable, and a YouTube key carries a quota. Anything compiled
+An Anthropic key is billable, and a YouTube key carries a quota. Anything compiled
 into a web build is readable by anyone who opens the site, so shipping either
 would let a stranger spend what is behind it. Two options were available: put a
 server in front as a proxy, or keep the feature local. Nook keeps it local,
 because a proxy would mean running a server for an app whose entire storage
 argument is that it does not need one.
 
-The consequence is designed for rather than hidden. `AiExtractor` has two
-implementations and the one that runs is decided at startup by whether a key is
-present. The published build runs `SampleExtractor` — deterministic, offline,
-and labelled *"Sample data — this build ships without an AI key"* on the screen
-where the extracted values appear. Real Gemini extraction runs locally and is
-shown in the demo video. The same rule extends to the two newer values: absent,
+The consequence is designed for rather than hidden. `AiExtractor` and
+`ItineraryGenerator` each have two implementations, and the one that runs is
+decided at startup by whether a key is present. The published build runs
+`SampleExtractor` and `SampleItineraryGenerator` — deterministic, offline, and
+labelled on the screens where their output appears. Real extraction and real
+itinerary generation run locally and are shown in the demo video. The same rule extends to the two newer values: absent,
 the affected lookups simply do less, and the prompt tells the model it is
 working blind rather than inviting it to invent what it cannot see.
 
 ## What leaves the device, and when
 
-Only when the user taps **Analyze** on a pasted link, and only ever the link and
-what the platform has already published about it:
+Only when the user asks for it — tapping **Analyze** on a pasted link, or
+**Generate Itinerary** on a trip — and only ever the material described below:
 
 | Host | Purpose | Credential |
 | --- | --- | --- |
-| `generativelanguage.googleapis.com` | Gemini extraction and model listing | `GEMINI_API_KEY`, as a header |
+| `api.anthropic.com` | Extraction, and Explore Itinerary generation | `ANTHROPIC_API_KEY`, as a header |
 | `www.youtube.com/oembed` | Title, channel, thumbnail | none — public |
 | `www.googleapis.com/youtube/v3` | The video description, then the channel's picture | `YOUTUBE_API_KEY`, as a query parameter |
 | `www.tiktok.com/oembed` | Caption, author, thumbnail | none — public |
@@ -161,11 +158,21 @@ what the platform has already published about it:
 | `tile.openstreetmap.org` | Map tiles for a post that has coordinates | none — public |
 
 Every call is HTTPS. There is no analytics, telemetry, crash reporting or
-background sync anywhere in the app. The prompt sent to Gemini contains the
-platform, the URL, the source id, the creator, the media type, the title and the
-description — **not** the user's personal note, their profile, or any of their
-other saved posts. A failed lookup degrades to URL-only metadata rather than
-failing the save.
+background sync anywhere in the app.
+
+**The extraction prompt** contains the platform, the URL, the source id, the
+creator, the media type, the title and the description — **not** the user's
+personal note, their profile, or any of their other saved posts. A failed lookup
+degrades to URL-only metadata rather than failing the save.
+
+**The itinerary prompt is the one place a note does leave the device**, and only
+when the user presses Generate Itinerary on a trip. It carries the posts saved
+into *that* trip — their titles, captions, summaries, place names, areas, cities,
+countries, best times, budget notes, tips and personal notes — plus the
+destination and the number of days. It carries no profile, no search history,
+and no post from any other trip. The screen names the trip and lists the posts
+it will plan from before the button is pressed, so what is being sent is on
+screen first.
 
 Instagram and Facebook withdrew public oEmbed in October 2020. Without
 `FACEBOOK_TOKEN` those links reach the model as a URL plus whatever the path
@@ -196,27 +203,30 @@ an image that does not exist.
 - **There is no logging.** `lib/` contains no `print`, `debugPrint` or
   `dart:developer` call, so no key, URL or note is ever written to a console.
 - **Error messages carry nothing internal.** The screen is handed a phase, not a
-  sentence; it used to receive "Asking gemini-flash-latest" and "Gemini is busy —
-  retrying in 4s (attempt 2 of 4)", a vendor, a model id and a retry schedule, in
-  front of someone who pasted a link. A test asserts that no failure mode can
-  leak a vendor name, a model id or a status code again.
+  sentence, rather than a vendor name, a model id and a retry schedule in front
+  of someone who pasted a link. A test asserts that no failure mode can leak a
+  vendor name, a model id or a status code.
 - **Nothing is ever faked.** Every failure path throws. `SampleExtractor` is
   reached only by having no key at all, and when it runs the UI says so.
-- **Model output is parsed, not trusted.** The response is decoded against a
-  fixed schema, every field is nullable, and unknown values are dropped. Text is
+- **Model output is parsed, not trusted.** Both features ask for structured
+  output through a forced tool call, so the reply arrives as an object of a
+  declared shape rather than prose. Every field is nullable, unknown values are
+  dropped, and an itinerary that comes back with the wrong number of days, no
+  days, or a field running to thousands of characters is reported or cut rather
+  than rendered. Text is
   rendered through `Text` widgets — there is no HTML renderer in this app, so a
   caption or summary has no script surface.
 - **Coordinates are dropped rather than approximated.** A model asked for the
   coordinates of "Japan" returns the centre of Japan: true as a fact, false as a
   statement about the post. Anything broader than a city stores no coordinate and
   Travel Details shows the placeholder with the reason.
-- **Requests are bounded.** Four attempts with exponential backoff and jitter,
-  20s per attempt, 45s overall, `Retry-After` honoured, and in-flight extractions
-  de-duplicated by URL so a second tap cannot start a second billable call.
-  `thinkingBudget: 0` and a 2048-token ceiling are set on every request; left on,
-  Gemini 2.5's default thinking was spending seconds and thousands of invisible
-  tokens per extraction and generating the quota pressure it then reported as an
-  outage. Cost control on a billable key is a security concern.
+- **Requests are bounded.** Extraction gets four attempts with exponential
+  backoff and jitter, 20s per attempt and 45s overall; planning, being a bigger
+  job, gets three attempts, 45s and 100s. `retry-after` is honoured over the
+  computed backoff. Every request carries a `max_tokens` ceiling, so a reply
+  cannot run until it times out. In-flight work is de-duplicated — extractions by
+  URL, plans by destination and day count — so a second tap cannot start a second
+  billable call. Cost control on a billable key is a security concern.
 - **Opening a saved link uses the stored URL**, never one rebuilt from metadata,
   and refuses any non-`http`/`https` scheme. Nook does not check a saved URL for
   safety — it is a bookmark store and treats bookmarks as bookmarks.

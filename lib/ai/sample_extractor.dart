@@ -3,13 +3,12 @@ import 'categories.dart';
 import 'source_metadata.dart';
 import 'thumbnail_from_url.dart';
 
-/// What runs when there is no API key — which is always true of the
-/// deployed build, because a billable key must never ship in a public web app.
+/// What runs when there is no API key, which is always true of the deployed
+/// build: a billable key must never ship in a public web app.
 ///
-/// It is deterministic: the same link always produces the same result, so the
-/// app can be demonstrated end to end on the live link. It is also honest —
-/// [ExtractionResult.isSample] is true, and the Destination & Category screen
-/// says so on screen rather than passing this off as a real extraction.
+/// Deterministic, so the app can be demonstrated end to end on the live link,
+/// and honest — [ExtractionResult.isSample] is true and the Destination &
+/// Category screen says so.
 class SampleExtractor implements AiExtractor {
   const SampleExtractor();
 
@@ -42,10 +41,9 @@ class SampleExtractor implements AiExtractor {
       }
     }
 
-    // Otherwise pick one deterministically from the URL itself, but keep the
-    // title the link actually implies. Showing "5 Hidden Cafes in Kyoto" for a
-    // pasted Osaka link would be needlessly confusing; the notice on screen
-    // already says the rest is illustrative.
+    // Otherwise pick one deterministically from the URL, but keep the title the
+    // link implies: "5 Hidden Cafes in Kyoto" for a pasted Osaka link would
+    // confuse, and the notice on screen already says the rest is illustrative.
     final index = trimmed.hashCode.abs() % _fixtures.length;
     final fixture = _fixtures[index];
     final slugTitle = _titleFromUrl(trimmed);

@@ -32,12 +32,9 @@ enum PostMediaType {
 /// Everything the app can legitimately learn about a link before asking the
 /// model.
 ///
-/// This is the piece that was missing. Extraction used to hand the model a bare
-/// URL, so for `youtube.com/watch?v=Sf9ihvL0Usk` it had eleven characters of
-/// video id to work from and quite reasonably answered "Japan". With the real
-/// title in front of it — "Rainy Day in Osaka City, hidden gem cafe in
-/// Nakazakicho, walk around Osaka station" — it has a neighbourhood, a city and
-/// a subject.
+/// A bare URL gives the model eleven characters of video id to work from, and
+/// it answers "Japan". The post's real title gives it a neighbourhood, a city
+/// and a subject.
 class SourceMetadata {
   const SourceMetadata({
     required this.platform,
@@ -69,9 +66,8 @@ class SourceMetadata {
   final String platform;
   final String url;
 
-  /// The platform's own id for the post: a YouTube video id, an Instagram
-  /// shortcode, a TikTok video id. Kept as technical metadata, never shown as
-  /// the post's title.
+  /// The platform's own id: a YouTube video id, an Instagram shortcode, a
+  /// TikTok video id. Technical metadata, never shown as the post's title.
   final String? sourceId;
 
   /// The real, human title. For TikTok and Instagram the caption *is* the
@@ -85,31 +81,17 @@ class SourceMetadata {
   /// `@handle`, when the URL or the payload carries one.
   final String? creatorHandle;
 
-  /// The creator's page on the platform, from oEmbed's `author_url`.
-  ///
-  /// All four providers return this, so it is the one piece of creator identity
-  /// that is available everywhere a lookup succeeds at all.
+  /// The creator's page, from oEmbed's `author_url`. The one piece of creator
+  /// identity all four providers return.
   final String? creatorUrl;
 
-  /// The creator's profile picture, when the platform actually publishes one.
+  /// The creator's profile picture, when the platform publishes one.
   ///
-  /// In practice that means **YouTube and only YouTube**, and only with a
-  /// `YOUTUBE_API_KEY`: the Data API will give a channel's thumbnails if asked
-  /// for them by channel id. Nobody else exposes an avatar through a route Nook
-  /// can legitimately use —
-  ///
-  /// * YouTube oEmbed has no avatar field, which is why this needs the second
-  ///   Data API call rather than coming free with the title.
-  /// * TikTok oEmbed returns `author_name` and `author_url` and nothing else
-  ///   about the author.
-  /// * Instagram and Facebook oEmbed through the Graph API return the author's
-  ///   name and page URL. A profile picture needs a different permission and,
-  ///   for a person rather than a page, their consent.
-  ///
-  /// So this is null far more often than it is set, and that is the honest
-  /// answer rather than a gap to paper over. Nook never derives an avatar from
-  /// a handle, a letter or a generated image: either the platform gave one or
-  /// the UI draws its own initial.
+  /// YouTube and only YouTube, and only with a `YOUTUBE_API_KEY` — it takes a
+  /// second Data API call, because oEmbed carries no avatar field. TikTok
+  /// publishes none, and Instagram and Facebook need a permission Nook does not
+  /// ask for. So this is usually null, and the UI draws an initial rather than
+  /// inventing a face.
   final String? creatorAvatarUrl;
 
   final String? thumbnailUrl;
@@ -127,11 +109,8 @@ class SourceMetadata {
   bool get hasCreatorAvatar =>
       creatorAvatarUrl != null && creatorAvatarUrl!.trim().isNotEmpty;
 
-  /// The source, written out for the model to read.
-  ///
-  /// Labelled and fenced so the model can tell the difference between what the
-  /// post says and what the app is asking, and so it can be held to "use only
-  /// what is here".
+  /// The source, written out for the model to read. Labelled and fenced so it
+  /// can be held to "use only what is here".
   String toPromptBlock() {
     final buffer = StringBuffer()
       ..writeln('PLATFORM: ${NookPlatform.label(platform)}')
@@ -150,12 +129,9 @@ class SourceMetadata {
 
   /// What the model should understand about this kind of source.
   ///
-  /// Each platform carries its travel detail somewhere different — a YouTube
-  /// description holds addresses and timestamps, a TikTok caption holds
-  /// hashtags and a place name, an Instagram caption is often the whole guide —
-  /// and each has a different ceiling on what can be read at all. Saying which
-  /// is which, per post, is what stops the model treating a bare URL as licence
-  /// to invent and stops it ignoring a description that is full of specifics.
+  /// Each platform keeps its travel detail somewhere different, and each has a
+  /// different ceiling on what can be read at all. Saying which is which, per
+  /// post, stops the model treating a bare URL as licence to invent.
   String _sourceNote() {
     if (!fetched) {
       return switch (platform) {
@@ -202,46 +178,32 @@ class SourceMetadata {
   }
 }
 
-/// Reads whatever each platform makes publicly available, without a key.
+/// Reads whatever each platform makes publicly available.
 ///
-/// What is reachable differs sharply by platform, and the honest position is to
-/// say so rather than to pretend:
+/// YouTube and TikTok publish keyless oEmbed endpoints that send
+/// `Access-Control-Allow-Origin: *`, which is what makes them usable from a
+/// browser. Instagram and Facebook retired public oEmbed in 2020, so without a
+/// Meta token those links reach the model as a URL alone and
+/// [SourceMetadata.fetched] is false.
 ///
-/// * **YouTube** publishes an oEmbed endpoint that returns the real title, the
-///   channel name and a thumbnail, no key required.
-/// * **TikTok** publishes one too, and there its `title` field is the caption.
-/// * **Instagram and Facebook** retired public oEmbed in 2020. Reading a
-///   caption from either now needs a Meta app, a token and app review. Those
-///   links therefore reach the model as a URL plus whatever the path itself
-///   says, and [SourceMetadata.fetched] is false so the model is told as much.
-///
-/// Both live endpoints send `Access-Control-Allow-Origin: *`, which is what
-/// makes them usable from a browser at all. If a network or CORS failure stops
-/// one, extraction continues on the URL alone rather than failing: less
-/// information is a worse extraction, not a broken one.
+/// A network or CORS failure continues on the URL alone rather than failing:
+/// less information is a worse extraction, not a broken one.
 abstract final class SourceMetadataFetcher {
   /// Short. This runs before the model call, and a slow lookup would show up
   /// directly as a slower analysis.
   static const timeout = Duration(seconds: 6);
 
-  /// Reads each platform through the mechanism that platform actually offers.
+  /// Reads each platform through the mechanism that platform offers.
   ///
-  /// The four are not equivalent, and pretending they are is how three of them
-  /// end up as an afterthought:
+  /// * YouTube — keyless oEmbed for the title and channel. With
+  ///   `YOUTUBE_API_KEY`, the Data API adds the description, which is where the
+  ///   cafe names, addresses and prices live.
+  /// * TikTok — keyless oEmbed; the caption arrives as the title.
+  /// * Instagram and Facebook — behind the Graph API since 2020, so they need
+  ///   [facebookToken]. Without it, only what the URL itself says.
   ///
-  /// * **YouTube** — public oEmbed for the title and channel, with no key. With
-  ///   `YOUTUBE_API_KEY`, the Data API also returns the description and tags,
-  ///   which is where the cafe names, addresses and prices live.
-  /// * **TikTok** — public oEmbed, no key. Gives the caption as the title, the
-  ///   author, and the cover image.
-  /// * **Instagram** and **Facebook** — oEmbed stopped being public in October
-  ///   2020. Both now live behind the Graph API and need an app id and client
-  ///   token, which [facebookToken] carries. With it, the caption, author and
-  ///   thumbnail come back; without it, only what the URL itself says.
-  ///
-  /// Nothing here guesses. A platform that returns nothing produces a source
-  /// marked `fetched: false`, and the prompt block says so, so the model works
-  /// from the URL knowing that is all it has.
+  /// Nothing here guesses: a platform that returns nothing produces a source
+  /// marked `fetched: false`, and the prompt block says so.
   static Future<SourceMetadata> fetch(
     String url, {
     http.Client? client,
@@ -286,12 +248,9 @@ abstract final class SourceMetadataFetcher {
     return result;
   }
 
-  /// The oEmbed endpoint for a link, or null when the platform offers none that
-  /// this build can reach.
-  ///
-  /// Separated out so the routing is testable without a network: which platform
-  /// goes where, and which ones need configuration, is the part worth pinning
-  /// down.
+  /// The oEmbed endpoint for a link, or null when the platform offers none this
+  /// build can reach. Separated out so the routing is testable without a
+  /// network.
   static String? endpointFor(
     String url,
     String platform, {
@@ -393,10 +352,9 @@ abstract final class SourceMetadataFetcher {
 
   /// A channel's profile picture, from the Data API.
   ///
-  /// Returns null rather than throwing on anything at all: an avatar is the
-  /// least important thing in an extraction, and losing the whole save because
-  /// a decorative image 403'd would be absurd. The largest published size is
-  /// preferred, because the UI draws it at 2x or 3x.
+  /// Never throws: an avatar is the least important part of an extraction, and
+  /// losing the save because a decorative image 403'd would be absurd. The
+  /// largest published size wins, because the UI draws it at 2x or 3x.
   static Future<String?> _youTubeChannelAvatar(
     String channelId,
     String apiKey,
@@ -525,9 +483,8 @@ abstract final class SourceIds {
 
   /// What the URL shape alone implies about the media.
   ///
-  /// A reel or a video path is a video; an Instagram `/p/` is a photo post,
-  /// which may turn out to be a carousel. Anything else stays unknown rather
-  /// than being assumed to be a video, which is what every card used to do.
+  /// A reel or video path is a video; an Instagram `/p/` is a photo post.
+  /// Anything else stays unknown rather than being assumed to be a video.
   static PostMediaType mediaTypeFrom(String url, String platform) {
     final path = (Uri.tryParse(url.trim())?.path ?? '').toLowerCase();
     if (platform == NookPlatform.youtube) return PostMediaType.video;

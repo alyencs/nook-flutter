@@ -1,11 +1,8 @@
-// The Anthropic Messages API, spoken directly.
+// The Anthropic Messages API, spoken over plain HTTP.
 //
-// There is no first-party Dart SDK, and the REST surface is small enough that
-// one does not buy much. What this file does buy is the HTTP status code:
-// deciding whether a failure is worth retrying is a decision about the status,
-// and a wrapper that folds everything into one exception type takes that away.
-// Talking to the endpoint directly gives back the status, the `error.type`, and
-// the `retry-after` header.
+// Deciding whether a failure is worth retrying is a decision about the status
+// code, so the status, `error.type` and `retry-after` all have to survive —
+// which is what a client wrapper would otherwise fold away.
 
 import 'dart:async';
 import 'dart:convert';
@@ -34,32 +31,28 @@ class ClaudeApiException implements Exception {
   /// `overloaded_error`, `not_found_error`, `invalid_request_error`, ...
   final String? type;
 
-  /// The server's own `retry-after`, when it sent one. Honoured over the
-  /// computed backoff, because the server knows when it will be ready and we
-  /// are guessing.
+  /// The server's own `retry-after`. Honoured over the computed backoff: it
+  /// knows when it will be ready and we are guessing.
   final Duration? retryAfter;
 
   /// Whether trying the same request again could plausibly succeed.
   ///
-  /// 429, the 5xx family and 529 are the API saying "not now" rather than "not
-  /// ever", and a null status means the request never landed, which is the most
-  /// retryable case of all.
+  /// "Not now" rather than "not ever". A null status never reached a server,
+  /// which is the most retryable case of all.
   bool get isTransient {
     if (status == null) return true;
     return const {408, 409, 429, 500, 502, 503, 504, 529}.contains(status);
   }
 
-  /// Whether the service is busy, as opposed to something wrong with the
-  /// request, the key or the network.
-  ///
-  /// 529 is Anthropic's own "overloaded" status and is the usual shape of this.
+  /// Whether the service is busy, rather than the request, the key or the
+  /// network being wrong. 529 is the API's own "overloaded" status.
   bool get isOverloaded {
     if (type == 'overloaded_error') return true;
     return const {500, 502, 503, 504, 529}.contains(status);
   }
 
-  /// Whether this particular model id is gone or not available to this key, so
-  /// the next candidate should be tried instead of retrying this one.
+  /// Whether this model id is gone or unavailable to this key, so the next
+  /// candidate is worth trying instead of retrying this one.
   bool get isModelUnavailable {
     if (status == 404 || type == 'not_found_error') return true;
     if (status != 400) return false;
@@ -92,10 +85,9 @@ class ClaudeApiException implements Exception {
 
 /// How many times to try, and how long to wait between.
 ///
-/// Exponential with equal jitter: the delay doubles, and half of each one is
-/// randomised so that several clients retrying together do not synchronise into
-/// a second spike. [deadline] bounds the whole sequence, so a request cannot
-/// keep the screen busy indefinitely no matter how the individual attempts go.
+/// Exponential with equal jitter: the delay doubles and half of it is
+/// randomised, so clients retrying together do not synchronise into a second
+/// spike. [deadline] bounds the whole sequence.
 class RetryPolicy {
   const RetryPolicy({
     this.maxAttempts = 4,
@@ -144,9 +136,8 @@ class ClaudeClient {
 
   static const _base = 'https://api.anthropic.com/v1';
 
-  /// The API version this client is written against. Anthropic keeps old
-  /// versions working, so pinning one means a server-side change cannot alter
-  /// the response shape under a build that is already deployed.
+  /// Pinned, so a server-side change cannot alter the response shape under a
+  /// build that is already out.
   static const apiVersion = '2023-06-01';
 
   final String _apiKey;
@@ -225,10 +216,9 @@ class ClaudeClient {
       'anthropic-version': apiVersion,
       'content-type': 'application/json',
       // Without this the browser's preflight is refused and the call never
-      // leaves the page. It is also the header that names what this build is
-      // doing: calling the API straight from the client, with the key that is
-      // in the bundle. See docs/06-security-and-privacy.md for why that is
-      // acceptable for a local build and never for a deployed one.
+      // leaves the page. It also names what a web build is doing: calling the
+      // API from the client, with the key that is in the bundle — fine locally,
+      // never for a deployed build. See docs/06-security-and-privacy.md.
       if (kIsWeb) 'anthropic-dangerous-direct-browser-access': 'true',
     };
 
@@ -271,13 +261,8 @@ class ClaudeClient {
     throw _errorFrom(response);
   }
 
-  /// Unpacks Anthropic's error envelope, keeping the parts that decide
-  /// behaviour.
-  ///
-  /// ```json
-  /// {"type": "error",
-  ///  "error": {"type": "rate_limit_error", "message": "..."}}
-  /// ```
+  /// Unpacks the error envelope, keeping the parts that decide behaviour:
+  /// `{"type": "error", "error": {"type": "...", "message": "..."}}`.
   ClaudeApiException _errorFrom(http.Response response) {
     String message = 'The AI service returned HTTP ${response.statusCode}.';
     String? type;
@@ -316,23 +301,16 @@ class ClaudeClient {
 
 /// Which model to ask.
 abstract final class ClaudeModels {
-  /// The model Nook runs on: the fast, inexpensive tier, which is the right
-  /// shape for both jobs here — schema-constrained extraction from text that is
-  /// already in the prompt, and a short structured plan.
-  ///
-  /// A dated id rather than the rolling alias, so a new release cannot change
-  /// the behaviour of a build that is already out.
+  /// The fast, inexpensive tier: the right shape for both jobs here, which are
+  /// schema-constrained and short. A dated id rather than the rolling alias, so
+  /// a new release cannot change a build that is already out.
   static const haiku = 'claude-haiku-4-5-20251001';
 
-  /// Tried in order when the pinned id is refused.
-  ///
-  /// The alias is the second entry on purpose: if the dated id is ever retired,
-  /// the alias still resolves to a working Haiku, and the app degrades to "a
-  /// slightly different model" rather than to no AI at all.
+  /// Tried in order when the pinned id is refused. The alias is second so that
+  /// a retired dated id degrades to a working model rather than to no AI.
   static const fallback = <String>[haiku, 'claude-haiku-4-5'];
 
-  /// The candidates to try for a session, best first, given an optional pinned
-  /// id from `CLAUDE_MODEL`.
+  /// The ids to try this session, best first, given an optional `CLAUDE_MODEL`.
   static List<String> candidates(String? pinned) {
     final trimmed = pinned?.trim();
     if (trimmed == null || trimmed.isEmpty) return fallback;
@@ -342,12 +320,10 @@ abstract final class ClaudeModels {
 
 /// Builds the request body for one structured-output call.
 ///
-/// Anthropic has no `responseSchema`. The equivalent is a tool the model is
-/// forced to call: `tool_choice` names it, `input_schema` describes it, and the
-/// reply arrives as a `tool_use` block whose `input` is already a decoded map of
-/// that shape. That is strictly better than asking for JSON in prose and
-/// decoding the text: there is no code fence to strip and no half-written
-/// object to fail a parse on.
+/// Structure comes from a tool the model is forced to call: `tool_choice` names
+/// it, `input_schema` describes it, and the reply arrives as a `tool_use` block
+/// whose `input` is already a decoded map of that shape. No prose to find JSON
+/// in, and no half-written object to fail a parse on.
 Map<String, Object?> claudeToolRequest({
   required String model,
   required String system,
@@ -372,18 +348,16 @@ Map<String, Object?> claudeToolRequest({
       'input_schema': schema,
     },
   ],
-  // Forced, not offered: the model has exactly one thing it may do with this
-  // request, so there is no path where it answers in prose instead.
+  // Forced, not offered: there is no path where it answers in prose instead.
   'tool_choice': {'type': 'tool', 'name': toolName},
 };
 
 /// The decoded arguments of the forced tool call, or null if the reply carried
 /// none.
 ///
-/// A reply can be well-formed HTTP and still have no answer in it: a refusal, a
-/// message cut off at `max_tokens` before the tool block was finished, or a
-/// content list with nothing of this shape in it. Each is a different message to
-/// the user, so this returns null and lets the caller read [stopReasonOf].
+/// A reply can be well-formed HTTP and still have no answer in it — a refusal,
+/// a message cut off at `max_tokens`, a content list of the wrong shape. Each
+/// is a different message to the user, so the caller reads [stopReasonOf].
 Map<String, dynamic>? claudeToolInput(
   Map<String, dynamic> response,
   String toolName,
