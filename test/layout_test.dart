@@ -16,11 +16,11 @@ import 'package:nook/screens/add/paste_link_screen.dart';
 import 'package:nook/screens/add/personal_note_screen.dart';
 import 'package:nook/screens/add/post_draft.dart';
 import 'package:nook/screens/add/review_save_screen.dart';
-import 'package:nook/explore/explore_catalogue.dart';
-import 'package:nook/explore/explore_itinerary.dart';
 import 'package:nook/screens/details/manage_post_screen.dart';
+import 'package:nook/ai/itinerary_generator.dart';
 import 'package:nook/screens/explore/explore_itineraries_screen.dart';
-import 'package:nook/screens/explore/explore_itinerary_details_screen.dart';
+import 'package:nook/screens/explore/itinerary_plan_screen.dart';
+import 'package:nook/screens/explore/itinerary_result_screen.dart';
 import 'package:nook/screens/details/personal_notes_screen.dart';
 import 'package:nook/screens/details/post_details_screen.dart';
 import 'package:nook/screens/details/travel_details_screen.dart';
@@ -144,16 +144,36 @@ PostDraft longestDraft() => PostDraft.fromLink(
   ),
 );
 
-/// The catalogue entry with the most to draw: the longest title, the most
-/// stops and the most highlights are what push this screen past the edge.
-ExploreItinerary _longestItinerary() => exploreItineraries.reduce((a, b) {
-  int weight(ExploreItinerary it) =>
-      it.title.length +
-      it.summary.length +
-      it.stops.length * 40 +
-      it.stops.fold(0, (sum, stop) => sum + stop.highlights.length * 20);
-  return weight(b) > weight(a) ? b : a;
-});
+/// A request with more in it than any real trip, so the generated screen is
+/// measured against the longest content it can be handed.
+ItineraryRequest _wordyRequest() => ItineraryRequest(
+  destination: 'El Nido, Palawan, Philippines',
+  days: 7,
+  tripName: 'Someday List',
+  sources: [
+    for (var i = 1; i <= 4; i++)
+      ItinerarySource(
+        title: 'A very long saved post title that keeps going for a while $i',
+        caption:
+            'A caption with enough words in it that the planner has material '
+            'to work from, repeated so the layout is measured against a '
+            'realistic worst case rather than a short fixture.',
+        summary:
+            'A summary that also runs long, because the screen has to hold a '
+            'paragraph without pushing anything off the edge.',
+        placeName: 'Somewhere With A Fairly Long Place Name $i',
+        neighbourhood: 'A Neighbourhood With A Long Name',
+        city: 'El Nido',
+        country: 'Philippines',
+        bestTime: 'December to March, outside the habagat',
+        budgetNote: 'Around 2,500 pesos a day including the boat',
+        highlights: [
+          'A tip that is long enough to wrap onto a second line on a phone',
+          'Another tip, also long, so the list is not a single short row',
+        ],
+      ),
+  ],
+);
 
 void main() {
   late NookDatabase db;
@@ -193,10 +213,10 @@ void main() {
     'Manage Post': () => ManagePostScreen(postId: postId),
     'All Saved Posts': () =>
         PostListScreen(title: 'Recent Saves', posts: PostsDao(db).watchAll()),
-    'Explore Itineraries': () => const ExploreItinerariesScreen(),
-    'Explore Itinerary Details': () => ExploreItineraryDetailsScreen(
-      itinerary: _longestItinerary(),
-    ),
+    'Explore Itinerary': () => const ExploreItinerariesScreen(),
+    'Itinerary Plan': () => const ItineraryPlanScreen(tripId: 1),
+    'Generated Itinerary': () =>
+        ItineraryResultScreen(request: _wordyRequest()),
   };
 
   screens.forEach((name, build) {

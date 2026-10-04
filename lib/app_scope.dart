@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'ai/ai_extractor.dart';
+import 'ai/itinerary_generator.dart';
+import 'ai/sample_itinerary_generator.dart';
 import 'data/daos/posts_dao.dart';
 import 'data/daos/searches_dao.dart';
 import 'data/daos/settings_dao.dart';
@@ -20,7 +22,9 @@ class AppScope extends InheritedWidget {
     required this.extractor,
     required this.tab,
     required super.child,
-  }) : posts = PostsDao(db),
+    ItineraryGenerator? itinerary,
+  }) : itinerary = itinerary ?? const SampleItineraryGenerator(),
+       posts = PostsDao(db),
        trips = TripsDao(db),
        users = UsersDao(db),
        searches = SearchesDao(db),
@@ -28,6 +32,10 @@ class AppScope extends InheritedWidget {
 
   final NookDatabase db;
   final AiExtractor extractor;
+
+  /// Plans a trip from the posts saved into it. Defaults to the sample
+  /// planner, so a screen or a test can be built without wiring one up.
+  final ItineraryGenerator itinerary;
 
   /// Which root tab is showing.
   ///
@@ -51,5 +59,6 @@ class AppScope extends InheritedWidget {
   bool updateShouldNotify(AppScope oldWidget) =>
       db != oldWidget.db ||
       extractor != oldWidget.extractor ||
+      itinerary != oldWidget.itinerary ||
       tab != oldWidget.tab;
 }

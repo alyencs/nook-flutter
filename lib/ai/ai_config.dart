@@ -2,7 +2,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'ai_extractor.dart';
 import 'gemini_extractor.dart';
+import 'gemini_itinerary_generator.dart';
+import 'itinerary_generator.dart';
 import 'sample_extractor.dart';
+import 'sample_itinerary_generator.dart';
 
 /// Decides, once at startup, which extractor the app runs on.
 ///
@@ -35,6 +38,20 @@ abstract final class NookAi {
       // `APP_ID|CLIENT_TOKEN` from a Meta app with oEmbed Read.
       facebookToken: _env('FACEBOOK_TOKEN'),
     );
+  }
+
+  /// The itinerary planner, chosen by the same rule as the extractor.
+  ///
+  /// With a key, plans are written by the model from the traveller's own saved
+  /// posts. Without one, [SampleItineraryGenerator] arranges those same posts
+  /// into days itself — less writing, the same material — and the screen says
+  /// which it was.
+  static ItineraryGenerator createItineraryGenerator() {
+    final key = _env('GEMINI_API_KEY');
+    if (key == null || key.isEmpty || key.startsWith('put_your')) {
+      return const SampleItineraryGenerator();
+    }
+    return GeminiItineraryGenerator(apiKey: key, model: _env('GEMINI_MODEL'));
   }
 
   /// Loads `.env` if it is there. A missing or empty file is a normal state,

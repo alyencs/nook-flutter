@@ -24,7 +24,11 @@ class AnalysingIndicator extends StatefulWidget {
     required this.phase,
     required this.seconds,
     this.onCancel,
+    this.label,
   });
+
+  /// Overrides the phase's own wording, for a wait that is not an extraction.
+  final String? label;
 
   final ExtractionPhase phase;
 
@@ -78,8 +82,8 @@ class _AnalysingIndicatorState extends State<AnalysingIndicator>
                   // Keyed on the phase, so the sentence cross-fades when the
                   // work moves on rather than changing under you.
                   child: Text(
-                    AnalysingIndicator.labelFor(widget.phase),
-                    key: ValueKey(widget.phase),
+                    widget.label ?? AnalysingIndicator.labelFor(widget.phase),
+                    key: ValueKey(widget.label ?? widget.phase),
                     style: NookType.bodyStrong,
                   ),
                 ),

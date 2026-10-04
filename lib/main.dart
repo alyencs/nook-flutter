@@ -22,6 +22,7 @@ Future<void> main() async {
   // in-flight request map and its resolved-model cache with it.
   final tab = ValueNotifier<int>(0);
   final extractor = NookAi.createExtractor();
+  final itinerary = NookAi.createItineraryGenerator();
   // Belt and braces: the seed normally runs when the database is created.
   await db.seedIfEmpty();
 
@@ -39,6 +40,7 @@ Future<void> main() async {
       db: db,
       tab: tab,
       extractor: extractor,
+      itinerary: itinerary,
       // Kept from the starter, and left on in release on purpose: the live link
       // is opened on a desktop browser, where an unframed phone layout looks
       // broken.

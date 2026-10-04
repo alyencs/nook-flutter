@@ -154,14 +154,14 @@ void main() {
     expect(find.text('Budget'), findsOneWidget);
     expect(find.text('Japan'), findsOneWidget);
 
-    // Explore Itinerary opens the catalogue, narrowed to the country this
-    // post was extracted into.
+    // Explore Itinerary opens the planner on the trip this post is filed
+    // into, because the posts beside it are what a plan is built from.
     await tester.tap(find.text('Explore Itinerary'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Explore Itineraries'), findsOneWidget);
-    expect(find.text('Itineraries in Japan'), findsOneWidget);
-    expect(find.text('Three Days in Kyoto'), findsWidgets);
+    expect(find.text('HOW LONG IS THE TRIP'), findsOneWidget);
+    expect(find.text('Generate Itinerary'), findsOneWidget);
+    expect(find.text('5 Hidden Cafes in Kyoto'), findsWidgets);
     await unmount(tester);
   });
 
