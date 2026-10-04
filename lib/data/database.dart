@@ -13,18 +13,14 @@ class NookDatabase extends _$NookDatabase {
   /// For tests: an in-memory database with no seed data.
   NookDatabase.forTesting(super.executor);
 
-  /// 2 added `app_settings` and the coordinate columns; 3 added the columns
-  /// that keep a full extraction — caption, creator handle, source id, media
-  /// type and the specific location parts; 4 added the places and highlights a
-  /// post mentions, and relaxed `users.email` now that nothing collects it; 5
-  /// added `deleted_at` to posts and trips, which is what Recently Deleted is
-  /// built on; 6 added a trip's folder colour; 7 added the creator's page URL
-  /// and profile picture.
+  /// 2 added `app_settings` and the coordinate columns; 3 the columns that keep
+  /// a full extraction; 4 places and highlights, and relaxed `users.email`; 5
+  /// `deleted_at` on posts and trips, which Recently Deleted is built on; 6 a
+  /// trip's folder colour; 7 the creator's page URL and profile picture.
   ///
-  /// They were added at version 1 without bumping this, which is the bug behind
-  /// "no such table: app_settings": drift creates the whole schema only for a
-  /// database it creates itself, so every database that already existed stayed
-  /// on the old shape and no migration ever ran.
+  /// Some of these shipped at version 1 without bumping this, which is the bug
+  /// behind "no such table: app_settings": drift creates the whole schema only
+  /// for a database it creates itself, so existing databases never migrated.
   @override
   int get schemaVersion => 7;
 
@@ -52,12 +48,9 @@ class NookDatabase extends _$NookDatabase {
 
   /// Adds what version 2 introduced, skipping anything already there.
   ///
-  /// The checks are not defensive programming for its own sake. Because the
-  /// version was not bumped when these were added, "version 1" describes two
-  /// different shapes in the wild: databases created before the additions,
-  /// which lack them, and databases created after, which have them and are
-  /// still stamped 1. Both arrive here, so each piece is added only if it is
-  /// actually missing.
+  /// "Version 1" describes two shapes in the wild — with and without these
+  /// columns — because the version was not bumped when they were added. Both
+  /// arrive here, so each piece is added only if it is missing.
   Future<void> _upgradeToV2(Migrator m) async {
     if (!await _hasTable('app_settings')) {
       await m.createTable(appSettings);
@@ -71,11 +64,7 @@ class NookDatabase extends _$NookDatabase {
   }
 
   /// Version 3: the columns that let a full extraction survive being saved.
-  ///
-  /// Before this, everything the model found beyond a destination, a country
-  /// and a category was thrown away at the point of writing the row. Existing
-  /// posts keep their values and gain nulls in the new columns, which every
-  /// screen already renders as an em dash.
+  /// Existing posts gain nulls, which every screen renders as an em dash.
   Future<void> _upgradeToV3(Migrator m) async {
     final columns = <String, GeneratedColumn<String>>{
       'caption': savedPosts.caption,
@@ -96,12 +85,8 @@ class NookDatabase extends _$NookDatabase {
   }
 
   /// Version 4: places and highlights, and an email column that is no longer
-  /// required.
-  ///
-  /// SQLite cannot relax a NOT NULL constraint in place, so `users` is rebuilt
-  /// through drift's `TableMigration`, which copies every existing row across.
-  /// Profiles created before this keep the address they gave; nothing reads it
-  /// any more, and onboarding no longer asks.
+  /// required. SQLite cannot relax NOT NULL in place, so `users` is rebuilt
+  /// through drift's `TableMigration`, copying every existing row across.
   Future<void> _upgradeToV4(Migrator m) async {
     for (final entry in <String, GeneratedColumn<String>>{
       'ai_places': savedPosts.aiPlaces,
@@ -111,18 +96,14 @@ class NookDatabase extends _$NookDatabase {
         await m.addColumn(savedPosts, entry.value);
       }
     }
-    // Drift marks TableMigration experimental, but it is the documented way to
-    // rebuild a table, and rebuilding is the only way SQLite will relax a NOT
-    // NULL constraint. It copies every existing row across.
+    // Experimental, but the documented way to rebuild a table — and rebuilding
+    // is the only way SQLite will relax a NOT NULL constraint.
     // ignore: experimental_member_use
     await m.alterTable(TableMigration(users));
   }
 
-  /// Version 5: Recently Deleted.
-  ///
-  /// Two nullable timestamps, so every existing post and trip arrives with a
-  /// null — which is exactly what "not deleted" means — and nothing has to be
-  /// backfilled.
+  /// Version 5: Recently Deleted. Two nullable timestamps, so existing rows
+  /// arrive with null, which is exactly what "not deleted" means.
   Future<void> _upgradeToV5(Migrator m) async {
     if (!await _hasColumn('saved_posts', 'deleted_at')) {
       await m.addColumn(savedPosts, savedPosts.deletedAt);
@@ -132,23 +113,17 @@ class NookDatabase extends _$NookDatabase {
     }
   }
 
-  /// Version 6: the trip folder colour.
-  ///
-  /// Nullable, so every existing trip arrives with "nobody chose" rather than
-  /// needing a backfill — and [TripColor.forId] spreads those across the five
-  /// so an old library is not a wall of one colour.
+  /// Version 6: the trip folder colour. Nullable, so existing trips arrive with
+  /// "nobody chose" and [TripColor.forId] spreads them across the palette.
   Future<void> _upgradeToV6(Migrator m) async {
     if (!await _hasColumn('trips', 'color_id')) {
       await m.addColumn(trips, trips.colorId);
     }
   }
 
-  /// Version 7: who made the post, beyond a name.
-  ///
-  /// `creator_url` is available on all four platforms through oEmbed's
-  /// `author_url`; `creator_avatar_url` is available on YouTube alone, and only
-  /// with a Data API key. Both are nullable and stay null for every post saved
-  /// before this, which every screen already renders as the creator's initial.
+  /// Version 7: who made the post, beyond a name. `creator_url` comes from
+  /// oEmbed on all four platforms; `creator_avatar_url` from YouTube alone.
+  /// Both nullable, and a post without one draws the creator's initial.
   Future<void> _upgradeToV7(Migrator m) async {
     for (final entry in <String, GeneratedColumn<String>>{
       'creator_url': savedPosts.creatorUrl,
@@ -173,14 +148,11 @@ class NookDatabase extends _$NookDatabase {
     return rows.any((row) => row.read<String>('name') == column);
   }
 
-  /// Inserts the demo library if the database somehow came up empty.
+  /// Inserts the demo library if the database came up empty.
   ///
-  /// Normally the seed runs from [migration]'s `beforeOpen` on creation. This
-  /// is the belt-and-braces path for a database that exists but was emptied.
-  ///
-  /// Every mockup screen is drawn populated, so a fresh browser opening the
-  /// live link would otherwise land on an empty app. All of it is fictional —
-  /// no real names, links or personal data ship in this repository.
+  /// The seed normally runs from [migration]'s `beforeOpen` on creation; this
+  /// covers a database that exists but was emptied. Without it a fresh browser
+  /// opening the live link lands on an empty app. All of it is fictional.
   Future<void> seedIfEmpty() async {
     final existing = await select(users).get();
     if (existing.isNotEmpty) return;
@@ -196,16 +168,9 @@ class NookDatabase extends _$NookDatabase {
   /// Wipes everything, leaving the app at onboarding. Behind "Delete my
   /// profile" on the Account screen.
   ///
-  /// `app_settings` is in this list, and was not always. The dialog says "this
-  /// erases everything on this device", and four of the five tables went —
-  /// which made the sentence not quite true and left the next profile created
-  /// on the device inheriting a stranger's toggles. Two ways to fix that: soften
-  /// the dialog, or make the wipe match it.
-  ///
-  /// The wipe matches it. A settings row is the user's choice about their own
-  /// library, so it belongs to the profile being deleted; and a device handed on
-  /// or reset should come back at defaults rather than remembering preferences
-  /// nobody can see any more. Anything absent falls back to
+  /// `app_settings` is included deliberately: the dialog says this erases
+  /// everything on the device, and a settings row is the user's own choice, so
+  /// the next profile should not inherit it. Anything absent falls back to
   /// [NookSettings.defaults], so emptying the table is the reset.
   Future<void> clearAll() async {
     await batch((b) {
@@ -222,8 +187,7 @@ QueryExecutor _open() {
   return driftDatabase(
     name: 'nook',
     // Both files live in web/ and are copied into the build. Without them the
-    // deployed build white-screens with no error, which is why this landed in
-    // phase 0 rather than late.
+    // deployed build white-screens with no error.
     web: DriftWebOptions(
       sqlite3Wasm: Uri.parse('sqlite3.wasm'),
       driftWorker: Uri.parse('drift_worker.js'),

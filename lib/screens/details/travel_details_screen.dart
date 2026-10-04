@@ -13,6 +13,8 @@ import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/post_map.dart';
 import 'map_screen.dart';
+import '../explore/explore_itineraries_screen.dart';
+import '../explore/itinerary_plan_screen.dart';
 import '../../widgets/post_thumbnail.dart';
 
 /// S2. The screen the whole proposal is built around.
@@ -36,7 +38,7 @@ class TravelDetailsScreen extends StatelessWidget {
         if (post == null) return const NookScaffold(child: SizedBox.shrink());
 
         return NookScaffold(
-          bottomBar: const _ExploreItineraryButton(),
+          bottomBar: _ExploreItineraryButton(tripId: post.tripId),
           child: ListView(
             children: [
               const NookAppBar(title: 'Travel Details'),
@@ -320,24 +322,28 @@ class _MetaRow extends StatelessWidget {
   }
 }
 
-/// Stretch goal #3, drawn but not built. Disabled and labelled, rather than
-/// quietly doing nothing when tapped.
+/// Opens the planner on the trip this post belongs to.
+///
+/// A post already filed into a trip goes straight to that trip's planner,
+/// because the posts beside it are what the plan would be built from. One that
+/// has not been filed yet goes to the trip list instead.
 class _ExploreItineraryButton extends StatelessWidget {
-  const _ExploreItineraryButton();
+  const _ExploreItineraryButton({this.tripId});
+
+  final int? tripId;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const NookPrimaryButton(
-          label: 'Explore Itinerary',
-          icon: Icons.near_me_outlined,
-          onPressed: null,
+    return NookPrimaryButton(
+      label: 'Explore Itinerary',
+      icon: Icons.near_me_outlined,
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => tripId == null
+              ? const ExploreItinerariesScreen()
+              : ItineraryPlanScreen(tripId: tripId!),
         ),
-        const SizedBox(height: NookSpacing.tight),
-        Text('Stretch goal — not in this build', style: NookType.caption),
-      ],
+      ),
     );
   }
 }

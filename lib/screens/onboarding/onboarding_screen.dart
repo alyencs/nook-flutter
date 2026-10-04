@@ -9,21 +9,15 @@ import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
 import 'get_started_screen.dart';
 
-/// LA2–LA5, as an editorial spread rather than four centred cards.
+/// The four onboarding pages, laid out as an editorial spread rather than
+/// centred cards.
 ///
-/// The old version was a grey rounded box with an icon in it, a centred title
-/// and a centred paragraph, four times. It read like a settings screen. This
-/// borrows the grammar of a travel magazine — the thing Nook is actually for:
-///
-/// * A numbered index, so four screens read as a sequence rather than a queue.
-/// * An overline and a rule running to the margin, which is the same section
-///   mark used everywhere else in the app.
+/// * A numbered index, so four screens read as a sequence.
+/// * An overline and a rule to the margin — the same section mark used
+///   everywhere else in the app.
 /// * A tall photograph, full-bleed to the right edge, with the text hanging off
-///   its left. Asymmetry is what stops a page looking like a form.
-/// * One headline with one emphasised phrase in the editorial italic, in
-///   Nook's orange, and nothing else competing for the accent.
-///
-/// The composition is Nook's: warm ground, orange accent, the same hairlines.
+///   its left. The asymmetry is what stops a page looking like a form.
+/// * One headline with one emphasised phrase, and nothing else competing.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -152,9 +146,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               },
             ),
           ),
-          // The progress rule: four segments, filled as far as you have come.
-          // A counted line rather than dots, because the numbers above already
-          // say where you are and two indicators would be one too many.
+          // Four segments, filled as far as you have come. A counted line
+          // rather than dots: the numbers above already say where you are.
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: NookSpacing.screenEdge,
@@ -288,10 +281,9 @@ class _OnboardingPage extends StatelessWidget {
 
 /// A destination photograph, with a coloured ground underneath it.
 ///
-/// The tint is not a placeholder colour — it is what the page looks like while
-/// the photograph loads, and what it keeps looking like if the image never
-/// arrives. Each page's tint is one of the five folder colours, so the
-/// onboarding and the trips it is describing are drawn from one palette.
+/// The tint is what the page looks like while the photograph loads, and what it
+/// keeps looking like if the image never arrives. Each page uses one of the
+/// five folder colours, so onboarding and trips share a palette.
 class _Photo extends StatelessWidget {
   const _Photo({
     required this.name, 

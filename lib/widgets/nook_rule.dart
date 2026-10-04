@@ -6,11 +6,8 @@ import '../theme/nook_typography.dart';
 
 /// The line vocabulary.
 ///
-/// Lines are the structural device this redesign borrows: they separate, they
-/// label, and they carry the eye across a row. They are not decoration, and the
-/// rule for adding one is that it has to be doing one of those three jobs.
-///
-/// Three shapes, and nothing else:
+/// Lines separate, label, or carry the eye across a row. A line that is doing
+/// none of those three jobs is decoration and does not belong.
 ///
 /// * [NookRule] — a hairline between blocks.
 /// * [RuledLabel] — a section mark with the rule running out to the margin.
@@ -43,13 +40,10 @@ class NookRule extends StatelessWidget {
 
 /// A section mark: the label, then a rule to the end of the line.
 ///
-/// The rule stretches with an [Expanded], so this needs a bounded width — put
-/// it in a Column or a ListView, and use [trailing] for an action rather than
-/// wrapping the whole thing in a Row.
-///
-/// This replaces the bare uppercase labels. The rule is what makes a label read
-/// as the start of a section rather than as a caption belonging to the thing
-/// above it.
+/// The rule is what makes a label read as the start of a section rather than a
+/// caption on the thing above it. It stretches with an [Expanded], so this
+/// needs a bounded width — use [trailing] for an action rather than wrapping
+/// the whole thing in a Row.
 class RuledLabel extends StatelessWidget {
   const RuledLabel(this.label, {super.key, this.trailing, this.color});
 
@@ -90,11 +84,9 @@ class RuledLabel extends StatelessWidget {
   }
 }
 
-/// A label and a value, joined by a leader line.
-///
-/// The line is the point: it ties a value on the right to its label on the
-/// left across a gap that would otherwise read as two unrelated columns, the
-/// way a contents page or a menu does.
+/// A label and a value, joined by a leader line, the way a contents page does:
+/// the line ties the two across a gap that would otherwise read as two
+/// unrelated columns.
 class RuledRow extends StatelessWidget {
   const RuledRow({
     super.key,
@@ -122,11 +114,8 @@ class RuledRow extends StatelessWidget {
             Icon(icon, size: 17, color: NookColors.textMuted),
             const SizedBox(width: NookSpacing.tight),
           ],
-          // Both sides shrink before the row does. The leader line gets what
-          // is left, down to nothing, so a long label and a long value still
-          // fit rather than pushing the row past the screen.
-          // The label reads first, so it gets the largest share; the leader
-          // line gives up its width before either piece of text does.
+          // Both sides shrink before the row does, and the leader line gives up
+          // its width before either piece of text, down to nothing.
           Flexible(
             flex: 6,
             child: Text(

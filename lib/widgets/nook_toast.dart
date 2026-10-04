@@ -8,15 +8,12 @@ import '../theme/nook_typography.dart';
 
 /// Confirmations, at the top of the screen.
 ///
-/// These used to be SnackBars, which Flutter pins to the bottom — directly over
-/// the primary button and the tab bar. "Post moved" landed on top of the
-/// controls you had just been using, and swallowed taps meant for them.
+/// The top inset, not the bottom, because the bottom is where the primary
+/// button and the tab bar are — a message there covers the controls you were
+/// just using. `IgnorePointer`, so a tap goes through to whatever is beneath.
 ///
-/// This puts the same message in the top inset, where nothing is interactive,
-/// and makes it `IgnorePointer` so a tap goes through it to whatever is
-/// underneath. It is app-level, not screen-level, so a message raised while a
-/// route is popping survives the pop — which is the case that used to need a
-/// timer to dodge.
+/// App-level rather than screen-level, so a message raised while a route is
+/// popping survives the pop.
 class NookToast {
   NookToast._();
 
@@ -45,10 +42,8 @@ class NookToast {
         message: message,
         icon: isError ? Icons.error_outline_rounded : icon,
         isError: isError,
-        // The countdown belongs to the widget, not to this class. A static
-        // timer outlives the tree it was started for: it keeps a test alive
-        // past its last frame, and after a hot restart it fires into an
-        // overlay that no longer exists.
+        // The countdown belongs to the widget, not to this class: a static
+        // timer outlives the tree it was started for.
         onElapsed: () {
           if (_entry == entry) dismiss();
         },

@@ -14,7 +14,7 @@ import '../../widgets/nook_scaffold.dart';
 import '../../widgets/nook_toast.dart';
 import '../../widgets/sub_screen_nav.dart';
 
-/// P3.
+/// Settings.
 ///
 /// The four switches are real and persisted — each one changes how saving
 /// behaves — and the Data section acts on the database rather than describing

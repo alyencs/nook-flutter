@@ -169,12 +169,9 @@ Future<TripDraft?> showTripDialog(
 
 /// Shows a confirmation after the current route has been popped.
 ///
-/// Takes an [OverlayState] resolved before the pop. The old version took a
-/// `ScaffoldMessengerState` and waited 350ms, because a SnackBar raised in the
-/// same frame as a pop is briefly parented by both the leaving and the arriving
-/// Scaffold and Flutter asserts on the duplicate hero tag. [NookToast] lives in
-/// the root overlay and belongs to no Scaffold, so there is nothing to collide
-/// with and nothing to wait for.
+/// Takes an [OverlayState] resolved before the pop. [NookToast] lives in the
+/// root overlay and belongs to no Scaffold, so unlike a SnackBar there is
+/// nothing for it to collide with and no delay to wait out.
 void showToastAfterPop(OverlayState overlay, String message) {
   NookToast.show(overlay, message);
 }

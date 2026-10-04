@@ -20,14 +20,12 @@ import '../../widgets/section_header.dart';
 import 'detected_screen.dart';
 import 'post_draft.dart';
 
-/// A2. Feature #1: a link, and the one call that reads it.
+/// Paste a link and read it.
 ///
-/// Two ways in, one pipeline. A link typed here and a link handed over by
-/// another app's share sheet both land on this screen; [sharedUrl] is the
-/// second case, and all it does is fill the field and press Analyze. Everything
-/// after that — platform detection, reading the post, the model call, the save —
-/// is the same code either way, which is the point: there is no second
-/// extraction path to keep in step with this one.
+/// Two ways in, one pipeline: a link typed here and a link handed over by
+/// another app's share sheet both land on this screen, and [sharedUrl] only
+/// fills the field and presses Analyze. There is no second extraction path to
+/// keep in step with this one.
 class PasteLinkScreen extends StatefulWidget {
   const PasteLinkScreen({super.key, this.sharedUrl});
 
@@ -60,9 +58,8 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
     final shared = widget.sharedUrl?.trim();
     if (shared != null && shared.isNotEmpty) {
       _url.text = shared;
-      // Straight into the same analysis the Analyze button runs. A shared post
-      // is already an expression of intent; making someone tap again to confirm
-      // what they just chose is a step for its own sake.
+      // Straight into the same analysis the Analyze button runs: sharing is
+      // already an expression of intent.
       WidgetsBinding.instance.addPostFrameCallback((_) => _analyze());
       return;
     }
@@ -74,11 +71,9 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   /// "Paste detection" in Settings: if the clipboard already holds a link,
   /// put it in the field so the screen is one tap from analysing.
   Future<void> _prefillFromClipboard() async {
-    // This runs a frame after initState, so the screen can already be gone —
-    // pushed past, or popped straight back out of. Reading an inherited widget
-    // through a context whose element has been deactivated is the mistake that
-    // leaves a dependency behind, so the guard comes before the lookup, not
-    // after it.
+    // Runs a frame after initState, so the screen can already be gone. The
+    // mounted guard comes before the inherited lookup, not after it: reading
+    // through a deactivated element leaves a dependency behind.
     if (!mounted) return;
     final settings = AppScope.of(context).settings;
     if (!await settings.isEnabled(NookSettings.pasteDetection)) return;
@@ -119,7 +114,7 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   /// Abandons the current run. The request itself cannot be recalled, but its
   /// result is discarded and the screen becomes usable again immediately. A
   /// fresh Analyze for the same link joins the request already in flight rather
-  /// than starting a second one — see `GeminiExtractor.extract`.
+  /// than starting a second one — see `ClaudeExtractor.extract`.
   void _cancel() {
     setState(() {
       _attempt++;
@@ -303,7 +298,7 @@ class _SampleModeNote extends StatelessWidget {
         Expanded(
           child: Text(
             'No API key found, so this will use sample details. Add '
-            'GEMINI_API_KEY to .env for real extraction.',
+            'ANTHROPIC_API_KEY to .env for real extraction.',
             style: NookType.caption,
           ),
         ),
@@ -380,10 +375,8 @@ class _ExtractionError extends StatelessWidget {
             ],
           ),
           const SizedBox(height: NookSpacing.section),
-          // Stacked, not side by side. Half of a 390pt screen, minus the screen
-          // edge and the card padding, leaves about 135pt per button, and
-          // "Enter manually" needs 202pt — as a Row this overflowed by 54px.
-          // The Personal Note screen already stacks its two actions this way.
+          // Stacked, not side by side: half a 390pt screen leaves about 135pt
+          // per button and "Enter manually" needs 202pt.
           NookSecondaryButton(label: 'Retry', onPressed: onRetry),
           const SizedBox(height: NookSpacing.tight),
           NookSecondaryButton(label: 'Enter manually', onPressed: onManual),

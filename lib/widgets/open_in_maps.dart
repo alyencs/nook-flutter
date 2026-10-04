@@ -7,12 +7,10 @@ import 'nook_toast.dart';
 
 /// Hands a saved location to whatever map app the device already uses.
 ///
-/// Deliberately not "open Google Maps" or "open Apple Maps". Android's `geo:`
-/// scheme is a request for *a* map, and the system offers whichever map apps
-/// are installed — Google Maps, Organic Maps, whatever the person actually
-/// chose. iOS has no equivalent generic scheme, so `maps:` goes to the system
-/// handler there. Only when neither exists does this fall back to a web URL,
-/// and that URL is OpenStreetMap, which is where Nook's own tiles come from.
+/// Not "open Google Maps": Android's `geo:` asks for *a* map and the system
+/// offers whichever are installed, and iOS has `maps:` for its own handler.
+/// Only when neither exists does this fall back to a web URL, and that URL is
+/// OpenStreetMap, where Nook's own tiles come from.
 abstract final class OpenInMaps {
   /// Six decimals is about 0.1m — past the precision any extraction has, and
   /// short enough to stay readable in a URL.
@@ -43,9 +41,8 @@ abstract final class OpenInMaps {
     if (web) return [fallback];
 
     return switch (target) {
-      // `q` with the coordinates repeated drops a labelled pin rather than
-      // running a search, which is what a bare `geo:lat,lng` does on some
-      // versions. The label is parenthesised per the scheme.
+      // `q` with the coordinates repeated drops a labelled pin; a bare
+      // `geo:lat,lng` runs a search on some versions instead.
       TargetPlatform.android || TargetPlatform.fuchsia => [
         Uri.parse(
           'geo:$lat,$lng?q=$lat,$lng'
@@ -83,9 +80,9 @@ abstract final class OpenInMaps {
 
     for (final uri in candidates) {
       try {
-        // canLaunchUrl is the question "is there an app for this scheme".
-        // On the last candidate it is skipped: an https URL always has a
-        // handler, and on some platforms the check is stricter than reality.
+        // canLaunchUrl asks whether an app exists for the scheme. Skipped on
+        // the last candidate: https always has a handler, and the check is
+        // stricter than reality on some platforms.
         final last = uri == candidates.last;
         if (!last && !await canLaunchUrl(uri)) continue;
         final launched = await launchUrl(

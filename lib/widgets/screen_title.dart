@@ -3,16 +3,11 @@ import 'package:flutter/material.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
 
-/// The big heading at the top of a screen.
+/// The big heading at the top of a screen, so one role has one answer rather
+/// than a different size per screen.
 ///
-/// It exists because the screens had drifted apart: Trips set its heading in
-/// `NookType.display` at 25pt, Profile set the same kind of heading in
-/// `NookType.title` at 16.5pt, and Add Post had none at all. Three screens, one
-/// role, three answers — which is how an app stops looking like one app.
-///
-/// Deliberately plain Manrope rather than the editorial face. That accent is
-/// rationed to four places on purpose, and a serif italic on every screen
-/// heading would spend it everywhere and make it mean nothing.
+/// Plain Manrope, not the editorial face: that accent is rationed, and a serif
+/// italic on every heading would spend it everywhere.
 class ScreenTitle extends StatelessWidget {
   const ScreenTitle(this.text, {super.key, this.subtitle});
 

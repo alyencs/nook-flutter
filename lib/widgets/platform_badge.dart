@@ -6,14 +6,10 @@ import '../theme/nook_colors.dart';
 import '../theme/nook_spacing.dart';
 import '../theme/nook_typography.dart';
 
-/// One place that knows what each platform looks like.
-///
-/// Everything that shows a platform — the chips on a card, the circles on Paste
-/// Link, the Connected Platforms rows — reads from here, so a post's platform
+/// One place that knows what each platform looks like, so a post's platform
 /// decides its mark rather than any screen hardcoding one.
 ///
 /// Marks are Font Awesome's brand icons (CC BY 4.0, credited in About Nook).
-/// The colours are each platform's own, used only to identify it.
 abstract final class PlatformBranding {
   /// Null for a link from anywhere else, which falls back to a plain link
   /// glyph rather than pretending to be a platform it is not.

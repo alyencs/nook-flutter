@@ -56,7 +56,7 @@ class _HeldExtractor implements AiExtractor {
     }
   }
 
-  void fail([String message = 'Gemini is overloaded (HTTP 503).']) {
+  void fail([String message = 'The service is overloaded (HTTP 529).']) {
     final completer = _completers.removeAt(0);
     if (!completer.isCompleted) {
       completer.completeError(ExtractionException(message));

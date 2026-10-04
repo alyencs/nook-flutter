@@ -152,8 +152,8 @@ class NookSecondaryButton extends StatelessWidget {
                     const SizedBox(width: NookSpacing.tight),
                   ],
                   // Flexible, because a button is a fixed-width box and its
-                  // label is not: "Enter manually" in a half-width slot used to
-                  // overflow the row by 54px rather than shrink.
+                  // label is not: a long label in a half-width slot overflows
+                  // the row rather than shrinking.
                   Flexible(
                     child: Text(
                       label,

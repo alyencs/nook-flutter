@@ -9,14 +9,12 @@ import 'post_thumbnail.dart';
 
 /// A post's thumbnail travelling from where it was to where it now lives.
 ///
-/// Extracted from the save animation so that deleting can say the same kind of
-/// thing without a second copy of the arc maths. Both are the same sentence
-/// with a different destination: *this went there*. Saving points at Trips;
-/// deleting points at Profile, because that is where Recently Deleted is, so
-/// the animation answers "where did it go" rather than merely "it is gone".
+/// One arc shared by saving and deleting: the same sentence with a different
+/// destination. Saving points at Trips, deleting at Profile, because that is
+/// where Recently Deleted is.
 ///
-/// Runs in the root overlay, above everything, so it survives the route being
-/// popped underneath it — which is what happens in both flows.
+/// Runs in the root overlay so it survives the route being popped underneath
+/// it, which is what happens in both flows.
 abstract final class Flight {
   /// The centre of tab [index] of four, and the vertical middle of the
   /// 68pt-tall bar above the safe area. Derived from `NookBottomNav`'s equal
@@ -28,9 +26,8 @@ abstract final class Flight {
 
   /// Starts the flight and returns a future that completes when it lands.
   ///
-  /// Awaiting is optional and only one caller does it: deleting waits so the
-  /// card is visibly gone before the row disappears from under it. Saving does
-  /// not, because the row is already written by then.
+  /// Only deleting awaits it, so the card is visibly gone before the row
+  /// disappears from under it. Saving does not: the row is already written.
   static Future<void> run(
     OverlayState overlay, {
     required Rect from,
@@ -155,21 +152,17 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
           top: y - height / 2,
           child: IgnorePointer(
             child: Opacity(
-              // Fades only over the last 8%, not the last 15%: the card was
-              // disappearing a tab's height short of the tab, so the journey
-              // ended in mid-air rather than at the place it was pointing to.
+              // Fades only over the last 8%, so the journey ends at the tab
+              // rather than a tab's height short of it.
               opacity: (v < 0.92 ? 1.0 : (1 - v) / 0.08).clamp(0.0, 1.0),
               child: Container(
                 width: size,
                 height: height,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(NookRadius.sm),
-                  // An opaque card with a border and a shadow. The first
-                  // version flew a transparent placeholder, the second a pale
-                  // card with a soft shadow — and Nook's background is cream,
-                  // so a pale card on it is a rumour. The border is the same
-                  // 1.5pt ink every other card in the app is drawn with, which
-                  // is what makes this one legible while it crosses them.
+                  // Opaque, with the same 1.5pt border every other card uses:
+                  // a pale card on a cream background is a rumour, and this one
+                  // has to stay legible while it crosses them.
                   color: widget.opaque ? NookColors.surface : null,
                   border: widget.opaque
                       ? Border.all(color: NookColors.textPrimary, width: 1.5)
@@ -185,9 +178,8 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
                       : null,
                 ),
                 clipBehavior: Clip.antiAlias,
-                // The glyph stays on: a post with no thumbnail, or one whose
-                // image fails to load, otherwise flies an empty box across the
-                // screen — an animation that runs and says nothing.
+                // The glyph stays on, so a post with no thumbnail does not fly
+                // an empty box across the screen.
                 child: PostThumbnail(
                   url: widget.thumbnailUrl,
                   radius: NookRadius.sm,

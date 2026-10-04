@@ -2,7 +2,7 @@ import 'package:device_preview/device_preview.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nook/ai/gemini_extractor.dart';
+import 'package:nook/ai/claude_extractor.dart';
 import 'package:nook/app_scope.dart';
 import 'package:nook/data/database.dart';
 
@@ -10,8 +10,8 @@ import 'package:nook/data/database.dart';
 ///
 /// `DevicePreview` calls its `builder` again on every preview change — four
 /// times before the first frame has settled, in this test. When `AppScope` was
-/// built in there, each of those calls produced a new `GeminiExtractor`,
-/// throwing away the in-flight request map that stops duplicate Gemini calls
+/// built in there, each of those calls produced a new `ClaudeExtractor`,
+/// throwing away the in-flight request map that stops duplicate model calls
 /// and the resolved-model cache, and making `AppScope.updateShouldNotify`
 /// return true every time so that every dependent in the app rebuilt.
 void main() {
@@ -34,10 +34,10 @@ void main() {
           db: db,
           tab: tab,
           // NookAi.createExtractor() with a key in .env returns a new
-          // GeminiExtractor every call; without one it returns a const
+          // ClaudeExtractor every call; without one it returns a const
           // SampleExtractor, which would hide the churn. The keyed path is
           // the one the user runs.
-          extractor: GeminiExtractor(apiKey: 'k'),
+          extractor: ClaudeExtractor(apiKey: 'k'),
           child: const SizedBox.shrink(),
         );
         seen.add(scope.extractor);
@@ -75,7 +75,7 @@ void main() {
     addTearDown(db.close);
     final tab = ValueNotifier<int>(0);
     var builderCalls = 0;
-    final extractor = GeminiExtractor(apiKey: 'k');
+    final extractor = ClaudeExtractor(apiKey: 'k');
 
     // The shape main() uses now.
     Widget tree() => AppScope(

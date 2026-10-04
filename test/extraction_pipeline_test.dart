@@ -5,15 +5,15 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:nook/ai/gemini_api.dart';
-import 'package:nook/ai/gemini_extractor.dart';
+import 'package:nook/ai/claude_api.dart';
+import 'package:nook/ai/claude_extractor.dart';
 import 'package:nook/ai/post_place.dart';
 import 'package:nook/ai/source_metadata.dart';
 import 'package:nook/data/daos/posts_dao.dart';
 import 'package:nook/data/database.dart';
 import 'package:nook/screens/add/post_draft.dart';
 
-/// Source → Gemini → result → draft → database, with nothing dropped.
+/// Source → model → result → draft → database, with nothing dropped.
 ///
 /// The complaint this file answers: pasting the Osaka video produced "Japan"
 /// and saved the post as `Sf9ihvL0Usk`. The first was the model having nothing
@@ -37,25 +37,15 @@ String get _oEmbed => jsonEncode({
   'thumbnail_url': 'https://i.ytimg.com/vi/Sf9ihvL0Usk/hqdefault.jpg',
 });
 
-String get _models => jsonEncode({
-  'models': [
-    {
-      'name': 'models/gemini-3.8-flash',
-      'supportedGenerationMethods': ['generateContent'],
-    },
-  ],
-});
-
 /// What a model that has actually read the description comes back with.
 String _reply(Map<String, Object?> fields) => jsonEncode({
-  'candidates': [
+  'stop_reason': 'tool_use',
+  'content': [
     {
-      'finishReason': 'STOP',
-      'content': {
-        'parts': [
-          {'text': jsonEncode(fields)},
-        ],
-      },
+      'type': 'tool_use',
+      'id': 'toolu_1',
+      'name': ClaudeExtractor.toolName,
+      'input': fields,
     },
   ],
 });
@@ -78,7 +68,7 @@ final _osakaFields = <String, Object?>{
   'longitude': 135.5062,
 };
 
-/// Answers the oEmbed lookup, the model list and the generate call.
+/// Answers the oEmbed lookup and the model call.
 class _Pipeline {
   _Pipeline({String? oEmbed, Map<String, Object?>? fields})
     : _oEmbedBody = oEmbed,
@@ -90,8 +80,7 @@ class _Pipeline {
 
   http.Client get client => MockClient((request) async {
     requests.add(request);
-    final url = request.url.toString();
-    if (!request.url.host.contains('generativelanguage')) {
+    if (!request.url.host.contains('api.anthropic.com')) {
       return _oEmbedBody == null
           ? http.Response('not found', 404)
           : http.Response(
@@ -99,13 +88,6 @@ class _Pipeline {
               200,
               headers: {'content-type': 'application/json'},
             );
-    }
-    if (!url.contains(':generateContent')) {
-      return http.Response(
-        _models,
-        200,
-        headers: {'content-type': 'application/json'},
-      );
     }
     return http.Response(
       _reply(_fields),
@@ -115,10 +97,10 @@ class _Pipeline {
   });
 
   http.Request get generateRequest =>
-      requests.firstWhere((r) => r.url.path.contains(':generateContent'));
+      requests.firstWhere((r) => r.url.path.endsWith('/messages'));
 }
 
-GeminiExtractor _extractor(_Pipeline pipeline) => GeminiExtractor(
+ClaudeExtractor _extractor(_Pipeline pipeline) => ClaudeExtractor(
   apiKey: 'k',
   httpClient: pipeline.client,
   retry: const RetryPolicy(
@@ -155,7 +137,7 @@ void main() {
 
       final hosts = pipeline.requests.map((r) => r.url.host).toList();
       expect(hosts.first, contains('youtube'));
-      expect(hosts.last, contains('generativelanguage'));
+      expect(hosts.last, contains('api.anthropic.com'));
     });
 
     test('a platform that publishes nothing tells the model so', () async {

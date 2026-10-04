@@ -30,7 +30,7 @@ searchable across platforms.
 | # | Feature | What it needs | Estimate |
 | --- | --- | --- | --- |
 | 1 | Paste link to save | URL field, a `SavedPost` model, `flutter_dotenv` for the key, the API call, a loading state | ~5 h |
-| 2 | AI destination and category detection | `google_generative_ai` (Gemini) wrapped in try/catch with the `if (!mounted) return` guard, JSON decoded into the post's fields, a fallback when extraction fails | ~6 h |
+| 2 | AI destination and category detection | a model call wrapped in try/catch with the `if (!mounted) return` guard, JSON decoded into the post's fields, a fallback when extraction fails | ~6 h |
 | 3 | Collections, reframed as Trips | list of trips, a field plus dialog to create one, navigation into trip details | ~3 h |
 | 4 | Search saved posts | a field with an `onChanged` filter over the saved list | ~2 h |
 | 5 | Personal notes | a multiline field saved onto the post record | ~1.5 h |
@@ -43,19 +43,28 @@ searchable across platforms.
 - **Map pins per trip** (`flutter_map`) — stretch. The app is fully usable
   without it: trips and posts read as lists. Travel Details draws the map
   placeholder, labelled.
-- **Itinerary generator** — stretch goal #3.
+- **Itinerary generator** — stretch goal #3. *Built, as Explore Itinerary; see
+  the note below.*
 - **Recipe and shopping metadata** — dropped with the audience narrowing. Those
   belong to readers this proposal no longer targets.
 - **Real accounts, passwords, password reset, email verification** — there is no
   server to authenticate against. Replaced by a local profile.
 
-> **As built.** Two of these changed. The **map** stopped being a stretch goal in
-> week 3 and is now a real feature — a pin per located post, and a full-screen
-> map you can drag, pinch and zoom — because extraction was already returning
-> coordinates, which made it far cheaper than estimated. Everything else in this
-> list stayed out: Connected Platforms and the itinerary generator are drawn,
-> disabled and labelled as stretch goals. See the
-> [weekly reports](04-weekly-reports.md).
+> **As built.** Two of these stopped being stretch goals.
+>
+> The **map** became a real feature in week 3 — a pin per located post, and a
+> full-screen map you can drag, pinch and zoom — because extraction was already
+> returning coordinates, which made it far cheaper than estimated.
+>
+> The **itinerary generator** is built and shipped as **Explore Itinerary**: a
+> trip, a duration of 1–7 days, and a day-by-day plan written from the posts
+> already saved into that trip. It is not the open-ended planner this list
+> imagined; it plans from the traveller's own saved material rather than from a
+> destination typed into a box, which is what made it a feature Nook could carry
+> rather than a second app.
+>
+> Everything else here stayed out: Connected Platforms is drawn, disabled and
+> labelled. See the [weekly reports](04-weekly-reports.md).
 
 ## Data the app remembers, and where it is saved
 

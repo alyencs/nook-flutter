@@ -9,7 +9,7 @@ import 'package:nook/ai/thumbnail_from_url.dart';
 
 /// Reading the post before asking the model about it.
 ///
-/// This is the step that did not exist. Extraction used to hand Gemini a bare
+/// This is the step that did not exist. Extraction used to hand the model a bare
 /// URL, so for the Osaka video it had `Sf9ihvL0Usk` to work from and answered
 /// "Japan". These tests are about what the app now knows before the model is
 /// asked anything.

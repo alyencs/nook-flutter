@@ -73,7 +73,8 @@ class _SearchBodyState extends State<SearchBody> {
   }
 }
 
-/// H5.
+/// What the search screen shows before anything is typed: recent searches
+/// and the category chips.
 class _Browse extends StatelessWidget {
   const _Browse({required this.onPickTerm});
 

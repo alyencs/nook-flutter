@@ -51,9 +51,9 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
   }
 
   Future<void> _delete() async {
-    // Two fast taps before the dialog paints would otherwise run this twice:
-    // two dialogs, two writes, two flights, and four pops off a two-deep
-    // stack. The button has no busy state of its own, so the guard lives here.
+    // Two fast taps before the dialog paints would run this twice: two writes,
+    // two flights, and four pops off a two-deep stack. The button has no busy
+    // state of its own, so the guard lives here.
     if (_deleting) return;
     _deleting = true;
 
@@ -93,23 +93,18 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
       ..pop()
       ..pop();
 
-    // Let the two route transitions finish before the flight starts. They are
-    // 260ms each and they used to run over the top of it: the eye follows the
-    // page, not a small chip crossing it, which is most of why the animation
-    // seemed not to happen at all. This is beat one of four — the list settling
-    // so there is something still for the card to cross.
+    // Let the two route transitions finish before the flight starts: the eye
+    // follows the page, not a small chip crossing it, so the flight has to
+    // begin on a settled list.
     await Future<void>.delayed(NookMotion.beforeFlight);
 
-    // Started here, not awaited, so the row leaves its place at the same
-    // moment the card lifts off it. Waiting until the flight landed meant the
-    // post sat in the list for the whole second the animation was running,
-    // with a copy of itself flying overhead — which reads as a duplicate
-    // rather than as the thing being taken away.
+    // Started here, not awaited, so the row leaves at the same moment the card
+    // lifts off it. Waiting for the landing leaves the post in the list with a
+    // copy of itself flying overhead, which reads as a duplicate.
     final write = posts.deletePost(widget.postId);
 
-    // Wrapped, because a delete that depends on an animation finishing is a
-    // delete that can be lost. If the flight throws, the write is already in
-    // progress and still lands.
+    // Wrapped: a delete that depends on an animation finishing is a delete
+    // that can be lost. The write is already in flight either way.
     if (from != null) {
       try {
         await DeleteFlight.run(overlay, from: from, thumbnailUrl: thumbnail);
@@ -182,10 +177,9 @@ class _ManagePostScreenState extends State<ManagePostScreen> {
                 children: [
                   const NookAppBar(title: 'Manage Post'),
                   const SizedBox(height: NookSpacing.section),
-                  // Which post this is about. The screen used to open straight
-                  // onto a trip picker with nothing naming the post being
-                  // moved — and it is also where the delete animation starts
-                  // from, so the card you are looking at is the one that flies.
+                  // Names the post being moved, and is where the delete
+                  // animation starts from, so the card you are looking at is
+                  // the one that flies.
                   Row(
                     children: [
                       PostThumbnail(

@@ -5,26 +5,19 @@ import 'flight.dart';
 
 /// Flies a post's thumbnail to the Profile tab when it is deleted.
 ///
-/// Profile rather than a trash icon, because Profile is where Recently Deleted
-/// lives. The animation is not decoration on the word "deleted" — it is the
-/// answer to "where did that go", pointing at the place the post can be found
-/// and restored from.
+/// Profile rather than a trash icon, because that is where Recently Deleted
+/// lives: the animation answers "where did that go".
 ///
-/// Unlike the save flight this one is awaited. The row vanishing from under a
-/// card that is still sitting there reads as a glitch; letting the card leave
-/// first and then committing the delete reads as cause and effect. The write
-/// still happens if the animation fails — see the call site.
+/// Unlike the save flight this one is awaited, so the card leaves before the
+/// row does and the two read as cause and effect. The write still happens if
+/// the animation fails — see the call site.
 abstract final class DeleteFlight {
   /// Profile is tab 3 of 4.
   static const tab = 3;
 
-  /// The narrowest the card is allowed to set off at.
-  ///
-  /// It leaves from a 56pt thumbnail, and a card that starts at 56 and shrinks
-  /// to a fifth of that spends most of its journey under 30pt across — a speck
-  /// on a cream background. Measured off a recording of the real thing: at
-  /// mid-flight the old card was about 30x17, which is smaller than the text
-  /// it was passing over.
+  /// The narrowest the card may set off at. Leaving from a 56pt thumbnail and
+  /// shrinking puts most of the journey under 30pt across — smaller than the
+  /// text it passes over.
   static const _minWidth = 132.0;
 
   static Future<void> run(
@@ -44,13 +37,11 @@ abstract final class DeleteFlight {
       ),
       to: Flight.tabCentre(media.size, media.padding, tab),
       thumbnailUrl: thumbnailUrl,
-      // Nine hundred milliseconds, not four hundred. This is the one animation
-      // whose whole job is to be followed: it answers "where did my post go",
-      // and an answer nobody sees is not an answer.
+      // Long, because this is the one animation whose job is to be followed:
+      // an answer nobody sees is not an answer.
       duration: NookMotion.deliberate,
-      // Ends at 16% of that, so it reads as dropping *into* the tab rather
-      // than stopping above it: 132 x 74 at the start, about 21 x 12 as it
-      // arrives, which is tab-sized.
+      // Ends tab-sized, so it reads as dropping into the tab rather than
+      // stopping above it.
       endScale: 0.16,
       // A higher arc than the save flight. Saving puts something away;
       // deleting picks it up first, and the lift is what says so.
@@ -62,12 +53,9 @@ abstract final class DeleteFlight {
 
 /// The reverse: a post coming back out of Recently Deleted.
 ///
-/// Deliberately the same arc as [DeleteFlight] read the other way. Delete and
-/// restore are one interaction with a direction; two unrelated motions would
-/// make them look like two unrelated features.
-///
-/// Where the delete flight shrinks a card into a tab, this one grows a chip
-/// out of the tab into the row's own footprint, and bends the other way.
+/// The same arc as [DeleteFlight] read the other way, because delete and
+/// restore are one interaction with a direction. This one grows a chip out of
+/// the tab into the row's footprint, and bends the other way.
 abstract final class RestoreFlight {
   /// The size of the chip as it leaves the tab, in logical pixels.
   static const _seed = 22.0;
@@ -96,11 +84,9 @@ abstract final class RestoreFlight {
       to: to.center,
       thumbnailUrl: thumbnailUrl,
       duration: NookMotion.deliberate,
-      // Larger than it started: this one grows, which is the whole point —
-      // but only to the height of the row it is landing on. Growing to the
-      // row's full *width* made a 16:9 card almost 200pt tall drop over a
-      // 68pt row, covering half the list: that reads as something opening,
-      // not as something coming back to its place.
+      // Grows, but only to the height of the row it lands on: growing to the
+      // row's full width drops a 16:9 card over half the list, which reads as
+      // something opening rather than coming back to its place.
       endScale: (to.height * 16 / 9) / _seed,
       // The arc bends the other way, so the two are mirror images.
       lift: 64,

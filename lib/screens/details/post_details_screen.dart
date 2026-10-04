@@ -29,7 +29,7 @@ void openPostDetails(BuildContext context, int postId) {
   ).push(MaterialPageRoute(builder: (_) => PostDetailsScreen(postId: postId)));
 }
 
-/// S1.
+/// One saved post: its thumbnail, what extraction found, and its notes.
 class PostDetailsScreen extends StatelessWidget {
   const PostDetailsScreen({super.key, required this.postId});
 
@@ -61,10 +61,8 @@ class PostDetailsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              // The one way to open the source. There used to be a second,
-              // a ruled row further down the same screen, which offered the
-              // identical action twice. A note has no source at all, so this
-              // is absent rather than present and failing.
+              // The one way to open the source. A note has no source at all,
+              // so this is absent rather than present and failing.
               if (OpenOriginal.isAvailable(post.originalUrl)) ...[
                 const SizedBox(width: NookSpacing.tight),
                 NookSquareAction(

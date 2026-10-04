@@ -6,27 +6,18 @@ import 'export_io.dart' if (dart.library.js_interop) 'export_web.dart';
 
 /// "Export Data" on the Settings screen.
 ///
-/// Everything Nook holds about you, as one JSON file: the profile, the trips,
-/// every saved post with its extracted metadata and your notes, the search
-/// history and the settings. It is written locally — on the web the browser
-/// downloads it, on a device it is written to the app's documents directory.
-/// Nothing is uploaded.
+/// Everything Nook holds, as one JSON file: the profile, the trips, every saved
+/// post with its extracted metadata and notes, the search history and the
+/// settings. Written locally — the browser downloads it on the web — and
+/// nothing is uploaded.
 ///
-/// **"Everything" is now true.** It was not: this wrote the columns the table
-/// had when it was first written and never grew with it, so thirteen post
-/// columns added in schemas 3 to 7 — the caption, the handle, the source id and
-/// media type, the whole specific-location chain, the named places and the
-/// highlights, the creator's page and picture — were silently absent, along
-/// with a trip's colour. An export is the thing a person reaches for when they
-/// want their data out, and a subset described as everything is the kind of
-/// claim that matters.
+/// Every column is included, which is what `format_version` 2 marks: an earlier
+/// version wrote only the columns the table had when it was first written, so
+/// everything added in schemas 3 to 7 was silently missing from a file people
+/// reach for precisely when they want their data out.
 ///
-/// Two ways to settle that: narrow the sentence, or widen the export. The
-/// export is widened, because the honest version of this feature is the
-/// complete one. `format_version` is 2 to mark the change.
-///
-/// Soft-deleted rows are included, with their `deleted_at`, because a post
-/// waiting in Recently Deleted is still the user's and still on the device.
+/// Soft-deleted rows are included with their `deleted_at`, because a post
+/// waiting in Recently Deleted is still on the device.
 abstract final class NookExport {
   /// `ai_places` and `ai_highlights` are JSON held in a text column. Exporting
   /// the raw string would hand someone an escaped blob inside a JSON file, so
@@ -56,8 +47,8 @@ abstract final class NookExport {
             (u) => {
               'name': u.name,
               'email': u.email,
-              // The photo is a data URI and can be large; it is included so
-              // the export is genuinely everything, not almost everything.
+              // A data URI, and large, but an export that leaves it out is not
+              // everything.
               'profile_picture': u.profilePicture,
             },
           )

@@ -8,23 +8,22 @@ import '../theme/nook_typography.dart';
 
 /// What Nook shows while it is working out what a link is.
 ///
-/// The old version narrated the machinery: "Asking gemini-flash-latest",
-/// "Gemini is busy — retrying in 4s (attempt 2 of 4)". That is a stack trace
-/// with manners. Nobody pasting a TikTok link needs a vendor's name, a model
-/// id or an HTTP retry schedule, and none of it helps them decide anything.
-///
-/// What it shows instead is three dots travelling along a line, left to right,
-/// and one sentence. The line is Nook's own motif — the hairline under every
-/// section heading — so the wait looks like part of the app rather than a
-/// borrowed spinner. It is honest about progress in the only way it can be:
-/// it does not pretend to know a percentage it cannot know.
+/// Three dots travelling along a line, and one sentence. The line is the same
+/// hairline `NookRule` draws under every section heading, so the wait looks
+/// like part of the app rather than a borrowed spinner. No percentage, because
+/// nothing here knows one — and no model ids or retry counts, which are not the
+/// user's problem.
 class AnalysingIndicator extends StatefulWidget {
   const AnalysingIndicator({
     super.key,
     required this.phase,
     required this.seconds,
     this.onCancel,
+    this.label,
   });
+
+  /// Overrides the phase's own wording, for a wait that is not an extraction.
+  final String? label;
 
   final ExtractionPhase phase;
 
@@ -78,14 +77,14 @@ class _AnalysingIndicatorState extends State<AnalysingIndicator>
                   // Keyed on the phase, so the sentence cross-fades when the
                   // work moves on rather than changing under you.
                   child: Text(
-                    AnalysingIndicator.labelFor(widget.phase),
-                    key: ValueKey(widget.phase),
+                    widget.label ?? AnalysingIndicator.labelFor(widget.phase),
+                    key: ValueKey(widget.label ?? widget.phase),
                     style: NookType.bodyStrong,
                   ),
                 ),
               ),
-              // Seconds, not a fake percentage. It is the one honest number
-              // available: nothing here knows how long the model will take.
+              // Seconds, not a percentage: it is the one honest number
+              // available.
               Text('${widget.seconds}s', style: NookType.caption),
             ],
           ),

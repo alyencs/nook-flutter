@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'ai/ai_extractor.dart';
+import 'ai/itinerary_generator.dart';
+import 'ai/sample_itinerary_generator.dart';
 import 'data/daos/posts_dao.dart';
 import 'data/daos/searches_dao.dart';
 import 'data/daos/settings_dao.dart';
@@ -8,11 +10,11 @@ import 'data/daos/trips_dao.dart';
 import 'data/daos/users_dao.dart';
 import 'data/database.dart';
 
-/// The database, its four DAOs and the chosen extractor, handed down the tree.
+/// The database, its DAOs and the chosen AI services, handed down the tree.
 ///
-/// Nook has no state-management package. Screens read Drift's stream queries
+/// There is no state-management package: screens read Drift's stream queries
 /// through [StreamBuilder], so saving a post updates Home, Trips and Search on
-/// its own — there is no store to keep in sync and nothing to invalidate.
+/// its own, with no store to keep in sync.
 class AppScope extends InheritedWidget {
   AppScope({
     super.key,
@@ -20,7 +22,9 @@ class AppScope extends InheritedWidget {
     required this.extractor,
     required this.tab,
     required super.child,
-  }) : posts = PostsDao(db),
+    ItineraryGenerator? itinerary,
+  }) : itinerary = itinerary ?? const SampleItineraryGenerator(),
+       posts = PostsDao(db),
        trips = TripsDao(db),
        users = UsersDao(db),
        searches = SearchesDao(db),
@@ -29,11 +33,13 @@ class AppScope extends InheritedWidget {
   final NookDatabase db;
   final AiExtractor extractor;
 
-  /// Which root tab is showing.
-  ///
-  /// Shared rather than held in [RootShell] because the profile sub-screens are
-  /// pushed routes that still draw the tab bar — the mockup shows it on all of
-  /// them — and tapping a tab there has to reach the shell underneath.
+  /// Plans a trip from the posts saved into it. Defaults to the sample
+  /// planner, so a screen or a test can be built without wiring one up.
+  final ItineraryGenerator itinerary;
+
+  /// Which root tab is showing. Shared rather than held in [RootShell] because
+  /// the profile sub-screens are pushed routes that still draw the tab bar, and
+  /// tapping a tab there has to reach the shell underneath.
   final ValueNotifier<int> tab;
   final PostsDao posts;
   final TripsDao trips;
@@ -51,5 +57,6 @@ class AppScope extends InheritedWidget {
   bool updateShouldNotify(AppScope oldWidget) =>
       db != oldWidget.db ||
       extractor != oldWidget.extractor ||
+      itinerary != oldWidget.itinerary ||
       tab != oldWidget.tab;
 }

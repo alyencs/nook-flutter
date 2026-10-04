@@ -124,6 +124,10 @@ build their own buttons or cards.
 | Dialog | `showNookDialog` | White rounded modal, subtle shadow; destructive actions in Soft Red | Title, message, Cancel, Confirm |
 | Card surface | `NookCard` | The one white card surface, one shadow | Anything |
 | Thumbnail | `ThumbPlaceholder` | Pale panel crossed corner to corner with a small image glyph | — |
+| Section mark | `RuledLabel` | Tracked uppercase label with a hairline running to the margin | Label, optional trailing action |
+| Selectable chip | `SelectableChip` | Outlined pill that fills with Soft Butter when chosen | Category pickers, and the 1–7 day chips on Plan a trip |
+| Confirmation | `NookToast` | Dark pill in the top inset, sliding down and fading | One line; takes no taps |
+| Waiting state | `AnalysingIndicator` | Three dots crossing a hairline, one sentence, a seconds counter | Extraction and itinerary generation |
 
 ## The mark
 

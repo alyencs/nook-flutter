@@ -1,73 +1,63 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import 'ai_extractor.dart';
 import 'categories.dart';
-import 'gemini_api.dart';
+import 'claude_api.dart';
 import 'post_place.dart';
 import 'source_metadata.dart';
 import 'thumbnail_from_url.dart';
 
-/// Feature #2, for real.
+/// Reads a saved link into structured travel metadata.
 ///
-/// One call per saved link, asking for structured JSON so the reply is parsed
-/// rather than scraped. The key comes from a git-ignored `.env` and is never
+/// One call per link. The key comes from a git-ignored `.env` and is never
 /// compiled into a deployed build — see `docs/06-security-and-privacy.md`.
 ///
-/// A note on what the model is given: a browser cannot fetch a TikTok or
-/// Instagram page directly (CORS), so this works from the link itself — its
-/// host, its slug, its handle — plus what the model already knows. A URL whose
-/// slug reads `5-hidden-cafes-in-kyoto` extracts well; an opaque
-/// `/reel/C8xK2p/` may come back with nulls, which is exactly the risk the
-/// proposal names and why every field here is optional.
+/// What the model gets is the link plus whatever the platform published about
+/// it, because a browser cannot fetch a TikTok or Instagram page directly
+/// (CORS). An opaque `/reel/C8xK2p/` may come back with nulls, which is why
+/// every field is optional.
 ///
-/// Nothing here ever invents a result. Every failure path throws, and
-/// [SampleExtractor] is reached only by having no key at all, never as a quiet
-/// substitute for a call that did not work.
-class GeminiExtractor implements AiExtractor {
-  GeminiExtractor({
+/// Nothing here invents a result: every failure path throws, and
+/// [SampleExtractor] is reached only by having no key at all.
+class ClaudeExtractor implements AiExtractor {
+  ClaudeExtractor({
     required String apiKey,
     String? model,
     String? youTubeApiKey,
     String? facebookToken,
     http.Client? httpClient,
     RetryPolicy retry = const RetryPolicy(),
-  }) : _override = _clean(model),
+  }) : _candidates = ClaudeModels.candidates(model),
        _youTubeApiKey = _clean(youTubeApiKey),
        _facebookToken = _clean(facebookToken),
        _sourceClient = httpClient,
-       _client = GeminiClient(
+       _client = ClaudeClient(
          apiKey: apiKey,
          httpClient: httpClient,
          retry: retry,
        );
 
-  /// A pinned id from `GEMINI_MODEL`, or null to ask the API what it has.
-  final String? _override;
+  /// The ids to try this session, best first. A pinned `CLAUDE_MODEL` goes
+  /// first, with the defaults behind it, so a typo in `.env` degrades to
+  /// something that works.
+  final List<String> _candidates;
   final String? _youTubeApiKey;
 
-  /// `APP_ID|CLIENT_TOKEN` for Meta's Graph API, which is the only way to read
-  /// an Instagram or Facebook post's text since their public oEmbed was
-  /// withdrawn. Optional: without it those two extract from the URL alone, and
-  /// the prompt says so rather than letting the model fill the gap.
+  /// `APP_ID|CLIENT_TOKEN` for Meta's Graph API — the only way to read an
+  /// Instagram or Facebook post's text since public oEmbed was withdrawn.
+  /// Without it those two extract from the URL alone, and the prompt says so.
   final String? _facebookToken;
-  final GeminiClient _client;
+  final ClaudeClient _client;
 
-  /// Shared with the Gemini client so a test can script both the oEmbed lookup
+  /// Shared with the API client so a test can script both the oEmbed lookup
   /// and the model call through one handler.
   final http.Client? _sourceClient;
-
-  /// Resolved once per session, then reused.
-  Future<List<String>>? _candidates;
 
   /// Models that answered "no such model" this session, so a second link does
   /// not spend an attempt rediscovering that.
   final _retired = <String>{};
-
-  /// Models that rejected `thinkingConfig`, so it is not sent to them twice.
-  final _noThinking = <String>{};
 
   /// Extractions currently running, keyed by URL.
   ///
@@ -75,15 +65,20 @@ class GeminiExtractor implements AiExtractor {
   /// billable calls. The second caller joins the first future instead.
   final _inFlight = <String, Future<ExtractionResult>>{};
 
-  /// How many different models to try before giving up, when the first turns
-  /// out to be retired.
-  static const maxModelsTried = 3;
+  /// The name the model calls to hand its answer back. The reply is the tool's
+  /// arguments, so there is no prose to find JSON inside of.
+  static const toolName = 'record_post_details';
+
+  /// A ceiling, so a reply cannot run until it times out — set high enough for
+  /// a post that names five venues with an address and a note each.
+  static const maxOutputTokens = 4096;
 
   @override
   bool get isLive => true;
 
   /// Visible for tests and for the doc: what this will actually ask for.
-  Future<List<String>> get candidates => _resolveCandidates();
+  List<String> get candidates =>
+      _candidates.where((model) => !_retired.contains(model)).toList();
 
   static String? _clean(String? value) {
     final trimmed = value?.trim();
@@ -110,9 +105,8 @@ class GeminiExtractor implements AiExtractor {
   ) async {
     onStage?.call(ExtractionPhase.readingPost);
 
-    // The post itself, before the model sees anything. This is the step that
-    // was missing: without it the model received a bare URL and could only
-    // answer from an eleven-character video id.
+    // The post itself, before the model sees anything. Without it the model
+    // receives a bare URL and can only answer from an eleven-character id.
     final source = await SourceMetadataFetcher.fetch(
       url,
       client: _sourceClient,
@@ -125,11 +119,11 @@ class GeminiExtractor implements AiExtractor {
     // with the model, so it must not be one more thing waited for in series.
     final thumbnail = PostThumbnails.resolve(url, source: source);
 
-    final json = await _generate(url, source, onStage);
+    final response = await _generate(source, onStage);
 
     onStage?.call(ExtractionPhase.finishing);
     return _resultFrom(
-      json,
+      response,
       url: url,
       source: source,
       thumbnailUrl: await thumbnail,
@@ -138,89 +132,51 @@ class GeminiExtractor implements AiExtractor {
 
   /// Asks each candidate model in turn until one answers.
   ///
-  /// A model that is gone moves us to the next candidate; anything else — a
-  /// rejected key, a blocked prompt, an exhausted quota — is final and is
-  /// reported as itself. Transient failures never get this far: [GeminiClient]
-  /// has already retried them with backoff.
-  ///
-  /// A pinned `GEMINI_MODEL` is called straight away. Listing the catalogue to
-  /// confirm what we were already told would be one more request on every
-  /// session for no answer we would act on, so discovery happens only if the
-  /// pinned id turns out not to exist.
+  /// A model id that is gone moves to the next candidate; a rejected key, a
+  /// refusal or an exhausted quota is final. Transient failures never get this
+  /// far — [ClaudeClient] has already retried them.
   Future<Map<String, dynamic>> _generate(
-    String url,
     SourceMetadata source,
     ExtractionStage? onStage,
   ) async {
-    final tried = <String>[];
-    GeminiApiException? last;
+    ClaudeApiException? last;
 
     Future<Map<String, dynamic>?> attempt(String model) async {
-      tried.add(model);
       onStage?.call(ExtractionPhase.analysing);
       try {
-        return await _client.generateContent(
-          model: model,
-          body: _requestBody(source, thinking: !_noThinking.contains(model)),
+        return await _client.createMessage(
+          body: _requestBody(source, model),
           // Still one phase from the outside. A retry is part of the wait, not
           // a separate thing worth narrating.
           onRetry: (attempt, of, wait) =>
               onStage?.call(ExtractionPhase.analysing),
         );
-      } on GeminiApiException catch (e) {
+      } on ClaudeApiException catch (e) {
         last = e;
 
-        // This model predates `thinkingConfig`. Remember that and ask it again
-        // without the field, rather than losing the extraction to a parameter
-        // that only exists to make it faster.
-        if (e.isThinkingUnsupported && _noThinking.add(model)) {
-          return _client.generateContent(
-            model: model,
-            body: _requestBody(source, thinking: false),
-            onRetry: (attempt, of, wait) =>
-                onStage?.call(ExtractionPhase.analysing),
-          );
-        }
-
-        // A model that no longer exists is gone for this session.
+        // A model id that no longer exists is gone for this session.
         if (e.isModelUnavailable) {
           _retired.add(model);
           return null;
         }
 
-        // This is the fix for the 503s. An overloaded model means *that
-        // model's* capacity right now, and the client has already retried it
-        // with backoff. Retrying it further is waiting on the same queue;
-        // another model is a different pool and usually answers immediately.
-        // Not retired, because it will be fine again shortly.
-        //
-        // Narrower than `isTransient` on purpose: a 429 is the key's quota and
-        // a null status never reached a server, so neither is worth trying a
-        // second model for — that would turn one failure into five.
-        if (e.isModelOverloaded) return null;
+        // The service is busy and the client has already retried it with
+        // backoff. Another id is the one thing left that might route around it.
+        if (e.isOverloaded) return null;
 
-        // A rejected key, a blocked prompt, an exhausted quota: these fail
-        // identically against every model, so stop rather than work through
-        // the list producing the same error four times.
-        throw ExtractionException(_friendly(e, tried));
+        // A rejected key, a refusal, an exhausted quota: these fail identically
+        // against every model, so stop rather than work through the list
+        // producing the same error three times.
+        throw ExtractionException(_friendly(e));
       }
     }
 
-    final pinned = _override;
-    if (pinned != null && !_retired.contains(pinned)) {
-      final answer = await attempt(pinned);
-      if (answer != null) return answer;
-    }
+    final candidates = this.candidates;
 
-    final candidates = (await _resolveCandidates())
-        .where((model) => !_retired.contains(model))
-        .take(maxModelsTried)
-        .toList();
-
-    if (candidates.isEmpty && tried.isEmpty) {
+    if (candidates.isEmpty) {
       throw const ExtractionException(
-        'Nook could not reach a working AI model. Check that the Generative '
-        'Language API is enabled for the key in GEMINI_API_KEY.',
+        'Nook could not reach a working AI model. Check CLAUDE_MODEL in your '
+        '.env file, or leave it blank to use the default.',
       );
     }
 
@@ -229,149 +185,77 @@ class GeminiExtractor implements AiExtractor {
       if (answer != null) return answer;
     }
 
-    throw ExtractionException(_friendly(last!, tried));
+    throw ExtractionException(_friendly(last!));
   }
 
-  /// The candidate models, best first, resolved once per session.
-  ///
-  /// Only reached when there is no pinned model, or the pinned one turned out
-  /// not to exist — a typo in `.env` degrades to something that works rather
-  /// than breaking the app.
-  Future<List<String>> _resolveCandidates() {
-    return _candidates ??= () async {
-      List<String> discovered;
-      try {
-        discovered = GeminiModels.rank(await _client.listModels());
-      } on GeminiApiException {
-        // Listing failed. Not fatal: the static list is exactly for this.
-        discovered = const [];
-      }
-      return discovered.isEmpty ? GeminiModels.fallback : discovered;
-    }();
-  }
+  Map<String, Object?> _requestBody(SourceMetadata source, String model) =>
+      claudeToolRequest(
+        model: model,
+        system: _instructions,
+        prompt:
+            '--- SOURCE ---\n${source.toPromptBlock()}--- END SOURCE ---',
+        toolName: toolName,
+        toolDescription:
+            'Record what the SOURCE block says about this post. Call this '
+            'exactly once. Every field that the source does not support is '
+            'null.',
+        schema: _responseSchema,
+        maxTokens: maxOutputTokens,
+        // Zero: the task has one right answer — copy what the source says into
+        // a fixed schema — so sampling only makes the same link extract five
+        // cafes one minute and one the next.
+        temperature: 0,
+      );
 
-  Map<String, Object?> _requestBody(
-    SourceMetadata source, {
-    bool thinking = true,
-  }) => {
-    'contents': [
-      {
-        'role': 'user',
-        'parts': [
-          {
-            'text':
-                '$_instructions\n\n--- SOURCE ---\n'
-                '${source.toPromptBlock()}--- END SOURCE ---',
-          },
-        ],
-      },
-    ],
-    'generationConfig': {
-      // Zero, not 0.2, and a fixed seed beside it.
-      //
-      // This is the fix for "the same link extracts five cafes one minute and
-      // one the next". Sampling was still live at 0.2: enough for the model to
-      // decide differently about an optional array from one call to the next,
-      // which is exactly where the information was going. The task has one
-      // right answer — copy what the source says into a fixed schema — so there
-      // is nothing for sampling to be useful for.
-      'temperature': 0,
-      // Pins the sampler, so identical input gives identical output as far as
-      // the API allows. Not a guarantee across model versions, and it is not
-      // treated as one; it removes the run-to-run variance that is ours to
-      // remove.
-      'seed': 7,
-      'candidateCount': 1,
-      'responseMimeType': 'application/json',
-      'responseSchema': _responseSchema,
-      // The other half of the lost information.
-      //
-      // This was 2048, which sounds generous until a post names five cafes with
-      // an address and a note each, and the reply is cut off mid-object. A
-      // truncated reply is not valid JSON, so it failed the parse and came back
-      // as "couldn't be read" — and on a model that rejects thinkingConfig, the
-      // resend runs with thinking ON, whose tokens come out of this same
-      // budget, which made truncation far more likely on exactly the long
-      // posts that had the most to say.
-      //
-      // Still a ceiling, because an uncapped reply is one that runs until it
-      // times out. Just one a complete answer fits inside.
-      'maxOutputTokens': 8192,
-      // The fix for the "busy" failures, and the most important line in this
-      // file.
-      //
-      // Gemini 2.5 models think before they answer, and thinking is ON by
-      // default. Nothing here asked them to stop, so every extraction spent
-      // seconds and thousands of invisible tokens reasoning about a JSON shape
-      // it had already been handed. That is what made a call routinely exceed
-      // the 20s attempt timeout — at which point the client treated it as a
-      // transient failure and sent it again, four times, each one as expensive
-      // as the last. The 503s and quota errors were largely self-inflicted:
-      // load the app was generating itself.
-      //
-      // This is schema-constrained extraction from text that is already in the
-      // prompt. There is nothing to reason about. Budget zero.
-      if (thinking) 'thinkingConfig': {'thinkingBudget': 0},
-    },
-  };
-
-  /// A response schema, so the reply is JSON of a known shape rather than prose
-  /// that has to be guessed at. Written as a plain map because that is what the
-  /// REST body wants.
+  /// The shape the answer has to come back in, as JSON Schema.
   ///
-  /// The location fields step from most specific to least on purpose. Asking
-  /// for one "destination" is what produced "Japan": there was nowhere to put a
-  /// neighbourhood, so a neighbourhood in the source had nowhere to go.
+  /// The location fields step from most specific to least on purpose: one
+  /// "destination" field leaves a neighbourhood nowhere to go, and the answer
+  /// comes back as "Japan". Nullable is a two-member type, as JSON Schema
+  /// writes it.
   static final Map<String, Object?> _responseSchema = {
-    'type': 'OBJECT',
+    'type': 'object',
     'properties': {
       'title': {
-        'type': 'STRING',
+        'type': 'string',
         'description':
             'The post\'s real human title or caption, copied from '
             'the source. Never an id, a URL or a filename.',
       },
       'caption': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description':
             'The post\'s own description or caption text, kept as '
             'written. Null if the source carries none.',
       },
       'creator': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description': 'Channel name, display name or page name, as given.',
       },
       'creator_handle': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description': 'The @handle, if the source has one.',
       },
       'place_name': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description':
             'The specific cafe, restaurant, shop, hotel or landmark '
             'the post is about, if it names one.',
       },
-      'address': {'type': 'STRING', 'nullable': true},
+      'address': {'type': ['string', 'null']},
       'neighbourhood': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description': 'District or neighbourhood, e.g. "Nakazakicho".',
       },
-      'city': {'type': 'STRING', 'nullable': true},
+      'city': {'type': ['string', 'null']},
       'region': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description': 'Prefecture, state or province.',
       },
-      'country': {'type': 'STRING', 'nullable': true},
-      'category': {'type': 'STRING', 'enum': NookCategories.all},
+      'country': {'type': ['string', 'null']},
+      'category': {'type': 'string', 'enum': NookCategories.all},
       'summary': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description':
             'Two or three sentences about what a traveller finds, '
             'drawn only from the source. ALWAYS written in English, whatever '
@@ -379,50 +263,43 @@ class GeminiExtractor implements AiExtractor {
             'about the post, not a quotation from it.',
       },
       'best_time': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description': 'Only if the source mentions a season, month or date.',
       },
       'budget_note': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description': 'Only if the source mentions a price or cost.',
       },
       'latitude': {
-        'type': 'NUMBER',
-        'nullable': true,
+        'type': ['number', 'null'],
         'description':
             'Decimal degrees of the most specific place named above — the '
             'venue or landmark itself, not the city containing it. Null '
             'unless the location is specific enough to have a single point.',
       },
-      'longitude': {'type': 'NUMBER', 'nullable': true},
+      'longitude': {'type': ['number', 'null']},
       'places': {
-        'type': 'ARRAY',
-        'nullable': true,
+        'type': 'array',
         'description':
             'Every specific place the source names — each cafe, '
             'restaurant, bar, shop, hotel or landmark it actually mentions. '
             'Empty when the source names none. Never invent one.',
         'items': {
-          'type': 'OBJECT',
+          'type': 'object',
           'properties': {
-            'name': {'type': 'STRING'},
+            'name': {'type': 'string'},
             'kind': {
-              'type': 'STRING',
-              'nullable': true,
+              'type': ['string', 'null'],
               'description':
                   'cafe, restaurant, bar, hotel, shop, landmark, '
                   'viewpoint, or other.',
             },
             'area': {
-              'type': 'STRING',
-              'nullable': true,
+              'type': ['string', 'null'],
               'description': 'District, street or station, if given.',
             },
             'note': {
-              'type': 'STRING',
-              'nullable': true,
+              'type': ['string', 'null'],
               'description': 'What the source said about it, briefly.',
             },
           },
@@ -430,12 +307,11 @@ class GeminiExtractor implements AiExtractor {
         },
       },
       'highlights': {
-        'type': 'ARRAY',
-        'nullable': true,
+        'type': 'array',
         'description':
             'Activities, recommendations and practical tips the '
             'source gives, one short line each. Empty when it gives none.',
-        'items': {'type': 'STRING'},
+        'items': {'type': 'string'},
       },
     },
     'required': ['title', 'category'],
@@ -501,76 +377,44 @@ well. Two rules follow from that:
   places. best_time, budget_note and highlights are short notes rather than
   names, so write those in English too.
 
-Return JSON only, matching the schema.
+Hand your answer back by calling $toolName. Do not answer in prose, and do not
+call it more than once.
 ''';
 
-  /// Digs the model's JSON out of the response envelope.
+  /// Digs the answer out of the response envelope.
   ///
-  /// The reply can be well-formed HTTP and still carry no answer: a prompt
-  /// blocked by a safety filter, a candidate cut off at the token limit, a part
-  /// list with no text in it. Each of those is reported as what it is.
+  /// A reply can be well-formed HTTP and still carry no answer — a refusal, a
+  /// message cut off at the ceiling, a content list with no tool call in it —
+  /// and each is reported as what it is.
   ExtractionResult _resultFrom(
     Map<String, dynamic> response, {
     required String url,
     required SourceMetadata source,
     required String? thumbnailUrl,
   }) {
-    final blockReason = (response['promptFeedback'] as Map?)?['blockReason'];
-    if (blockReason != null) {
-      // The reason code is a safety-filter category, not something anyone
-      // pasting a link can act on.
+    final stop = stopReasonOf(response);
+
+    if (stop == 'refusal') {
+      // A refusal is about the content, not about anything the person pasting a
+      // link can act on.
       throw const ExtractionException(
         "Nook couldn't analyse this post. Try a different link, or enter the "
         'details yourself.',
       );
     }
 
-    final candidates = response['candidates'];
-    if (candidates is! List || candidates.isEmpty) {
+    final json = claudeToolInput(response, toolName);
+
+    if (json == null) {
+      if (stop == 'max_tokens') {
+        throw const ExtractionException(
+          'This post had more in it than we could read in one go. Please try '
+          'again, or enter the details yourself.',
+        );
+      }
       throw const ExtractionException(
         "We couldn't analyse this post right now. Please try again, or enter "
         'the details yourself.',
-      );
-    }
-
-    final candidate = candidates.first as Map;
-    final finish = candidate['finishReason'];
-    // MAX_TOKENS used to be waved through alongside STOP. It should never have
-    // been: a reply cut off at the ceiling is truncated JSON, so it failed the
-    // parse a few lines below and was reported as unreadable — which hid the
-    // real cause behind a message that suggested the model had misbehaved.
-    // Named separately now, so if it ever happens again it says what it is.
-    if (finish is String && finish == 'MAX_TOKENS') {
-      throw const ExtractionException(
-        'This post had more in it than we could read in one go. Please try '
-        'again, or enter the details yourself.',
-      );
-    }
-    if (finish is String && finish != 'STOP') {
-      throw const ExtractionException(
-        "We couldn't finish analysing this post. Please try again.",
-      );
-    }
-
-    final parts = (candidate['content'] as Map?)?['parts'];
-    final text = parts is List
-        ? parts
-              .whereType<Map>()
-              .map((part) => part['text'])
-              .whereType<String>()
-              .join()
-        : '';
-    if (text.trim().isEmpty) {
-      throw const ExtractionException('The extraction came back empty.');
-    }
-
-    final Map<String, dynamic> json;
-    try {
-      json = jsonDecode(text) as Map<String, dynamic>;
-    } catch (_) {
-      throw const ExtractionException(
-        "The extraction couldn't be read. Try again, or enter the details "
-        'yourself.',
       );
     }
 
@@ -619,9 +463,8 @@ Return JSON only, matching the schema.
     final creator = source.creator ?? string('creator');
 
     // A pin needs somewhere specific to point. Country-level coordinates are
-    // dropped even when the model returns them, because a marker in the middle
-    // of Japan claims a precision the post never had — Travel Details shows the
-    // placeholder and says why instead.
+    // dropped even when the model returns them: a marker in the middle of Japan
+    // claims a precision the post never had.
     final specific =
         placeName != null ||
         neighbourhood != null ||
@@ -708,27 +551,26 @@ Return JSON only, matching the schema.
 
   /// What the person reads when extraction cannot finish.
   ///
-  /// Deliberately free of vendor names, model ids and HTTP status codes.
-  /// "Server Error [503]: UNAVAILABLE" told someone pasting a TikTok link
-  /// nothing they could act on. The rule here is: say what happened in their
-  /// terms, and say what they can do — retry, wait, or type it in themselves.
-  ///
-  /// The two configuration failures are the exception. A rejected key and a
-  /// disabled API are the developer's to fix, cannot be retried past, and the
-  /// message is the only place that instruction can live — but even those name
-  /// the `.env` setting rather than the service behind it.
-  String _friendly(GeminiApiException e, List<String> tried) {
+  /// No vendor names, model ids or status codes: say what happened in their
+  /// terms and what they can do. The configuration failures are the exception,
+  /// because only the developer can fix them — and even those name the `.env`
+  /// setting rather than the service behind it.
+  String _friendly(ClaudeApiException e) {
     if (e.isAuthFailure) {
       return 'Nook could not authenticate with its AI service. Check '
-          'GEMINI_API_KEY in your .env file.';
+          'ANTHROPIC_API_KEY in your .env file.';
     }
-    if (e.status == 429 || e.code == 'RESOURCE_EXHAUSTED') {
+    if (e.isBillingFailure) {
+      return 'Nook\'s AI service has no credit left on this key. Top it up and '
+          'try again, or enter the details yourself.';
+    }
+    if (e.status == 429 || e.type == 'rate_limit_error') {
       return "Nook has hit today's limit for analysing posts. It resets on its "
           'own — try again in a little while, or enter the details yourself.';
     }
     if (e.isModelUnavailable) {
-      return 'Nook could not reach a working AI model. Check GEMINI_MODEL in '
-          'your .env file, or leave it blank to let Nook choose.';
+      return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
+          'your .env file, or leave it blank to use the default.';
     }
     if (e.isTransient) {
       return "We couldn't analyse this post right now. Nook tried a few times "

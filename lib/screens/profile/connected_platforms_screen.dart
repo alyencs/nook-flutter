@@ -10,12 +10,11 @@ import '../../widgets/nook_scaffold.dart';
 import '../../widgets/sub_screen_nav.dart';
 import '../../widgets/platform_badge.dart';
 
-/// P4.
+/// Connected Platforms.
 ///
-/// Auto-sync from connected accounts is stretch goal #1, and the mockup itself
-/// says to keep it out of the MVP demo path. Drawn as designed, with every
-/// control disabled and labelled, rather than shipped as buttons that quietly
-/// do nothing.
+/// Auto-sync from connected accounts is not built. The screen is drawn as
+/// designed with every control disabled and labelled, rather than shipped as
+/// buttons that quietly do nothing.
 class ConnectedPlatformsScreen extends StatelessWidget {
   const ConnectedPlatformsScreen({super.key});
 

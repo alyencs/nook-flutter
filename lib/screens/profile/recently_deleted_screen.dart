@@ -19,11 +19,10 @@ import '../../widgets/tab_pulse.dart';
 
 /// Where deleted posts and trips wait.
 ///
-/// Deleting has always been one tap behind a confirmation, and a confirmation
-/// is a poor safety net: it asks before you know you were wrong. This is the
-/// net — nothing is destroyed at the point of deleting, only marked, and the
-/// row keeps everything it needs to come back: a post's note, its extraction
-/// and its trip; a trip's identity, so its posts find their way home.
+/// A confirmation asks before you know you were wrong, so nothing is destroyed
+/// at the point of deleting — only marked. The row keeps everything it needs to
+/// come back: a post's note, extraction and trip, and a trip's identity, so its
+/// posts find their way home.
 class RecentlyDeletedScreen extends StatefulWidget {
   const RecentlyDeletedScreen({super.key});
 
@@ -183,15 +182,12 @@ class _DeletedPostRow extends StatefulWidget {
 }
 
 class _DeletedPostRowState extends State<_DeletedPostRow> {
-  /// The row's own position on screen, read before the list rebuilds without
-  /// it.
+  /// The row's position on screen, read before the list rebuilds without it.
   ///
-  /// Held in the State, not on the widget. A GlobalKey built in a
-  /// StatelessWidget's field is a *new* key on every rebuild, and this list is
-  /// driven by a stream that ticks on every write — so each tick would hand
-  /// the element tree a different key, tear the whole row down and build it
-  /// again. That discards the entrance animation and makes the rect read
-  /// unreliable at exactly the moment the flight needs it.
+  /// Held in the State, not on the widget: a GlobalKey in a StatelessWidget's
+  /// field is a new key on every rebuild, and this list is driven by a stream
+  /// that ticks on every write — which would tear the row down and make the
+  /// rect unreliable at exactly the moment the flight needs it.
   final _rowKey = GlobalKey();
 
   /// Guards against a second tap while the first restore is still running.
@@ -242,9 +238,7 @@ class _DeletedPostRowState extends State<_DeletedPostRow> {
         if (to != null) {
           try {
             // The same ring the delete lands into, played at the other end of
-            // the interaction: there it was the tab catching something, here it
-            // is the tab letting it go. Fire and forget, so the flight is not
-            // waiting on it.
+            // the interaction. Fire and forget, so the flight does not wait.
             TabPulse.at(overlay, tabCentre);
             await RestoreFlight.run(
               overlay,
@@ -392,10 +386,9 @@ class _DeletedRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: NookSpacing.tight),
-          // Restore is the reason to be here, so it is a labelled button.
-          // Permanent delete is the exception, so it is a quiet icon beside
-          // it rather than its equal — the two are not the same weight of
-          // decision and should not look like it.
+          // Restore is the reason to be here, so it is a labelled button;
+          // permanent delete is a quiet icon beside it. The two are not the
+          // same weight of decision and should not look alike.
           _RestoreButton(onTap: onRestore),
           IconButton(
             onPressed: onDeleteForever,

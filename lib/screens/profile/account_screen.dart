@@ -17,7 +17,7 @@ import '../../widgets/nook_text_field.dart';
 import '../../widgets/photo_crop.dart';
 import '../onboarding/profile_setup_screen.dart';
 
-/// P2.
+/// The local profile: a name and a picture.
 ///
 /// No password and no email. Nook keeps everything on the device and talks to
 /// no server, so there was never an account for either to belong to — what is

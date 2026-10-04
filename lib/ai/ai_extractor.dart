@@ -3,9 +3,9 @@ import 'source_metadata.dart';
 
 /// What one extraction call returns.
 ///
-/// Every field is nullable on purpose. The proposal's second risk is that a
-/// destination comes back too vague to use, or not at all, so "no value" is a
-/// normal result rather than a failure — screens render an em dash for it.
+/// Every field is nullable on purpose: a destination that comes back vague, or
+/// not at all, is a normal result rather than a failure, and screens render an
+/// em dash for it.
 class ExtractionResult {
   const ExtractionResult({
     required this.title,
@@ -50,12 +50,11 @@ class ExtractionResult {
   /// The creator's page on the platform, when oEmbed gave one.
   final String? creatorUrl;
 
-  /// The creator's profile picture, when the platform actually publishes one.
+  /// The creator's profile picture, when the platform publishes one.
   ///
-  /// Read from the source, never from the model: a language model asked for a
-  /// creator's avatar will produce a plausible URL to an image that does not
-  /// exist. In practice only YouTube supplies this, and only with a
-  /// `YOUTUBE_API_KEY` — see [SourceMetadata.creatorAvatarUrl].
+  /// Read from the source, never from the model, which would invent a plausible
+  /// URL to an image that does not exist. In practice YouTube only — see
+  /// [SourceMetadata.creatorAvatarUrl].
   final String? creatorAvatarUrl;
 
   /// The one-line display location, composed from the parts below.
@@ -118,22 +117,15 @@ class ExtractionResult {
 
 /// Where extraction has got to.
 ///
-/// A phase, not a sentence. The screen used to be handed whatever string the
-/// extractor felt like — "Asking gemini-flash-latest", "Gemini is busy —
-/// retrying in 4s" — which put the name of a vendor, a model id and an HTTP
-/// retry schedule in front of someone who pasted a link. None of that is the
-/// user's problem, and none of it helps them decide anything.
-///
-/// The extractor now reports which of three things is happening and the screen
-/// chooses the words, so backend vocabulary cannot reach the UI even by
-/// accident.
+/// A phase, not a sentence: the extractor says which of three things is
+/// happening and the screen chooses the words, so a model id or a retry
+/// schedule cannot reach the UI even by accident.
 enum ExtractionPhase {
   /// Fetching the post itself from its platform.
   readingPost,
 
   /// The model call, including any retry or move to another model. From the
-  /// outside these are one wait, and describing them separately only exposes
-  /// machinery.
+  /// outside these are one wait.
   analysing,
 
   /// Turning the reply into something Nook can save.
@@ -144,9 +136,8 @@ enum ExtractionPhase {
 /// progress instead of an unexplained spinner.
 typedef ExtractionStage = void Function(ExtractionPhase phase);
 
-/// One interface, two implementations, chosen at startup by whether a Gemini
-/// key is present. This is the proposal's own "one interface, two
-/// implementations" fallback pattern, applied to the key problem.
+/// One interface, two implementations, chosen at startup by whether an API key
+/// is present.
 abstract interface class AiExtractor {
   Future<ExtractionResult> extract(String url, {ExtractionStage? onStage});
 

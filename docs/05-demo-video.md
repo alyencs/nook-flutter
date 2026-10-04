@@ -4,11 +4,11 @@
 
 ## What it has to show
 
-The live link cannot demonstrate everything, and one thing in particular has to
-be shown here instead: **real Gemini extraction**. The published build ships
-without an API key on purpose, so extraction there is the sample fallback. The
-video is where the real thing gets demonstrated, running locally with a
-`GEMINI_API_KEY` in `.env`.
+The live link cannot demonstrate everything, and two things in particular have
+to be shown here instead: **real extraction** and **a real generated
+itinerary**. The published build ships without an API key on purpose, so both
+are the sample fallback there. The video is where the real thing gets
+demonstrated, running locally with an `ANTHROPIC_API_KEY` in `.env`.
 
 Two optional values make the extraction noticeably better and are worth having
 set before recording: `YOUTUBE_API_KEY`, which gives the model a video's
@@ -45,16 +45,24 @@ the [README](../README.md#environment-variables).
    need no key and label places in local script.
 7. **Search.** Search a destination and show results matching on destination
    rather than title.
-8. **Delete, and undo it.** Delete a post and follow the card flying to the
+8. **Explore Itinerary.** Trips → Explore itineraries → pick the trip the new
+   post went into → choose a number of days → Generate. Point out the list of
+   saved posts above the chooser: that is the material the plan is built from,
+   and it is on screen before the button is pressed. Show the finished plan —
+   the day titles, the activities, the places and times — and say that the venues
+   in it came out of posts the traveller saved rather than from the
+   destination's reputation. Tap **Change number of days**, pick a different
+   length and regenerate, so the chosen duration is visibly what comes back.
+9. **Delete, and undo it.** Delete a post and follow the card flying to the
    Profile tab — it runs for 1.4 seconds and the tab pulses as it lands, so there
    is time to narrate the four beats: the list settling, the card crossing, the
    tab answering, the confirmation. Open Profile → Recently Deleted, show the
    30-day window stated on the row, and restore it: the same arc read backwards,
    out of the bar and back into the row. Show it back in its trip, with the count
    restored and no duplicate.
-9. **Persistence.** Reload the browser and show the saved post still there —
+10. **Persistence.** Reload the browser and show the saved post still there —
    this is the storage decision working.
-10. **Failure, honestly.** Paste something that is not a link, or an opaque URL,
+11. **Failure, honestly.** Paste something that is not a link, or an opaque URL,
     and show the error state with Retry and Enter manually. Note that the message
     is plain English: no vendor name, no model id, no status code.
 
@@ -80,17 +88,25 @@ the model it is working blind. A post whose platform publishes real text extract
 well; one that does not may come back without a destination. That is why every
 field is optional and the destination is editable.
 
-Worth one sentence: the model is asked not to think before answering
-(`thinkingBudget: 0`). This is schema-constrained extraction from text already in
-the prompt, and leaving thinking on was costing seconds and thousands of
-invisible tokens per save.
+Worth one sentence each on the two AI features. **Extraction** asks for a fixed
+set of fields and is run at temperature zero, so the same link extracts the same
+way twice. **Explore Itinerary** is given the saved posts for one trip and a
+number of days, and runs a little warmer, because ordering a day is a choice
+rather than a lookup. Both ask for their answer through a declared schema rather
+than as prose, so nothing has to be guessed at on the way back in.
+
+Worth saying out loud: the itinerary prompt is the one place a personal note
+leaves the device, and only for the trip being planned. Nothing from another
+trip, the profile or the search history goes with it.
 
 ## Before recording
 
-- [ ] A `GEMINI_API_KEY` is in `.env` so extraction is real
+- [ ] An `ANTHROPIC_API_KEY` is in `.env` so extraction and the itinerary are real
 - [ ] `YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` set if the run includes those platforms
 - [ ] Nothing personal is on screen: no real bookmarks, tabs, notifications or names
 - [ ] The seeded demo library is intact — a fresh browser profile is the simplest way
 - [ ] Recorded at phone proportions, or with the `device_preview` frame visible
 - [ ] A photograph ready to use for the profile picture, so the crop window has
       something to position
+- [ ] A trip with two or three saved posts in it, so Explore Itinerary has
+      enough to plan from

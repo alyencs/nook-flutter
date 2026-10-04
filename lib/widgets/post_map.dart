@@ -14,16 +14,11 @@ enum MapInteraction {
   /// Inside a scrolling page: the map takes no pointers, and a tap on it opens
   /// the full screen one.
   ///
-  /// This is the whole reason the map felt dead in the card. `FlutterMap`
-  /// always registers a `ScaleGestureRecognizer` and makes it the captain of
-  /// its gesture arena team, whatever `InteractiveFlag`s are set — and a
-  /// one-finger drag is a one-pointer scale. So the map claimed every drag
-  /// that started on it: the enclosing `ListView` could not scroll, and with
-  /// `drag` turned off the map did not pan either. A dead rectangle.
-  ///
-  /// Turning flags off cannot fix that, because the recognizer is not behind a
-  /// flag. Not receiving the pointer can. The page scrolls normally, and every
-  /// gesture the map wants lives one tap away in [full].
+  /// `FlutterMap` always registers a scale recognizer and wins its gesture
+  /// arena whatever `InteractiveFlag`s are set, and a one-finger drag is a
+  /// one-pointer scale — so a preview that receives pointers blocks the page's
+  /// scroll without panning itself. Turning flags off cannot fix that; not
+  /// receiving the pointer can.
   preview,
 
   /// Filling the screen, with nothing to compete for gestures: drag, pinch,
@@ -31,15 +26,13 @@ enum MapInteraction {
   full,
 }
 
-/// The map on Travel Details, and the map behind it.
+/// The map on Travel Details, and the full screen map behind it.
 ///
-/// `flutter_map` with OpenStreetMap tiles: no API key, no billing account, no
-/// Google Cloud project, and it runs on the web. Attribution is required by the
-/// tile usage policy and is drawn in the corner.
+/// `flutter_map` with OpenStreetMap tiles: no key, no billing account, and it
+/// runs on the web. Attribution is required by the tile usage policy.
 ///
-/// A post only reaches this widget when extraction returned coordinates. A
-/// destination that is missing, or too broad to have a single point, gets
-/// [PostMapPlaceholder] instead — the panel the mockup draws.
+/// A post reaches this only when extraction returned coordinates; a missing or
+/// too-broad destination gets [PostMapPlaceholder] instead.
 class PostMap extends StatefulWidget {
   const PostMap({
     super.key,
@@ -66,11 +59,8 @@ class PostMap extends StatefulWidget {
   /// Tapping the preview. Null leaves taps to the map itself.
   final VoidCallback? onTap;
 
-  /// Where tiles come from. Defaults to the network.
-  ///
-  /// A seam rather than a hard-coded provider: the default wraps a
-  /// `RetryClient`, which retries on real timers, so the failure path is
-  /// otherwise untestable in fake time.
+  /// Where tiles come from. A seam rather than a hard-coded provider: the
+  /// default retries on real timers, which fake time cannot drive.
   final TileProvider? tileProvider;
 
   @override
@@ -78,11 +68,8 @@ class PostMap extends StatefulWidget {
 }
 
 class _PostMapState extends State<PostMap> {
-  /// Set when the tile server refuses or cannot be reached.
-  ///
-  /// Without this a failed tile leaves the layer's own grey behind and the map
-  /// looks broken with no explanation — which is exactly what a blocked or
-  /// key-gated tile host produces. Saying so beats a grey rectangle.
+  /// Set when the tile server refuses or cannot be reached. Without it a failed
+  /// tile leaves grey behind with no explanation.
   bool _tilesFailed = false;
 
   /// Built once. `NetworkTileProvider()` opens an HTTP client, so creating one
@@ -143,23 +130,18 @@ class _PostMapState extends State<PostMap> {
               ),
               children: [
                 TileLayer(
-                  // The standard OpenStreetMap style: the one tile source that
-                  // needs no key, sends CORS headers so it works in a browser,
-                  // and is what `flutter_map`'s own examples use.
-                  //
-                  // CARTO's Positron was here before, for Latin-script labels.
-                  // It now watermarks every tile with "API KEY REQUIRED", and
-                  // because it serves that as a normal 200 response, `fallbackUrl`
-                  // never fired — the map looked like it was working and was not.
+                  // The standard OpenStreetMap style: no key, and it sends CORS
+                  // headers so it works in a browser. Styles that watermark
+                  // unkeyed tiles serve them as a normal 200, so `fallbackUrl`
+                  // never fires and the map looks like it is working.
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.nook.app',
                   tileProvider: _tiles,
                   maxNativeZoom: 19,
                   errorTileCallback: (_, _, _) => _noteTileError(),
                   tileBuilder: (context, widget, tile) {
-                    // `tileBuilder` runs for every tile, including ones still in
-                    // flight, so building is not evidence of anything. A finish
-                    // time with no error is.
+                    // Runs for every tile, in flight ones included, so building
+                    // proves nothing. A finish time with no error does.
                     if (!tile.loadError && tile.loadFinishedAt != null) {
                       _noteTileLoaded();
                     }
@@ -284,12 +266,9 @@ class _PinState extends State<_Pin> with SingleTickerProviderStateMixin {
     duration: NookMotion.slow,
   );
 
-  /// elasticOut on the way down only: the pin falls in and settles, which
-  /// draws the eye to the location without the map itself moving.
-  ///
-  /// Built once, not per build: CurvedAnimation registers a status listener on
-  /// its parent in the constructor, so rebuilding one every frame leaks a
-  /// listener each time.
+  /// elasticOut on the way down only: the pin falls in and settles, which draws
+  /// the eye without the map itself moving. Built once, because a
+  /// CurvedAnimation registers a listener on its parent in the constructor.
   late final Animation<double> _drop = CurvedAnimation(
     parent: _controller,
     curve: Curves.elasticOut,
