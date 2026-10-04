@@ -10,9 +10,11 @@ import '../../widgets/nook_dialog.dart';
 import '../../widgets/nook_empty_state.dart';
 import '../../widgets/nook_scaffold.dart';
 import '../../widgets/screen_title.dart';
+import '../../widgets/section_header.dart';
 import '../../widgets/trip_card.dart';
 import '../../widgets/folder_motion.dart';
 import '../add/add_method_screen.dart';
+import '../explore/explore_itineraries_screen.dart';
 import 'trip_details_screen.dart';
 
 /// The Trips tab.
@@ -37,6 +39,18 @@ class TripsScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: NookSpacing.tight),
             child: const ScreenTitle('Your Trips'),
           ),
+          // The way into the catalogue. The same section mark Home uses to
+          // reach its other screens, so this is one more place a rule carries
+          // the eye across to an action rather than a new kind of control.
+          SectionHeader(
+            'Explore itineraries',
+            onSeeAll: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ExploreItinerariesScreen(),
+              ),
+            ),
+          ),
+          const SizedBox(height: NookSpacing.tight),
           const Expanded(child: TripsBody()),
         ],
       ),

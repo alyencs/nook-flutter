@@ -13,6 +13,7 @@ import '../../widgets/nook_scaffold.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/post_map.dart';
 import 'map_screen.dart';
+import '../explore/explore_itineraries_screen.dart';
 import '../../widgets/post_thumbnail.dart';
 
 /// S2. The screen the whole proposal is built around.
@@ -36,7 +37,9 @@ class TravelDetailsScreen extends StatelessWidget {
         if (post == null) return const NookScaffold(child: SizedBox.shrink());
 
         return NookScaffold(
-          bottomBar: const _ExploreItineraryButton(),
+          bottomBar: _ExploreItineraryButton(
+            country: post.aiCountry ?? _countryOf(post.aiDestination),
+          ),
           child: ListView(
             children: [
               const NookAppBar(title: 'Travel Details'),
@@ -320,24 +323,26 @@ class _MetaRow extends StatelessWidget {
   }
 }
 
-/// Stretch goal #3, drawn but not built. Disabled and labelled, rather than
-/// quietly doing nothing when tapped.
+/// Opens the itinerary catalogue, anchored to this post's country.
+///
+/// A post whose extraction never found a country opens the whole catalogue
+/// rather than nothing, which is also what happens when Nook has no itinerary
+/// for the country it did find.
 class _ExploreItineraryButton extends StatelessWidget {
-  const _ExploreItineraryButton();
+  const _ExploreItineraryButton({this.country});
+
+  final String? country;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const NookPrimaryButton(
-          label: 'Explore Itinerary',
-          icon: Icons.near_me_outlined,
-          onPressed: null,
+    return NookPrimaryButton(
+      label: 'Explore Itinerary',
+      icon: Icons.near_me_outlined,
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ExploreItinerariesScreen(country: country),
         ),
-        const SizedBox(height: NookSpacing.tight),
-        Text('Stretch goal — not in this build', style: NookType.caption),
-      ],
+      ),
     );
   }
 }

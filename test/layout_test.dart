@@ -16,7 +16,11 @@ import 'package:nook/screens/add/paste_link_screen.dart';
 import 'package:nook/screens/add/personal_note_screen.dart';
 import 'package:nook/screens/add/post_draft.dart';
 import 'package:nook/screens/add/review_save_screen.dart';
+import 'package:nook/explore/explore_catalogue.dart';
+import 'package:nook/explore/explore_itinerary.dart';
 import 'package:nook/screens/details/manage_post_screen.dart';
+import 'package:nook/screens/explore/explore_itineraries_screen.dart';
+import 'package:nook/screens/explore/explore_itinerary_details_screen.dart';
 import 'package:nook/screens/details/personal_notes_screen.dart';
 import 'package:nook/screens/details/post_details_screen.dart';
 import 'package:nook/screens/details/travel_details_screen.dart';
@@ -140,6 +144,17 @@ PostDraft longestDraft() => PostDraft.fromLink(
   ),
 );
 
+/// The catalogue entry with the most to draw: the longest title, the most
+/// stops and the most highlights are what push this screen past the edge.
+ExploreItinerary _longestItinerary() => exploreItineraries.reduce((a, b) {
+  int weight(ExploreItinerary it) =>
+      it.title.length +
+      it.summary.length +
+      it.stops.length * 40 +
+      it.stops.fold(0, (sum, stop) => sum + stop.highlights.length * 20);
+  return weight(b) > weight(a) ? b : a;
+});
+
 void main() {
   late NookDatabase db;
   late int postId;
@@ -178,6 +193,10 @@ void main() {
     'Manage Post': () => ManagePostScreen(postId: postId),
     'All Saved Posts': () =>
         PostListScreen(title: 'Recent Saves', posts: PostsDao(db).watchAll()),
+    'Explore Itineraries': () => const ExploreItinerariesScreen(),
+    'Explore Itinerary Details': () => ExploreItineraryDetailsScreen(
+      itinerary: _longestItinerary(),
+    ),
   };
 
   screens.forEach((name, build) {

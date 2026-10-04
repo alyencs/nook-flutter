@@ -153,9 +153,15 @@ void main() {
     expect(find.text('Best Time to Visit'), findsOneWidget);
     expect(find.text('Budget'), findsOneWidget);
     expect(find.text('Japan'), findsOneWidget);
-    // The itinerary generator is a stretch goal, and says so rather than
-    // pretending to work.
-    expect(find.text('Stretch goal — not in this build'), findsOneWidget);
+
+    // Explore Itinerary opens the catalogue, narrowed to the country this
+    // post was extracted into.
+    await tester.tap(find.text('Explore Itinerary'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Explore Itineraries'), findsOneWidget);
+    expect(find.text('Itineraries in Japan'), findsOneWidget);
+    expect(find.text('Three Days in Kyoto'), findsWidgets);
     await unmount(tester);
   });
 
