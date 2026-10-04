@@ -7,7 +7,7 @@
 > scattered across four apps.
 
 **Live demo:** https://alyencs.github.io/nook-flutter/
-**Demo video:** `https://github.com/alyencs/nook-flutter/tree/main/docs`
+**Demo video:** https://github.com/alyencs/nook-flutter/tree/main/docs/demo
 **Course:** Applications Development and Emerging Technologies (6ADET), Holy Angel University
 **Author:** Alison C. Sampang
 
