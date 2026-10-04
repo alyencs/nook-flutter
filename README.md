@@ -7,7 +7,7 @@
 > scattered across four apps.
 
 **Live demo:** https://alyencs.github.io/nook-flutter/
-**Demo video:** `docs/demo.mp4` (link it here once it exists)
+**Demo video:** https://github.com/alyencs/nook-flutter/tree/main/docs/demo
 **Course:** Applications Development and Emerging Technologies (6ADET), Holy Angel University
 **Author:** Alison C. Sampang
 
@@ -178,7 +178,7 @@ seeds a small fictional demo library so the app opens looking like the design.
 
 ```bash
 flutter analyze    # clean
-flutter test       # 336 tests
+flutter test       # 336 tests, 331 passing — see known issues below
 flutter build web --release
 dart run build_runner build --delete-conflicting-outputs   # after editing lib/data/tables.dart
 ```
@@ -312,15 +312,24 @@ a post *out* of Nook is drawn but inert.
 
 ![Built with AI assistance](https://img.shields.io/badge/built%20with-AI%20assistance-0b5fff)
 
-**Claude (Anthropic), used heavily.** It wrote most of the code in `lib/` —
-roughly 93% of it by line — working to my specification and under my review. The
-planning is mine: the proposal, the mockup, the design system and the twelve
-conflict resolutions between them. So is Nook's motion system, which I wrote and
-tuned myself and which is about 69% mine by line. I reviewed what Claude produced
-and rejected a fair amount of it, including a splash screen that assembled a logo
-it had invented.
+**Claude (Anthropic), used heavily, and directed throughout.** It wrote the first
+full build and much of what followed, working to my specification and under my
+review — I specified it, rejected parts of it, and merged all of it.
 
-The full account — six examples of how I used it, three cases where it was
+**About a quarter of this application is mine: 23% of `lib/` and 29% of `test/`
+by line, across 27 of the repository's 47 commits.** That includes Explore
+Itinerary end to end — eight files and 1,906 lines with no AI co-authorship on any
+of the commits — the Anthropic Messages API client in `lib/ai/claude_api.dart`,
+which I wrote by hand over plain `http` so a retryable overload stays
+distinguishable from a fatal bad request, and 1,977 lines of tests covering that
+client, both itinerary generators and the three Explore screens. Nook's motion
+system is mine as well, along with the planning documents the whole app is shaped
+by.
+
+I reviewed what Claude produced and rejected a fair amount of it, including a
+splash screen that assembled a logo it had invented twice.
+
+The full account — eight examples of how I used it, three cases where it was
 wrong, and the line-by-line authorship breakdown with the commands to reproduce
 it — is in [AI-USAGE.md](AI-USAGE.md).
 
