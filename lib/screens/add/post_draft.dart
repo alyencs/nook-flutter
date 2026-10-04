@@ -105,7 +105,8 @@ class PostDraft {
   final String platform;
   final String importMethod;
 
-  /// True when the values came from the sample extractor rather than Gemini, so
+  /// True when the values came from the sample extractor rather than the model,
+  /// so
   /// the review screen can say so instead of implying a real extraction.
   final bool fromSample;
 

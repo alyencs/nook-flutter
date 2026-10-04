@@ -1,8 +1,8 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'ai_extractor.dart';
-import 'gemini_extractor.dart';
-import 'gemini_itinerary_generator.dart';
+import 'claude_extractor.dart';
+import 'claude_itinerary_generator.dart';
 import 'itinerary_generator.dart';
 import 'sample_extractor.dart';
 import 'sample_itinerary_generator.dart';
@@ -11,7 +11,8 @@ import 'sample_itinerary_generator.dart';
 ///
 /// The rule is simply whether a key is present:
 ///
-/// * Running locally with a `.env` that has `GEMINI_API_KEY` → real Gemini.
+/// * Running locally with a `.env` that has `ANTHROPIC_API_KEY` → the real
+///   model.
 /// * The GitHub Pages build, whose `.env` is created from `.env.example` and
 ///   carries no key → [SampleExtractor], and the UI says so.
 ///
@@ -19,17 +20,16 @@ import 'sample_itinerary_generator.dart';
 /// limitation being worked around; it is the reason this class exists.
 abstract final class NookAi {
   static AiExtractor createExtractor() {
-    final key = _env('GEMINI_API_KEY');
+    final key = _env('ANTHROPIC_API_KEY');
     if (key == null || key.isEmpty || key.startsWith('put_your')) {
       return const SampleExtractor();
     }
-    // No default model id is compiled in on purpose. Google retires them on a
-    // schedule — `gemini-2.0-flash` was shut down on 1 June 2026 and took this
-    // app's extraction with it — so the extractor asks the API which models the
-    // key can reach. GEMINI_MODEL pins one when you want a specific answer.
-    return GeminiExtractor(
+    return ClaudeExtractor(
       apiKey: key,
-      model: _env('GEMINI_MODEL'),
+      // Blank is the normal case: Nook runs on the fast tier and pins the
+      // version itself, so a release cannot change how an installed build
+      // behaves. CLAUDE_MODEL overrides that when you want a specific answer.
+      model: _env('CLAUDE_MODEL'),
       // Optional. Without it a YouTube post reaches the model as a title; with
       // it, the description comes too, which is where the detail lives.
       youTubeApiKey: _env('YOUTUBE_API_KEY'),
@@ -47,11 +47,11 @@ abstract final class NookAi {
   /// into days itself — less writing, the same material — and the screen says
   /// which it was.
   static ItineraryGenerator createItineraryGenerator() {
-    final key = _env('GEMINI_API_KEY');
+    final key = _env('ANTHROPIC_API_KEY');
     if (key == null || key.isEmpty || key.startsWith('put_your')) {
       return const SampleItineraryGenerator();
     }
-    return GeminiItineraryGenerator(apiKey: key, model: _env('GEMINI_MODEL'));
+    return ClaudeItineraryGenerator(apiKey: key, model: _env('CLAUDE_MODEL'));
   }
 
   /// Loads `.env` if it is there. A missing or empty file is a normal state,

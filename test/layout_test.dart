@@ -116,7 +116,7 @@ class _FailingExtractor implements AiExtractor {
     ExtractionStage? onStage,
   }) async {
     throw const ExtractionException(
-      'Gemini is overloaded (HTTP 503). Nook retried this a few times with a '
+      'The service is overloaded (HTTP 529). Nook retried this a few times with a '
       'growing wait and it stayed unavailable. This is on their side and '
       'usually clears in a few minutes — retry, or enter the details yourself.',
     );
@@ -255,7 +255,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
 
     // The progress card: a sentence in the user's terms, elapsed seconds, and
-    // a way out. It used to read "Asking gemini-3.1-flash-lite", which put a
+    // a way out. It used to read "Asking <model id>", which put a
     // model id in front of someone who had pasted a link.
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.textContaining('Analysing your post'), findsOneWidget);

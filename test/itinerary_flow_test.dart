@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:nook/ai/claude_api.dart';
+import 'package:nook/ai/claude_itinerary_generator.dart';
 import 'package:nook/ai/itinerary.dart';
 import 'package:nook/ai/itinerary_generator.dart';
 import 'package:nook/ai/sample_extractor.dart';
@@ -90,6 +95,57 @@ class _CountingGenerator implements ItineraryGenerator {
       onStage: onStage,
     );
   }
+}
+
+
+/// Fast enough that a scripted failure does not hold the test up, while
+/// keeping the shape of the real policy.
+const _fast = RetryPolicy(
+  maxAttempts: 2,
+  baseDelay: Duration(milliseconds: 4),
+  maxDelay: Duration(milliseconds: 20),
+  attemptTimeout: Duration(seconds: 2),
+  deadline: Duration(seconds: 3),
+);
+
+/// Answers like the real service: a forced tool call carrying the plan.
+String _servicePlan(int days) => jsonEncode({
+  'stop_reason': 'tool_use',
+  'content': [
+    {
+      'type': 'tool_use',
+      'id': 'toolu_1',
+      'name': ClaudeItineraryGenerator.toolName,
+      'input': {
+        'overview': 'A week built around the cafes you saved.',
+        'days': [
+          for (var day = 1; day <= days; day++)
+            {
+              'day': day,
+              'title': 'Day $day in Kyoto',
+              'activities': [
+                {
+                  'title': 'Kissa Master',
+                  'description': 'Coffee before the Gion crowds arrive.',
+                  'location': 'Gion',
+                  'timing': 'Morning',
+                },
+                {
+                  'title': 'Fushimi Inari',
+                  'description': 'The gates thin out past the first bend.',
+                },
+              ],
+            },
+        ],
+      },
+    },
+  ],
+});
+
+/// How many days the prompt asked for, read back out of the request.
+int _daysAskedFor(String body) {
+  final match = RegExp(r'DAYS REQUESTED: (\d+)').firstMatch(body);
+  return match == null ? 0 : int.parse(match.group(1)!);
 }
 
 void main() {
@@ -405,5 +461,127 @@ void main() {
     final trips = await TripsDao(db).allTrips();
     expect(trips, hasLength(4));
     await unmount(tester);
+  });
+
+  group('end to end, against the real service client', () {
+    testWidgets('saved posts and a day count become days on screen', (
+      tester,
+    ) async {
+      Map<String, Object?>? sent;
+      final client = MockClient((request) async {
+        sent = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
+          _servicePlan(_daysAskedFor(request.body)),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      await pump(
+        tester,
+        const RootShell(),
+        itinerary: ClaudeItineraryGenerator(
+          apiKey: 'k',
+          httpClient: client,
+          retry: _fast,
+        ),
+      );
+      await openPlan(tester);
+
+      await tester.tap(find.text('5 days').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Generate Itinerary'));
+      await advance(tester, frames: 40);
+
+      // 6. the requested number of days came back, and 7. it is on screen.
+      expect(daysShown(tester), 5);
+
+      // 3. the saved posts went with the request, as context.
+      final body = sent!;
+      final content = ((body['messages'] as List).first as Map)['content'];
+      expect(content, contains('5 Hidden Cafes in Kyoto'));
+      expect(content, contains('DAYS REQUESTED: 5'));
+
+      // 4. it is the model the app pins.
+      expect(body['model'], ClaudeModels.haiku);
+
+      // 5. the reply is read from a forced tool call, not from prose.
+      expect(
+        (body['tool_choice'] as Map)['name'],
+        ClaudeItineraryGenerator.toolName,
+      );
+      await unmount(tester);
+    });
+
+    testWidgets('a service failure shows an error, not a crash', (
+      tester,
+    ) async {
+      final client = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'type': 'error',
+            'error': {'type': 'overloaded_error', 'message': 'busy'},
+          }),
+          529,
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+
+      await pump(
+        tester,
+        const RootShell(),
+        itinerary: ClaudeItineraryGenerator(
+          apiKey: 'k',
+          httpClient: client,
+          retry: _fast,
+        ),
+      );
+      await openPlan(tester);
+      await tester.tap(find.text('Generate Itinerary'));
+      await advance(tester, frames: 60);
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('try again', findRichText: true), findsWidgets);
+      await unmount(tester);
+    });
+
+    testWidgets('an unusable reply is reported rather than crashing', (
+      tester,
+    ) async {
+      final client = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'stop_reason': 'tool_use',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 'toolu_1',
+                'name': ClaudeItineraryGenerator.toolName,
+                'input': {'days': 'not a list at all'},
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+
+      await pump(
+        tester,
+        const RootShell(),
+        itinerary: ClaudeItineraryGenerator(
+          apiKey: 'k',
+          httpClient: client,
+          retry: _fast,
+        ),
+      );
+      await openPlan(tester);
+      await tester.tap(find.text('Generate Itinerary'));
+      await advance(tester, frames: 40);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Generate Itinerary'), findsNothing);
+      await unmount(tester);
+    });
   });
 }

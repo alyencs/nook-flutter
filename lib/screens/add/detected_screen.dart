@@ -163,7 +163,7 @@ class _DestinationField extends StatelessWidget {
 
 /// Shown when the values came from the sample extractor.
 ///
-/// The deployed build has no Gemini key — a billable key must never ship in a
+/// The deployed build has no API key — a billable key must never ship in a
 /// public web app — so it says so here rather than passing invented metadata
 /// off as a real extraction.
 class _SampleNotice extends StatelessWidget {
@@ -189,8 +189,8 @@ class _SampleNotice extends StatelessWidget {
           Expanded(
             child: Text(
               'Sample data — this build ships without an AI key, so the '
-              'details above are illustrative. Running Nook locally with a '
-              'Gemini key extracts them for real.',
+              'details above are illustrative. Running Nook locally with an '
+              'API key extracts them for real.',
               style: NookType.caption.copyWith(color: NookColors.textPrimary),
             ),
           ),

@@ -14,7 +14,7 @@ name: Deploy web demo
 #   key. Both vendors document these as safe to expose in a client. Your Firestore
 #   rules and your Supabase RLS policies are what actually protect the data.
 #
-#   NOT safe to ship: anything billable or privileged. A Gemini API key, a
+#   NOT safe to ship: anything billable or privileged. An Anthropic API key, a
 #   Supabase secret (service_role) key, a service account JSON. A stranger can
 #   read these off your deployed site and spend your quota. Keep those features
 #   local and demo them on video, or put a server in front.
@@ -87,7 +87,7 @@ jobs:
       # pubspec.yaml lists .env as an asset (that is how flutter_dotenv reads
       # it), but .env is git-ignored, so the runner has none. This creates one
       # from .env.example, which carries no key: the deployed build therefore
-      # runs Nook's sample extractor rather than Gemini. The Gemini key is
+      # runs Nook's sample extractor rather than the real model. The API key is
       # deliberately NOT a repository secret — see docs/06-security-and-privacy.md.
       - name: Provide a keyless .env for the build
         if: steps.check.outputs.ready == 'true'
@@ -97,7 +97,7 @@ jobs:
         if: steps.check.outputs.ready == 'true'
         # No repository secrets, on purpose. Nook stores everything on the
         # device, so there is no backend URL or publishable key to pass in, and
-        # the Gemini key is billable and stays local.
+        # the Anthropic key is billable and stays local.
         # --base-href matters: on a project page the site lives at
         # username.github.io/<repo>/, and without it every asset 404s and you get
         # a white screen.

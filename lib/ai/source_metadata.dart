@@ -29,7 +29,8 @@ enum PostMediaType {
   };
 }
 
-/// Everything the app can legitimately learn about a link before asking Gemini.
+/// Everything the app can legitimately learn about a link before asking the
+/// model.
 ///
 /// This is the piece that was missing. Extraction used to hand the model a bare
 /// URL, so for `youtube.com/watch?v=Sf9ihvL0Usk` it had eleven characters of

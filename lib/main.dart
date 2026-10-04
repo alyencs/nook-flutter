@@ -9,7 +9,7 @@ import 'data/database.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Reads .env if the bundle has one. A build without a Gemini key is a normal
+  // Reads .env if the bundle has one. A build without an API key is a normal
   // state, not a failure: it is what every deployed build looks like, and the
   // sample extractor takes over. See docs/06-security-and-privacy.md.
   await NookAi.load();
@@ -18,7 +18,7 @@ Future<void> main() async {
   // These three are the app's identity, so they are created once, here, and
   // never inside a builder that reruns. DevicePreview calls its `builder` on
   // every preview rebuild — four times before the first frame has settled — and
-  // a GeminiExtractor built in there would be replaced each time, taking its
+  // a ClaudeExtractor built in there would be replaced each time, taking its
   // in-flight request map and its resolved-model cache with it.
   final tab = ValueNotifier<int>(0);
   final extractor = NookAi.createExtractor();

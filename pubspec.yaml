@@ -19,7 +19,8 @@ dependencies:
   drift: ^2.20.0
   drift_flutter: ^0.2.0
   path_provider: ^2.1.4
-  # Loads GEMINI_API_KEY from a git-ignored .env. Never shipped to the web build.
+  # Loads ANTHROPIC_API_KEY from a git-ignored .env. Never shipped to the web
+  # build.
   flutter_dotenv: ^5.1.0
   # Profile picture on Set Up Profile and Account.
   image_picker: ^1.1.2
@@ -27,9 +28,9 @@ dependencies:
   # the reason the proposal gives: no key, no billing account, works on web.
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
-  # oEmbed lookups for post thumbnails, and the Gemini REST calls. The
-  # google_generative_ai package was dropped: it discards the HTTP status code,
-  # which is the one thing needed to tell a retryable 503 from a fatal 400.
+  # oEmbed lookups for post thumbnails, and the Anthropic Messages API calls.
+  # Spoken over plain HTTP so the status code survives: it is the one thing
+  # needed to tell a retryable 529 from a fatal 400.
   http: ^1.6.0
   font_awesome_flutter: ^11.0.0
   # Opens a saved post's original URL in the platform's own browser or app.

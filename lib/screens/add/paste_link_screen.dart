@@ -119,7 +119,7 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   /// Abandons the current run. The request itself cannot be recalled, but its
   /// result is discarded and the screen becomes usable again immediately. A
   /// fresh Analyze for the same link joins the request already in flight rather
-  /// than starting a second one — see `GeminiExtractor.extract`.
+  /// than starting a second one — see `ClaudeExtractor.extract`.
   void _cancel() {
     setState(() {
       _attempt++;
@@ -303,7 +303,7 @@ class _SampleModeNote extends StatelessWidget {
         Expanded(
           child: Text(
             'No API key found, so this will use sample details. Add '
-            'GEMINI_API_KEY to .env for real extraction.',
+            'ANTHROPIC_API_KEY to .env for real extraction.',
             style: NookType.caption,
           ),
         ),

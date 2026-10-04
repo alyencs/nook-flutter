@@ -8,9 +8,9 @@ import '../theme/nook_typography.dart';
 
 /// What Nook shows while it is working out what a link is.
 ///
-/// The old version narrated the machinery: "Asking gemini-flash-latest",
-/// "Gemini is busy — retrying in 4s (attempt 2 of 4)". That is a stack trace
-/// with manners. Nobody pasting a TikTok link needs a vendor's name, a model
+/// The old version narrated the machinery: the model id it was asking, the
+/// retry it was waiting out, the attempt number. That is a stack trace with
+/// manners. Nobody pasting a TikTok link needs a vendor's name, a model
 /// id or an HTTP retry schedule, and none of it helps them decide anything.
 ///
 /// What it shows instead is three dots travelling along a line, left to right,

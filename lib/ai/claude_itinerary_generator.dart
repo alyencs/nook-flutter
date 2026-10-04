@@ -1,15 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'gemini_api.dart';
+import 'claude_api.dart';
 import 'itinerary.dart';
 import 'itinerary_generator.dart';
 
 /// Builds a day-by-day plan out of what the traveller has already saved.
 ///
-/// The same transport as extraction — [GeminiClient], its retry policy and its
+/// The same transport as extraction — [ClaudeClient], its retry policy and its
 /// status handling — so there is one place in the app that knows how to talk to
 /// the model and one place that decides whether a failure is worth retrying.
 ///
@@ -18,14 +17,14 @@ import 'itinerary_generator.dart';
 /// posts and has to organise them, so the reply is longer and the wait is
 /// longer, and the timeouts say so rather than inheriting a 20-second cap set
 /// for a different job.
-class GeminiItineraryGenerator implements ItineraryGenerator {
-  GeminiItineraryGenerator({
+class ClaudeItineraryGenerator implements ItineraryGenerator {
+  ClaudeItineraryGenerator({
     required String apiKey,
     String? model,
     http.Client? httpClient,
     RetryPolicy retry = planningRetry,
-  }) : _override = _clean(model),
-       _client = GeminiClient(
+  }) : _candidates = ClaudeModels.candidates(model),
+       _client = ClaudeClient(
          apiKey: apiKey,
          httpClient: httpClient,
          retry: retry,
@@ -54,12 +53,16 @@ class GeminiItineraryGenerator implements ItineraryGenerator {
   /// material long before that.
   static const maxDays = 7;
 
-  final String? _override;
-  final GeminiClient _client;
+  /// The name the model calls to hand the plan back. The reply is the tool's
+  /// arguments, so there is no prose to find JSON inside of.
+  static const toolName = 'record_itinerary';
 
-  Future<List<String>>? _candidates;
+  final List<String> _candidates;
+  final ClaudeClient _client;
+
+  /// Model ids that answered "no such model" this session, so a second plan
+  /// does not spend an attempt rediscovering that.
   final _retired = <String>{};
-  final _noThinking = <String>{};
 
   /// Plans currently running, keyed by destination and day count.
   ///
@@ -67,15 +70,8 @@ class GeminiItineraryGenerator implements ItineraryGenerator {
   /// not become two billable calls. The second caller joins the first.
   final _inFlight = <String, Future<GeneratedItinerary>>{};
 
-  static const maxModelsTried = 3;
-
   @override
   bool get isLive => true;
-
-  static String? _clean(String? value) {
-    final trimmed = value?.trim();
-    return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
-  }
 
   @override
   Future<GeneratedItinerary> generate(
@@ -114,73 +110,57 @@ class GeminiItineraryGenerator implements ItineraryGenerator {
       );
     }
 
-    final json = await _ask(request, onStage);
+    final response = await _ask(request, onStage);
 
     onStage?.call(ItineraryPhase.finishing);
-    return _itineraryFrom(json, request);
+    return _itineraryFrom(response, request);
   }
 
   /// Asks each candidate model in turn until one answers.
   ///
-  /// Lifted from the extractor deliberately: a retired model moves to the next
-  /// candidate, an overloaded one moves on because another model is a different
-  /// pool, and a rejected key or an exhausted quota stops rather than failing
-  /// the same way three times.
+  /// A model id that is gone moves to the next candidate, an overloaded service
+  /// gets one more candidate because that is nearly free, and a rejected key or
+  /// an exhausted quota stops rather than failing the same way three times.
   Future<Map<String, dynamic>> _ask(
     ItineraryRequest request,
     ItineraryStage? onStage,
   ) async {
     final tried = <String>[];
-    GeminiApiException? last;
+    ClaudeApiException? last;
 
     Future<Map<String, dynamic>?> attempt(String model) async {
       tried.add(model);
       onStage?.call(ItineraryPhase.planning);
       try {
-        return await _client.generateContent(
-          model: model,
-          body: _requestBody(request, thinking: !_noThinking.contains(model)),
+        return await _client.createMessage(
+          body: _requestBody(request, model),
           onRetry: (attempt, of, wait) =>
               onStage?.call(ItineraryPhase.planning),
         );
-      } on GeminiApiException catch (e) {
+      } on ClaudeApiException catch (e) {
         last = e;
-
-        if (e.isThinkingUnsupported && _noThinking.add(model)) {
-          return _client.generateContent(
-            model: model,
-            body: _requestBody(request, thinking: false),
-            onRetry: (attempt, of, wait) =>
-                onStage?.call(ItineraryPhase.planning),
-          );
-        }
 
         if (e.isModelUnavailable) {
           _retired.add(model);
           return null;
         }
 
-        if (e.isModelOverloaded) return null;
+        // The client has already retried this with backoff. Another id is the
+        // one thing left that might route around it, and it costs one call.
+        if (e.isOverloaded) return null;
 
         throw ItineraryException(_friendly(e));
       }
     }
 
-    final pinned = _override;
-    if (pinned != null && !_retired.contains(pinned)) {
-      final answer = await attempt(pinned);
-      if (answer != null) return answer;
-    }
-
-    final candidates = (await _resolveCandidates())
+    final candidates = _candidates
         .where((model) => !_retired.contains(model))
-        .take(maxModelsTried)
         .toList();
 
-    if (candidates.isEmpty && tried.isEmpty) {
+    if (candidates.isEmpty) {
       throw const ItineraryException(
-        'Nook could not reach a working AI model. Check that the Generative '
-        'Language API is enabled for the key in GEMINI_API_KEY.',
+        'Nook could not reach a working AI model. Check CLAUDE_MODEL in your '
+        '.env file, or leave it blank to use the default.',
       );
     }
 
@@ -192,101 +172,76 @@ class GeminiItineraryGenerator implements ItineraryGenerator {
     throw ItineraryException(_friendly(last!));
   }
 
-  Future<List<String>> _resolveCandidates() {
-    return _candidates ??= () async {
-      List<String> discovered;
-      try {
-        discovered = GeminiModels.rank(await _client.listModels());
-      } on GeminiApiException {
-        discovered = const [];
-      }
-      return discovered.isEmpty ? GeminiModels.fallback : discovered;
-    }();
-  }
+  Map<String, Object?> _requestBody(ItineraryRequest request, String model) =>
+      claudeToolRequest(
+        model: model,
+        system: _instructions(request.days),
+        prompt:
+            '--- TRIP ---\n${request.toPromptBlock()}--- END TRIP ---',
+        toolName: toolName,
+        toolDescription:
+            'Record the finished day-by-day itinerary. Call this exactly once, '
+            'with every day the traveller asked for.',
+        schema: _responseSchema,
+        maxTokens: maxOutputTokens,
+        // Not zero, unlike extraction. Extraction copies facts and has one
+        // right answer, so sampling there was pure variance. Writing an
+        // itinerary is a choice about order and pacing, and a little room makes
+        // the difference between a plan and a sorted list. Low enough that it
+        // still respects the sources.
+        temperature: 0.4,
+      );
 
-  Map<String, Object?> _requestBody(
-    ItineraryRequest request, {
-    bool thinking = true,
-  }) => {
-    'contents': [
-      {
-        'role': 'user',
-        'parts': [
-          {
-            'text':
-                '${_instructions(request.days)}\n\n--- TRIP ---\n'
-                '${request.toPromptBlock()}--- END TRIP ---',
-          },
-        ],
-      },
-    ],
-    'generationConfig': {
-      // Not zero, unlike extraction. Extraction copies facts and has one right
-      // answer, so sampling there was pure variance. Writing an itinerary is a
-      // choice about order and pacing, and a little room makes the difference
-      // between a plan and a sorted list. Low enough that it still respects
-      // the sources.
-      'temperature': 0.4,
-      'seed': 7,
-      'responseMimeType': 'application/json',
-      'responseSchema': _responseSchema,
-      'maxOutputTokens': maxOutputTokens,
-      // The same fix extraction needed. Gemini 2.5 models think by default and
-      // nothing here asks them to stop, which on a reply this size is seconds
-      // of invisible tokens spent on a shape already handed over.
-      if (thinking) 'thinkingConfig': {'thinkingBudget': 0},
-    },
-  };
-
+  /// The shape the plan has to come back in, as JSON Schema.
+  ///
+  /// A nullable field is written as a two-member type rather than a flag, which
+  /// is how JSON Schema says it and what the tool validator reads.
   static final Map<String, Object?> _responseSchema = {
-    'type': 'OBJECT',
+    'type': 'object',
     'properties': {
       'overview': {
-        'type': 'STRING',
-        'nullable': true,
+        'type': ['string', 'null'],
         'description':
             'One sentence on the shape of the trip. Null if there is '
             'nothing worth saying beyond the days themselves.',
       },
       'days': {
-        'type': 'ARRAY',
+        'type': 'array',
         'description': 'Exactly as many entries as DAYS REQUESTED, in order.',
         'items': {
-          'type': 'OBJECT',
+          'type': 'object',
           'properties': {
-            'day': {'type': 'INTEGER', 'description': 'From 1 upwards.'},
+            'day': {'type': 'integer', 'description': 'From 1 upwards.'},
             'title': {
-              'type': 'STRING',
+              'type': 'string',
               'description':
                   'A short name for the day, drawn from what is on it: '
                   '"Arrival and Sunset Chill", "Island Hopping Tour A".',
             },
             'activities': {
-              'type': 'ARRAY',
+              'type': 'array',
               'description': 'Two to five, in the order they happen.',
               'items': {
-                'type': 'OBJECT',
+                'type': 'object',
                 'properties': {
                   'title': {
-                    'type': 'STRING',
+                    'type': 'string',
                     'description': 'What the traveller does. Short.',
                   },
                   'description': {
-                    'type': 'STRING',
+                    'type': 'string',
                     'description':
                         'One or two sentences of practical detail, taken '
                         'from the saved posts wherever they supply it.',
                   },
                   'location': {
-                    'type': 'STRING',
-                    'nullable': true,
+                    'type': ['string', 'null'],
                     'description':
                         'The place this happens, named as the posts name it. '
                         'Null when the activity is not tied to one.',
                   },
                   'timing': {
-                    'type': 'STRING',
-                    'nullable': true,
+                    'type': ['string', 'null'],
                     'description':
                         'When, if the posts say or it follows obviously: '
                         '"Morning", "9:00 AM - 4:00 PM", "After dark".',
@@ -335,59 +290,39 @@ Turn that material into a $days-day itinerary.
   expect. One or two sentences.
 - Do not invent prices, opening hours or addresses that no post mentions.
 
-Return JSON only, matching the schema.
+Hand the finished plan back by calling $toolName. Do not write the plan as
+prose, and do not call it more than once.
 ''';
 
   /// Digs the plan out of the response envelope.
   ///
-  /// The same envelope extraction reads, and the same three ways it can be
-  /// well-formed HTTP and still carry no answer: a blocked prompt, a candidate
-  /// cut off at the token limit, a part list with no text in it.
+  /// Three ways a reply can be well-formed HTTP and still carry no answer: a
+  /// refusal, a message cut off at the token ceiling before the tool call was
+  /// finished, and a content list with no tool call in it at all.
   GeneratedItinerary _itineraryFrom(
     Map<String, dynamic> response,
     ItineraryRequest request,
   ) {
-    final blockReason = (response['promptFeedback'] as Map?)?['blockReason'];
-    if (blockReason != null) {
+    final stop = stopReasonOf(response);
+
+    if (stop == 'refusal') {
       throw const ItineraryException(
         "Nook couldn't plan this trip. Try a different number of days, or "
         'build it yourself from the posts you saved.',
       );
     }
 
-    final candidates = response['candidates'];
-    if (candidates is! List || candidates.isEmpty) {
+    final json = claudeToolInput(response, toolName);
+
+    if (json == null) {
+      if (stop == 'max_tokens') {
+        throw const ItineraryException(
+          'This trip had more in it than we could plan in one go. Try fewer '
+          'days, or generate it again.',
+        );
+      }
       throw const ItineraryException(
         "We couldn't build an itinerary right now. Please try again.",
-      );
-    }
-
-    final candidate = candidates.first as Map;
-    final finish = candidate['finishReason'];
-    if (finish is String && finish != 'STOP' && finish != 'MAX_TOKENS') {
-      throw const ItineraryException(
-        "We couldn't finish planning this trip. Please try again.",
-      );
-    }
-
-    final parts = (candidate['content'] as Map?)?['parts'];
-    final text = parts is List
-        ? parts
-              .whereType<Map>()
-              .map((part) => part['text'])
-              .whereType<String>()
-              .join()
-        : '';
-    if (text.trim().isEmpty) {
-      throw const ItineraryException('The itinerary came back empty.');
-    }
-
-    final Map<String, dynamic> json;
-    try {
-      json = jsonDecode(text) as Map<String, dynamic>;
-    } catch (_) {
-      throw const ItineraryException(
-        "The itinerary couldn't be read. Please try again.",
       );
     }
 
@@ -424,20 +359,24 @@ Return JSON only, matching the schema.
   /// What the traveller reads when a plan cannot be built.
   ///
   /// Free of vendor names, model ids and status codes, like every other
-  /// message in the app. The two configuration failures are the exception and
-  /// name the `.env` setting rather than the service behind it.
-  String _friendly(GeminiApiException e) {
+  /// message in the app. The configuration failures are the exception and name
+  /// the `.env` setting rather than the service behind it.
+  String _friendly(ClaudeApiException e) {
     if (e.isAuthFailure) {
       return 'Nook could not authenticate with its AI service. Check '
-          'GEMINI_API_KEY in your .env file.';
+          'ANTHROPIC_API_KEY in your .env file.';
     }
-    if (e.status == 429 || e.code == 'RESOURCE_EXHAUSTED') {
+    if (e.isBillingFailure) {
+      return 'Nook\'s AI service has no credit left on this key. Top it up and '
+          'try again.';
+    }
+    if (e.status == 429 || e.type == 'rate_limit_error') {
       return "Nook has hit today's limit for planning trips. It resets on its "
           'own — try again in a little while.';
     }
     if (e.isModelUnavailable) {
-      return 'Nook could not reach a working AI model. Check GEMINI_MODEL in '
-          'your .env file, or leave it blank to let Nook choose.';
+      return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
+          'your .env file, or leave it blank to use the default.';
     }
     if (e.isTransient) {
       return "We couldn't build an itinerary right now. Nook tried a few times "

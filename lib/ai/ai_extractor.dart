@@ -119,10 +119,10 @@ class ExtractionResult {
 /// Where extraction has got to.
 ///
 /// A phase, not a sentence. The screen used to be handed whatever string the
-/// extractor felt like — "Asking gemini-flash-latest", "Gemini is busy —
-/// retrying in 4s" — which put the name of a vendor, a model id and an HTTP
-/// retry schedule in front of someone who pasted a link. None of that is the
-/// user's problem, and none of it helps them decide anything.
+/// extractor felt like — the model id it was asking, the retry schedule it was
+/// waiting out — which put a vendor's name, a model id and an HTTP retry
+/// schedule in front of someone who pasted a link. None of that is the user's
+/// problem, and none of it helps them decide anything.
 ///
 /// The extractor now reports which of three things is happening and the screen
 /// chooses the words, so backend vocabulary cannot reach the UI even by
@@ -144,7 +144,7 @@ enum ExtractionPhase {
 /// progress instead of an unexplained spinner.
 typedef ExtractionStage = void Function(ExtractionPhase phase);
 
-/// One interface, two implementations, chosen at startup by whether a Gemini
+/// One interface, two implementations, chosen at startup by whether an API
 /// key is present. This is the proposal's own "one interface, two
 /// implementations" fallback pattern, applied to the key problem.
 abstract interface class AiExtractor {

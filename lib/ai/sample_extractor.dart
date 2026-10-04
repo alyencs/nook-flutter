@@ -3,7 +3,7 @@ import 'categories.dart';
 import 'source_metadata.dart';
 import 'thumbnail_from_url.dart';
 
-/// What runs when there is no Gemini key — which is always true of the
+/// What runs when there is no API key — which is always true of the
 /// deployed build, because a billable key must never ship in a public web app.
 ///
 /// It is deterministic: the same link always produces the same result, so the

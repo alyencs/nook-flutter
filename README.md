@@ -42,7 +42,7 @@ an error rather than a map. The live link renders both.*
   has already started by the time the app opens.
 - **Detection reads the post, not just the link.** Nook fetches what the platform
   publishes — a YouTube title and description, a TikTok caption — and hands that
-  to Gemini, which returns the place, a category, a summary, the country, the
+  to the model, which returns the place, a category, a summary, the country, the
   best time to visit, a rough budget, the venues the post named and its tips.
   Anything it cannot tell you is left blank rather than invented.
 - **Group saves into trips** with coloured folders, and see where a save is on a
@@ -59,7 +59,7 @@ an error rather than a map. The live link renders both.*
 | Framework | Flutter (Dart), web target |
 | State | `setState` plus Drift stream queries read through `StreamBuilder` — no state-management package, because every screen reads one query and a package would be ceremony |
 | Storage | [Drift](https://drift.simonbinder.eu) — on-device SQL, five tables at schema version 7, works on web. Chosen over Hive because a post belonging to exactly one trip is a foreign key, not a key-value pair |
-| Other packages | `http` (Gemini's REST API and the oEmbed lookups — the official SDK was dropped because it hid the HTTP status code), `flutter_map` + `latlong2` (OpenStreetMap tiles, no key and no billing account), `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `url_launcher`, `font_awesome_flutter` (platform brand marks), `device_preview` (phone frame on the live link) |
+| Other packages | `http` (the Anthropic Messages API and the oEmbed lookups — spoken over plain HTTP so the status code survives), `flutter_map` + `latlong2` (OpenStreetMap tiles, no key and no billing account), `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `url_launcher`, `font_awesome_flutter` (platform brand marks), `device_preview` (phone frame on the live link) |
 
 Storage is on the device and nowhere else, deliberately: two travellers never
 need to see the same saved posts, so a server would be work for nothing. The
@@ -99,10 +99,10 @@ result.
 
 | Variable | What it is | Where to get one |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Powers destination, category, summary and coordinate detection. **Billable.** Without it Nook runs a deterministic sample extractor and says so on screen. | https://aistudio.google.com/apikey |
+| `ANTHROPIC_API_KEY` | Powers destination, category, summary and coordinate detection, and writes the Explore Itinerary plans. **Billable.** Without it Nook runs a deterministic sample extractor and sample planner, and says so on screen. | https://console.anthropic.com/settings/keys |
 | `YOUTUBE_API_KEY` | YouTube Data API v3. Fetches a video's description — where the addresses and prices are — and the creator's profile picture. Free tier, no billing account. Without it, extraction works from the title alone. | [Enable YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) |
 | `FACEBOOK_TOKEN` | `APP_ID\|CLIENT_TOKEN` from a Meta app with **oEmbed Read**. The only way to read an Instagram or Facebook caption — both withdrew public oEmbed in 2020. Without it those two extract from the URL alone, and the prompt says so. | [developers.facebook.com/apps](https://developers.facebook.com/apps) → Settings → Advanced |
-| `GEMINI_MODEL` | Optional model id to pin. Not a secret. Without it Nook asks the API which models the key can reach. | — |
+| `CLAUDE_MODEL` | Optional model id to pin. Not a secret. Without it Nook uses the fast tier it pins itself. | — |
 
 **No key is ever deployed.** None of these is a repository secret or a
 `--dart-define`. Anyone can read a value compiled into a web build and spend the

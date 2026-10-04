@@ -5,8 +5,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:nook/ai/gemini_api.dart';
-import 'package:nook/ai/gemini_itinerary_generator.dart';
+import 'package:nook/ai/claude_api.dart';
+import 'package:nook/ai/claude_itinerary_generator.dart';
 import 'package:nook/ai/itinerary.dart';
 import 'package:nook/ai/itinerary_generator.dart';
 import 'package:nook/ai/post_place.dart';
@@ -65,53 +65,42 @@ ItineraryRequest _request({int days = 3, List<ItinerarySource>? sources}) =>
     );
 
 String _reply({required int days, String? overview}) => jsonEncode({
-  'candidates': [
+  'stop_reason': 'tool_use',
+  'content': [
     {
-      'finishReason': 'STOP',
-      'content': {
-        'parts': [
-          {
-            'text': jsonEncode({
-              'overview': ?overview,
-              'days': [
-                for (var day = 1; day <= days; day++)
-                  {
-                    'day': day,
-                    'title': 'Day $day in Bacuit Bay',
-                    'activities': [
-                      {
-                        'title': 'Big Lagoon',
-                        'description': 'Paddled rather than motored.',
-                        'location': 'Miniloc Island',
-                        'timing': 'Morning',
-                      },
-                      {
-                        'title': 'Nacpan Beach',
-                        'description': 'Four kilometres of sand.',
-                      },
-                    ],
-                  },
+      'type': 'tool_use',
+      'id': 'toolu_1',
+      'name': ClaudeItineraryGenerator.toolName,
+      'input': {
+        'overview': ?overview,
+        'days': [
+          for (var day = 1; day <= days; day++)
+            {
+              'day': day,
+              'title': 'Day $day in Bacuit Bay',
+              'activities': [
+                {
+                  'title': 'Big Lagoon',
+                  'description': 'Paddled rather than motored.',
+                  'location': 'Miniloc Island',
+                  'timing': 'Morning',
+                },
+                {
+                  'title': 'Nacpan Beach',
+                  'description': 'Four kilometres of sand.',
+                },
               ],
-            }),
-          },
+            },
         ],
       },
     },
   ],
 });
 
-String _errorBody(int code, String status, String message, {String? reason}) =>
-    jsonEncode({
-      'error': {
-        'code': code,
-        'message': message,
-        'status': status,
-        if (reason != null)
-          'details': [
-            {'reason': reason},
-          ],
-      },
-    });
+String _errorBody(String type, String message) => jsonEncode({
+  'type': 'error',
+  'error': {'type': type, 'message': message},
+});
 
 /// Answers model calls from a script, and records what was asked.
 class _Server {
@@ -127,16 +116,17 @@ class _Server {
   });
 
   List<http.Request> get calls => requests
-      .where((r) => r.url.path.contains(':generateContent'))
+      .where((r) => r.url.path.endsWith('/messages'))
       .toList(growable: false);
 
   Map<String, Object?> get lastBody =>
       jsonDecode(calls.last.body) as Map<String, Object?>;
 
+  /// Everything the model was given: the standing instructions and the trip.
   String get lastPrompt {
-    final contents = lastBody['contents'] as List;
-    final parts = (contents.first as Map)['parts'] as List;
-    return (parts.first as Map)['text'] as String;
+    final messages = lastBody['messages'] as List;
+    final user = (messages.first as Map)['content'] as String;
+    return '${lastBody['system']}\n$user';
   }
 }
 
@@ -146,11 +136,9 @@ http.Response _ok(String body) =>
 http.Response _fail(int status, String body) =>
     http.Response(body, status, headers: {'content-type': 'application/json'});
 
-GeminiItineraryGenerator _generator(_Server server) =>
-    GeminiItineraryGenerator(
+ClaudeItineraryGenerator _generator(_Server server) =>
+    ClaudeItineraryGenerator(
       apiKey: 'k',
-      // Pinned, so a script does not have to answer a catalogue lookup first.
-      model: 'gemini-flash-latest',
       httpClient: server.client,
       retry: _fast,
     );
@@ -188,19 +176,23 @@ void main() {
       expect(server.lastPrompt, contains("TRAVELLER'S OWN NOTE"));
     });
 
-    test('the reply is asked for as JSON against a schema', () async {
+    test('the reply is forced into a schema rather than asked for', () async {
       final server = _Server([(_) => _ok(_reply(days: 3))]);
       await _generator(server).generate(_request());
 
-      final config = server.lastBody['generationConfig'] as Map;
-      expect(config['responseMimeType'], 'application/json');
-      expect(config['responseSchema'], isA<Map>());
-      expect(config['maxOutputTokens'], isA<int>());
+      final body = server.lastBody;
+      final tools = body['tools'] as List;
+      final tool = tools.single as Map;
+
+      expect(tool['name'], ClaudeItineraryGenerator.toolName);
+      expect((tool['input_schema'] as Map)['type'], 'object');
+      expect(body['max_tokens'], isA<int>());
       expect(
-        (config['thinkingConfig'] as Map)['thinkingBudget'],
-        0,
-        reason: 'thinking is what made extraction time out; same budget here',
+        (body['tool_choice'] as Map)['name'],
+        ClaudeItineraryGenerator.toolName,
+        reason: 'forced, so there is no path where it answers in prose',
       );
+      expect(body['model'], contains('haiku'));
     });
   });
 
@@ -300,19 +292,13 @@ void main() {
   });
 
   group('every way it can fail', () {
-    test('a plan that is not JSON is reported, not half-read', () async {
+    test('a reply that answers in prose is reported, not half-read', () async {
       final server = _Server([
         (_) => _ok(
           jsonEncode({
-            'candidates': [
-              {
-                'finishReason': 'STOP',
-                'content': {
-                  'parts': [
-                    {'text': 'not json at all'},
-                  ],
-                },
-              },
+            'stop_reason': 'end_turn',
+            'content': [
+              {'type': 'text', 'text': 'Day one: go to the beach.'},
             ],
           }),
         ),
@@ -325,7 +311,7 @@ void main() {
 
     test('an empty reply is reported', () async {
       final server = _Server([
-        (_) => _ok(jsonEncode({'candidates': <Object>[]})),
+        (_) => _ok(jsonEncode({'content': <Object>[]})),
       ]);
       await expectLater(
         _generator(server).generate(_request()),
@@ -337,16 +323,13 @@ void main() {
       final server = _Server([
         (_) => _ok(
           jsonEncode({
-            'candidates': [
+            'stop_reason': 'tool_use',
+            'content': [
               {
-                'finishReason': 'STOP',
-                'content': {
-                  'parts': [
-                    {
-                      'text': jsonEncode({'days': <Object>[]}),
-                    },
-                  ],
-                },
+                'type': 'tool_use',
+                'id': 'toolu_1',
+                'name': ClaudeItineraryGenerator.toolName,
+                'input': {'days': <Object>[]},
               },
             ],
           }),
@@ -358,19 +341,17 @@ void main() {
       );
     });
 
-    test('a blocked prompt does not leak the filter category', () async {
+    test('a refused request does not leak why it was refused', () async {
       final server = _Server([
         (_) => _ok(
-          jsonEncode({
-            'promptFeedback': {'blockReason': 'SAFETY'},
-          }),
+          jsonEncode({'stop_reason': 'refusal', 'content': <Object>[]}),
         ),
       ]);
       try {
         await _generator(server).generate(_request());
         fail('expected an ItineraryException');
       } on ItineraryException catch (e) {
-        expect(e.message.toLowerCase(), isNot(contains('safety')));
+        expect(e.message.toLowerCase(), isNot(contains('refus')));
         expect(e.message.toLowerCase(), contains('plan'));
       }
     });
@@ -378,27 +359,22 @@ void main() {
     test('a rejected key fails at once and names the setting', () async {
       final server = _Server([
         (_) => _fail(
-          400,
-          _errorBody(
-            400,
-            'INVALID_ARGUMENT',
-            'API key not valid',
-            reason: 'API_KEY_INVALID',
-          ),
+          401,
+          _errorBody('authentication_error', 'invalid x-api-key'),
         ),
       ]);
       try {
         await _generator(server).generate(_request());
         fail('expected an ItineraryException');
       } on ItineraryException catch (e) {
-        expect(e.message, contains('GEMINI_API_KEY'));
+        expect(e.message, contains('ANTHROPIC_API_KEY'));
       }
       expect(server.calls, hasLength(1), reason: 'a bad key is not retried');
     });
 
     test('a busy service is retried, then reported in plain words', () async {
-      final overloaded = _errorBody(503, 'UNAVAILABLE', 'high demand');
-      final server = _Server([(_) => _fail(503, overloaded)]);
+      final overloaded = _errorBody('overloaded_error', 'high demand');
+      final server = _Server([(_) => _fail(529, overloaded)]);
       try {
         await _generator(server).generate(_request());
         fail('expected an ItineraryException');
@@ -406,9 +382,10 @@ void main() {
         expect(server.calls.length, greaterThan(1));
         final lower = e.message.toLowerCase();
         for (final word in [
-          'gemini',
+          'claude',
+          'anthropic',
           'http',
-          '503',
+          '529',
           '429',
           'unavailable',
           'json',
@@ -422,14 +399,14 @@ void main() {
 
     test('a rate limit says so without blaming the key', () async {
       final server = _Server([
-        (_) => _fail(429, _errorBody(429, 'RESOURCE_EXHAUSTED', 'quota')),
+        (_) => _fail(429, _errorBody('rate_limit_error', 'quota')),
       ]);
       try {
         await _generator(server).generate(_request());
         fail('expected an ItineraryException');
       } on ItineraryException catch (e) {
         expect(e.message, contains("today's limit"));
-        expect(e.message, isNot(contains('GEMINI_API_KEY')));
+        expect(e.message, isNot(contains('ANTHROPIC_API_KEY')));
       }
     });
 

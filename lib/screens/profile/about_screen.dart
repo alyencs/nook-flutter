@@ -138,8 +138,8 @@ class AboutScreen extends StatelessWidget {
       (
         'What leaves the device',
         'One thing, and only when you save a link: the link itself is sent to '
-            'Google Gemini so the destination, category and summary can be '
-            'read from it. That happens only in a build configured with an API '
+            "Nook's AI service so the destination, category and summary can "
+            'be read from it. That happens only in a build configured with an API '
             'key. The published web build has none and uses sample data '
             'instead, which it says on screen. Your notes, your profile and '
             'your trips are never sent anywhere.',
