@@ -274,8 +274,9 @@ class ClaudeExtractor implements AiExtractor {
         'type': ['number', 'null'],
         'description':
             'Decimal degrees of the most specific place named above — the '
-            'venue or landmark itself, not the city containing it. Null '
-            'unless the location is specific enough to have a single point.',
+            'venue or landmark itself, not the city containing it. For a city, '
+            'region or country, its own centre. Null only when the post names '
+            'nowhere at all.',
       },
       'longitude': {'type': ['number', 'null']},
       'places': {
@@ -347,9 +348,11 @@ nulls; you will be wrong if you guess.
   when the neighbourhood is not either. Never return a city centroid while a
   more specific place_name is set: a pin standing in the middle of a city under
   a label naming a mountain is wrong, not approximate.
-  For a whole country or region ("Japan", "Southeast Asia") return null for
-  both, even though you know where the country is. A pin in the middle of a
-  country is a false precision.
+  Always give a pair when the post names anywhere at all, however broad. A
+  post about Korea gets Korea's centre, one about Southeast Asia gets the
+  region's; the app zooms the map out to match how specific the place is, so a
+  broad answer is shown as a broad area rather than as a false pin. Return null
+  for both only when the post names no place whatsoever.
 - places: every specific venue the source names, in the order it names them. A
   post titled "5 Cafes in Kyoto" whose description lists five cafes should
   return five entries, each with whatever the source gives — a district, a
@@ -462,15 +465,6 @@ call it more than once.
     final title = source.title ?? string('title') ?? _titleFromUrl(url);
     final creator = source.creator ?? string('creator');
 
-    // A pin needs somewhere specific to point. Country-level coordinates are
-    // dropped even when the model returns them: a marker in the middle of Japan
-    // claims a precision the post never had.
-    final specific =
-        placeName != null ||
-        neighbourhood != null ||
-        city != null ||
-        string('address') != null;
-
     return ExtractionResult(
       title: title,
       caption: string('caption') ?? source.description,
@@ -497,8 +491,10 @@ call it more than once.
       summary: string('summary'),
       bestTime: string('best_time'),
       budgetNote: string('budget_note'),
-      latitude: placeable && specific ? latitude : null,
-      longitude: placeable && specific ? longitude : null,
+      // Kept whatever the scale: how specific the place is decides how far the
+      // map zooms out, not whether there is a map at all.
+      latitude: placeable ? latitude : null,
+      longitude: placeable ? longitude : null,
       // Worked out from the link and the source rather than asked of the model:
       // a language model cannot know a thumbnail URL, and would invent one.
       // Already in flight since before the model call.

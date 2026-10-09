@@ -31,8 +31,9 @@ enum MapInteraction {
 /// `flutter_map` with OpenStreetMap tiles: no key, no billing account, and it
 /// runs on the web. Attribution is required by the tile usage policy.
 ///
-/// A post reaches this only when extraction returned coordinates; a missing or
-/// too-broad destination gets [PostMapPlaceholder] instead.
+/// Every post that names anywhere gets a map — a venue, a city, a country —
+/// and [PostMap.zoom] is what differs. A post with no location at all, or one
+/// whose place could not be found, gets [PostMapPlaceholder].
 class PostMap extends StatefulWidget {
   const PostMap({
     super.key,

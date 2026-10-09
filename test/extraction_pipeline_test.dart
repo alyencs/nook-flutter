@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:nook/ai/claude_api.dart';
 import 'package:nook/ai/claude_extractor.dart';
+import 'package:nook/ai/location_scope.dart';
 import 'package:nook/ai/post_place.dart';
 import 'package:nook/ai/source_metadata.dart';
 import 'package:nook/data/daos/posts_dao.dart';
@@ -239,13 +240,12 @@ void main() {
   });
 
   group('nothing is invented', () {
-    test('a country-only answer gets no map pin', () async {
+    test('a country-only answer is mapped as a country', () async {
       final pipeline = _Pipeline(
         fields: {
           'title': 'A trip to Japan',
           'category': 'Travel',
           'country': 'Japan',
-          // A model that returns the centre of the country anyway.
           'latitude': 36.2048,
           'longitude': 138.2529,
         },
@@ -253,15 +253,14 @@ void main() {
       final result = await _extractor(pipeline).extract(_url);
 
       expect(result.country, 'Japan');
+      expect(result.destination, 'Japan');
       expect(result.hasPreciseLocation, isFalse);
       expect(
         result.hasCoordinates,
-        isFalse,
-        reason:
-            'a pin in the middle of Japan is a precision the post '
-            'never had',
+        isTrue,
+        reason: 'the map is not withheld because the place is large',
       );
-      expect(result.destination, 'Japan');
+      expect(result.locationScope, LocationScope.country);
     });
 
     test('a post with no location at all stays empty', () async {
@@ -277,7 +276,7 @@ void main() {
       expect(result.hasCoordinates, isFalse);
     });
 
-    test('a neighbourhood is precise enough to pin', () async {
+    test('a neighbourhood is framed closer than a country', () async {
       final pipeline = _Pipeline(
         fields: {
           'title': 'Walking Nakazakicho',
@@ -294,6 +293,11 @@ void main() {
       expect(result.hasPreciseLocation, isTrue);
       expect(result.hasCoordinates, isTrue);
       expect(result.destination, 'Nakazakicho, Osaka');
+      expect(result.locationScope, LocationScope.district);
+      expect(
+        result.locationScope.zoom,
+        greaterThan(LocationScope.country.zoom),
+      );
     });
   });
 

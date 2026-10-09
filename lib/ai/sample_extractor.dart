@@ -256,6 +256,10 @@ const _fixtures = <_Fixture>[
         'road: bed quality, water pressure and whether the common room is bearable.',
     bestTime: 'November–March',
     budgetNote: '~\$15/night for a dorm bed',
+    // The region's own centre. Broad, and shown as a broad area: the map zooms
+    // out to match rather than refusing to draw one.
+    latitude: 11.0,
+    longitude: 106.0,
   ),
   _Fixture(
     keywords: ['pack', 'carry-on', 'luggage'],

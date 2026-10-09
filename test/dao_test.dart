@@ -82,9 +82,19 @@ void main() {
         expect(post.aiLongitude!.abs(), lessThanOrEqualTo(180));
       }
 
-      // A region-wide destination has no single point, and says so with a null.
-      final region = all.firstWhere((p) => p.aiDestination == 'Southeast Asia');
-      expect(region.aiLatitude, isNull);
+      // Every seeded post that names a place carries its coordinates. The one
+      // that names nowhere — a packing guide — is the only one without, and
+      // that is a post with no location rather than a location too broad to
+      // show.
+      for (final post in all) {
+        final named =
+            post.aiDestination != null && post.aiDestination != 'Anywhere';
+        expect(
+          post.aiLatitude != null,
+          named,
+          reason: '${post.title} (${post.aiDestination})',
+        );
+      }
     },
   );
 

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nook/ai/ai_extractor.dart';
 import 'package:nook/ai/categories.dart';
 import 'package:nook/ai/platform_from_url.dart';
+import 'package:nook/ai/location_scope.dart';
 import 'package:nook/ai/sample_extractor.dart';
 import 'package:nook/ai/thumbnail_from_url.dart';
 
@@ -135,20 +136,29 @@ void main() {
       expect(result.creator, '@ramenhunter');
     });
 
-    test('gives placeable destinations coordinates, and regions none', () async {
+    test('places every destination, however broad', () async {
       final kyoto = await extractor.extract(
         'https://www.tiktok.com/@wanderwithmia/video/5-hidden-cafes-in-kyoto',
       );
       expect(kyoto.hasCoordinates, isTrue);
       expect(kyoto.latitude, closeTo(35.0, 1.0));
       expect(kyoto.longitude, closeTo(135.8, 1.0));
+      expect(kyoto.locationScope, LocationScope.city);
 
-      // "Top 10 Hostels in Southeast Asia" covers a region, not a point.
+      // "Top 10 Hostels in Southeast Asia" covers a region rather than a point,
+      // and is still somewhere: it gets the region's centre, and a map zoomed
+      // out far enough to show it as one.
       final region = await extractor.extract(
         'https://www.tiktok.com/@budgetroamer/video/top-10-hostels-southeast-asia',
       );
       expect(region.destination, 'Southeast Asia');
-      expect(region.hasCoordinates, isFalse);
+      expect(region.hasCoordinates, isTrue);
+      expect(region.hasPreciseLocation, isFalse);
+      expect(
+        region.locationScope.zoom,
+        lessThan(kyoto.locationScope.zoom),
+        reason: 'a region is framed wider than a city',
+      );
     });
 
     test('always returns a category from the vocabulary', () async {

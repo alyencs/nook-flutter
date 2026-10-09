@@ -7,6 +7,8 @@ import '../../theme/nook_spacing.dart';
 import '../../theme/nook_typography.dart';
 import '../../widgets/nook_app_bar.dart';
 import '../../widgets/nook_buttons.dart';
+import '../../ai/geocoder.dart';
+import '../../ai/location_scope.dart';
 import '../../ai/post_place.dart';
 import '../../widgets/nook_rule.dart';
 import '../../widgets/nook_scaffold.dart';
@@ -147,40 +149,7 @@ class TravelDetailsScreen extends StatelessWidget {
               const SizedBox(height: NookSpacing.block),
               const OverlineLabel('Map location'),
               const SizedBox(height: NookSpacing.tight),
-              if (post.aiLatitude != null && post.aiLongitude != null)
-                Builder(
-                  builder: (context) {
-                    // Most specific first: the cafe before its district, the
-                    // district before the city. Extraction already refuses to
-                    // give coordinates to anything broader than a city, so
-                    // this never labels a pin with a country.
-                    final label =
-                        post.aiPlaceName ??
-                        post.aiNeighbourhood ??
-                        post.aiCity ??
-                        _cityOf(post.aiDestination) ??
-                        post.aiDestination ??
-                        'Saved location';
-                    return PostMap(
-                      latitude: post.aiLatitude!,
-                      longitude: post.aiLongitude!,
-                      label: label,
-                      onTap: () => MapScreen.open(
-                        context,
-                        latitude: post.aiLatitude!,
-                        longitude: post.aiLongitude!,
-                        label: label,
-                      ),
-                    );
-                  },
-                )
-              else
-                PostMapPlaceholder(
-                  reason: post.aiDestination == null
-                      ? 'No destination was detected for this post, so there is '
-                            'nothing to pin yet. Add one from the post to place it.'
-                      : '"${post.aiDestination}" is too broad to place on a map.',
-                ),
+              _MapSection(post: post),
               const SizedBox(height: NookSpacing.block),
               const Divider(),
               _MetaRow(
@@ -215,6 +184,149 @@ class TravelDetailsScreen extends StatelessWidget {
     if (destination == null) return null;
     final parts = destination.split(',');
     return parts.length < 2 ? null : parts.last.trim();
+  }
+}
+
+/// The map for one post, and the lookup that places a post saved without
+/// coordinates.
+///
+/// Every post that names anywhere gets a map; how specific that place is
+/// decides how far the map is zoomed out, not whether there is one. A post
+/// whose extraction returned a place but no point — or one saved before
+/// coordinates were kept for broad places — is looked up once, and the answer
+/// is written back onto the row so the question is not asked again.
+class _MapSection extends StatefulWidget {
+  const _MapSection({required this.post});
+
+  final SavedPost post;
+
+  @override
+  State<_MapSection> createState() => _MapSectionState();
+}
+
+class _MapSectionState extends State<_MapSection> {
+  /// True while a lookup is running, so the panel says it is working rather
+  /// than claiming the post cannot be placed.
+  bool _looking = false;
+
+  /// Set when a lookup finished and found nothing. The stream behind this
+  /// screen ticks on every write, and without this the same dead query would
+  /// be sent on every tick.
+  bool _unresolved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resolve());
+  }
+
+  @override
+  void didUpdateWidget(covariant _MapSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The destination was edited, so a query that failed before is worth asking
+    // again.
+    if (oldWidget.post.aiDestination != widget.post.aiDestination) {
+      _unresolved = false;
+      _resolve();
+    }
+  }
+
+  Future<void> _resolve() async {
+    if (!mounted || _looking || _unresolved) return;
+
+    final post = widget.post;
+    if (post.aiLatitude != null && post.aiLongitude != null) return;
+
+    final query = GeocodeQuery.forPost(
+      placeName: post.aiPlaceName,
+      address: post.aiAddress,
+      neighbourhood: post.aiNeighbourhood,
+      city: post.aiCity,
+      region: post.aiRegion,
+      country: post.aiCountry,
+      destination: post.aiDestination,
+    );
+    if (query == null) return;
+
+    // Both resolved before the await, so nothing reads a BuildContext across
+    // one.
+    final geocoder = AppScope.of(context).geocoder;
+    final posts = AppScope.of(context).posts;
+
+    setState(() => _looking = true);
+    final point = await geocoder.lookup(query);
+    if (!mounted) return;
+
+    if (point == null) {
+      setState(() {
+        _looking = false;
+        _unresolved = true;
+      });
+      return;
+    }
+
+    await posts.updateCoordinates(post.id, point.latitude, point.longitude);
+    if (mounted) setState(() => _looking = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final post = widget.post;
+    final scope = LocationScope.of(
+      placeName: post.aiPlaceName,
+      address: post.aiAddress,
+      neighbourhood: post.aiNeighbourhood,
+      city: post.aiCity,
+      region: post.aiRegion,
+      country: post.aiCountry,
+      destination: post.aiDestination,
+    );
+
+    // Most specific first, so the chip over the pin names the thing the map is
+    // framed on: the cafe before its district, the country before "somewhere".
+    final label =
+        post.aiPlaceName ??
+        post.aiNeighbourhood ??
+        post.aiCity ??
+        post.aiRegion ??
+        post.aiCountry ??
+        TravelDetailsScreen._cityOf(post.aiDestination) ??
+        post.aiDestination ??
+        'Saved location';
+
+    if (post.aiLatitude != null && post.aiLongitude != null) {
+      return PostMap(
+        latitude: post.aiLatitude!,
+        longitude: post.aiLongitude!,
+        label: label,
+        zoom: scope.zoom,
+        onTap: () => MapScreen.open(
+          context,
+          latitude: post.aiLatitude!,
+          longitude: post.aiLongitude!,
+          label: label,
+          zoom: scope.zoom,
+        ),
+      );
+    }
+
+    if (_looking) {
+      return const PostMapPlaceholder(
+        reason: 'Looking up where this is…',
+      );
+    }
+
+    if (!scope.isMappable) {
+      return const PostMapPlaceholder(
+        reason: 'No destination was detected for this post, so there is '
+            'nothing to place yet. Add one from the post to put it on the map.',
+      );
+    }
+
+    return PostMapPlaceholder(
+      reason: 'We could not find "$label" on the map. It may be spelt '
+          'differently, or be somewhere the map data does not name.',
+    );
   }
 }
 
