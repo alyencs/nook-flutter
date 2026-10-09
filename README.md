@@ -183,6 +183,10 @@ flutter build web --release
 dart run build_runner build --delete-conflicting-outputs   # after editing lib/data/tables.dart
 ```
 
+Which commit is live is readable at
+`https://<username>.github.io/<repo>/build.txt`: a run that fails to deploy
+leaves the previous build up, and from the browser the two look the same.
+
 There is no flag for the phone frame. `DemoFrame`
 (`lib/widgets/demo_frame.dart`) draws one when the window is wider than a
 phone and stands aside when it is not, so a narrow window — or a phone — gets

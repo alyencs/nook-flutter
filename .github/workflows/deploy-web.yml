@@ -111,6 +111,34 @@ jobs:
           flutter build web --release \
             --base-href "/${{ github.event.repository.name }}/"
 
+      # The app registers no service worker any more, but builds up to 9
+      # October did, and that worker is still in the browser of anyone who
+      # opened the link then. It answers from its own cache, so those visitors
+      # keep being served the bundle it cached however many times this
+      # workflow succeeds. Only a worker can replace a worker: the build
+      # writes flutter_service_worker.js, and this overwrites it with one that
+      # empties the caches, unregisters itself and reloads the tab. The browser
+      # re-checks that URL on its own, so nobody has to clear anything.
+      - name: Retire the old service worker
+        if: steps.check.outputs.ready == 'true'
+        run: cp web/retire_service_worker.js build/web/flutter_service_worker.js
+
+      # Which commit is actually live, readable at
+      # <username>.github.io/<repo>/build.txt. Pages can serve a build older
+      # than the last green run — a run that failed to deploy leaves the
+      # previous one up — and without this there is no way to tell from the
+      # browser which one you are looking at.
+      - name: Stamp the build
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          {
+            echo "commit:    ${{ github.sha }}"
+            echo "ref:       ${{ github.ref_name }}"
+            echo "built:     $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "run:       ${{ github.run_id }}"
+          } > build/web/build.txt
+          cat build/web/build.txt
+
       - if: steps.check.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
