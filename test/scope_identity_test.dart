@@ -1,4 +1,3 @@
-import 'package:device_preview/device_preview.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,15 +5,24 @@ import 'package:nook/ai/claude_extractor.dart';
 import 'package:nook/app_scope.dart';
 import 'package:nook/data/database.dart';
 
-/// The app scope must outlive DevicePreview's rebuilds.
+/// The app scope must outlive the rebuilds of everything under it.
 ///
-/// `DevicePreview` calls its `builder` again on every preview change — four
-/// times before the first frame has settled, in this test. When `AppScope` was
-/// built in there, each of those calls produced a new `ClaudeExtractor`,
-/// throwing away the in-flight request map that stops duplicate model calls
-/// and the resolved-model cache, and making `AppScope.updateShouldNotify`
-/// return true every time so that every dependent in the app rebuilt.
+/// A builder that wraps the app — the one `MaterialApp.builder` takes, or any
+/// `LayoutBuilder` — runs again on every resize. When `AppScope` was built in
+/// one of those, each call produced a new `ClaudeExtractor`, throwing away the
+/// in-flight request map that stops duplicate model calls and the
+/// resolved-model cache, and making `AppScope.updateShouldNotify` return true
+/// every time so that every dependent in the app rebuilt.
+///
+/// `main()` therefore builds the scope once, above everything, and these two
+/// tests are the before and after of that.
 void main() {
+  /// A wrapper that reruns its builder when the window changes, which is the
+  /// one property of the real wrapper that matters here.
+  Widget rebuildsOnResize(WidgetBuilder builder) =>
+      MediaQuery.fromView(view: WidgetsBinding.instance.platformDispatcher.views.first,
+          child: LayoutBuilder(builder: (context, _) => builder(context)));
+
   testWidgets('building the scope inside the builder churns the extractor', (
     tester,
   ) async {
@@ -24,32 +32,23 @@ void main() {
     final seen = <Object>{};
     var builderCalls = 0;
 
-    Widget tree() => DevicePreview(
-      enabled: true,
-      storage: DevicePreviewStorage.none(),
-      builder: (context) {
-        builderCalls++;
-        // Exactly what main() does today.
-        final scope = AppScope(
-          db: db,
-          tab: tab,
-          // NookAi.createExtractor() with a key in .env returns a new
-          // ClaudeExtractor every call; without one it returns a const
-          // SampleExtractor, which would hide the churn. The keyed path is
-          // the one the user runs.
-          extractor: ClaudeExtractor(apiKey: 'k'),
-          child: const SizedBox.shrink(),
-        );
-        seen.add(scope.extractor);
-        return scope;
-      },
-    );
+    Widget tree() => rebuildsOnResize((context) {
+      builderCalls++;
+      final scope = AppScope(
+        db: db,
+        tab: tab,
+        // NookAi.createExtractor() with a key in .env returns a new
+        // ClaudeExtractor every call; without one it returns a const
+        // SampleExtractor, which would hide the churn. The keyed path is
+        // the one the user runs.
+        extractor: ClaudeExtractor(apiKey: 'k'),
+        child: const SizedBox.shrink(),
+      );
+      seen.add(scope.extractor);
+      return scope;
+    });
 
     await tester.pumpWidget(tree());
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-    // Force more preview rebuilds the way a resize or a panel change would.
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pump();
     tester.view.physicalSize = const Size(900, 700);
@@ -59,7 +58,7 @@ void main() {
     expect(
       builderCalls,
       greaterThan(1),
-      reason: 'DevicePreview reruns its builder; that is the premise',
+      reason: 'a wrapper reruns its builder; that is the premise',
     );
     expect(
       seen,
@@ -68,7 +67,7 @@ void main() {
     );
   });
 
-  testWidgets('hoisted above DevicePreview, the scope is built once', (
+  testWidgets('hoisted above the builder, the scope is built once', (
     tester,
   ) async {
     final db = NookDatabase.forTesting(NativeDatabase.memory());
@@ -82,20 +81,13 @@ void main() {
       db: db,
       tab: tab,
       extractor: extractor,
-      child: DevicePreview(
-        enabled: true,
-        storage: DevicePreviewStorage.none(),
-        builder: (context) {
-          builderCalls++;
-          return const SizedBox.shrink();
-        },
-      ),
+      child: rebuildsOnResize((context) {
+        builderCalls++;
+        return const SizedBox.shrink();
+      }),
     );
 
     await tester.pumpWidget(tree());
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pump();
     tester.view.physicalSize = const Size(900, 700);
@@ -108,7 +100,7 @@ void main() {
     expect(
       scopes.single.extractor,
       same(extractor),
-      reason: 'the extractor survives every preview rebuild',
+      reason: 'the extractor survives every rebuild above it',
     );
   });
 }

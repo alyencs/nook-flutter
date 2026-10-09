@@ -1,4 +1,3 @@
-import 'package:device_preview/device_preview.dart';
 import 'package:flutter/material.dart';
 
 import 'app_scope.dart';
@@ -8,6 +7,7 @@ import 'screens/add/paste_link_screen.dart';
 import 'screens/onboarding/splash_screen.dart';
 import 'screens/root_shell.dart';
 import 'theme/nook_theme.dart';
+import 'widgets/demo_frame.dart';
 
 class NookApp extends StatelessWidget {
   const NookApp({super.key});
@@ -18,8 +18,10 @@ class NookApp extends StatelessWidget {
       title: 'Nook',
       debugShowCheckedModeBanner: false,
       theme: NookTheme.theme,
-      locale: DevicePreview.locale(context),
-      builder: DevicePreview.appBuilder,
+      // Inside MaterialApp, not above it: MaterialApp rebuilds the
+      // MediaQuery from the browser window, so a size set higher up is
+      // thrown away. Every route, dialog and snackbar lands inside the frame.
+      builder: (context, child) => DemoFrame(child: child ?? const SizedBox()),
       home: const _LaunchGate(),
     );
   }
