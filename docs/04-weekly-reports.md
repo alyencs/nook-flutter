@@ -700,6 +700,26 @@ phone proportions on a wide window and stands aside on a narrow one, which is
 all the dev tool was wanted for. `demo_frame_test.dart` asserts the part that
 matters: that five taps in a row all reach the button, at three window sizes.
 
+One more thing had to be dealt with before any of that could reach a browser.
+The builds up to this point registered Flutter's generated service worker, and
+a service worker answers navigations from its own cache first. Anyone who had
+opened the live link while one of those builds was up still had that worker,
+so every later deploy succeeded and they kept being handed the bundle it had
+cached — the files on the server changed and the page did not. Removing the
+registration from the bootstrap does nothing about it, because a worker
+already in a browser does not consult the page, and clearing site data does
+not reliably unregister one that is controlling an open tab.
+
+Only a worker can replace a worker, so the deploy writes one:
+`web/retire_service_worker.js` is copied over `flutter_service_worker.js`
+after the build, and it claims the open clients, empties Cache Storage,
+unregisters itself and reloads the tab. The browser re-checks that script URL
+on its own, which is what makes this work without the visitor doing anything.
+The deploy also writes `build.txt`, so which commit is live can be read off
+`<username>.github.io/<repo>/build.txt` rather than guessed — Pages keeps
+serving the previous build when a run fails to deploy, and from the browser
+the two are indistinguishable.
+
 Two deployment details went with it. `cp .env.example .env` ran *after*
 `flutter analyze` and `flutter test` in the workflow, so both stopped at "No
 file or variants found for asset: .env" on every run and never reached a line
