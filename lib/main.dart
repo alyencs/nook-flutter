@@ -1,4 +1,3 @@
-import 'package:device_preview/device_preview.dart';
 import 'package:flutter/material.dart';
 
 import 'ai/ai_config.dart';
@@ -16,10 +15,9 @@ Future<void> main() async {
   await NookAi.load();
 
   final db = NookDatabase();
-  // Created once, here, and never inside a builder that reruns: DevicePreview
-  // calls its `builder` on every preview rebuild, and an extractor built in
-  // there would be replaced each time, taking its in-flight request map with
-  // it.
+  // Created once, here, rather than in a builder: a builder runs again on
+  // every resize, and an extractor built in one would be replaced each time,
+  // taking its in-flight request map and its resolved-model cache with it.
   final tab = ValueNotifier<int>(0);
   final extractor = NookAi.createExtractor();
   final itinerary = NookAi.createItineraryGenerator();
@@ -30,27 +28,13 @@ Future<void> main() async {
   await db.seedIfEmpty();
 
   runApp(
-    // AppScope sits above DevicePreview, not inside its builder: DevicePreview
-    // mounts the builder's result under a GlobalKey it attaches in several
-    // branches, so anything built in there is reparented whenever the preview
-    // changes. Up here the scope is one instance, one element, never moved.
     AppScope(
       db: db,
       tab: tab,
       extractor: extractor,
       itinerary: itinerary,
       geocoder: geocoder,
-      // On in release on purpose: the live link is opened on a desktop
-      // browser, where an unframed phone layout looks broken. Build with
-      // --dart-define=NOOK_DEVICE_PREVIEW=false to drop it, which is how the
-      // screenshots in docs/assets are captured.
-      child: DevicePreview(
-        enabled: const bool.fromEnvironment(
-          'NOOK_DEVICE_PREVIEW',
-          defaultValue: true,
-        ),
-        builder: (context) => const NookApp(),
-      ),
+      child: const NookApp(),
     ),
   );
 }

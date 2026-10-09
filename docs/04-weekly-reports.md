@@ -678,6 +678,37 @@ instead of pushing a route over wherever the user now is.
   photographs now; the README still showed the versions without them. Recaptured
   from the current build with the phone frame off.
 
+**Done — the live link became usable.**
+
+GitHub Pages had never been switched on, so every deploy run built the app and
+then failed at `actions/deploy-pages` with a 404. Turning it on (Settings >
+Pages > Source: GitHub Actions) was the whole of that fix — no file changed.
+
+What the live link then showed was a second problem. The deployed build shipped
+`device_preview`, a development tool, wrapped around the whole app. It draws a
+dev toolbar pinned to the bottom of the window, and on a window narrower than
+700pt — every phone — that toolbar is the first thing a thumb finds. Opening it
+puts a sheet over the app and a full-screen `Navigator` in front of it, and
+every setting it offers, the simulated on-screen keyboard included, is written
+to `localStorage`, so a state that hides the app's buttons is restored on the
+next load rather than cleared by one. There is no console on a live link; it
+just looks like an app that does not respond.
+
+It is gone, replaced by `DemoFrame` — a `Center`, a `SizedBox` and a border,
+about forty lines, no overlay and no second `Navigator`. It holds the app at
+phone proportions on a wide window and stands aside on a narrow one, which is
+all the dev tool was wanted for. `demo_frame_test.dart` asserts the part that
+matters: that five taps in a row all reach the button, at three window sizes.
+
+Two deployment details went with it. `cp .env.example .env` ran *after*
+`flutter analyze` and `flutter test` in the workflow, so both stopped at "No
+file or variants found for asset: .env" on every run and never reached a line
+of Dart — green-looking checks over a build they had not read. It runs before
+them now. And the service worker was registered but bought nothing: Nook's
+database is already on the device, so all it did was serve the previous deploy
+to anyone who had opened the link before. The bootstrap unregisters it and
+clears its caches instead.
+
 **Next.** The 40-link extraction test, still outstanding, on a real network with
 a real key. Five tests in `dao_test.dart` and `widget_test.dart` assert counts
 and coordinates that the current demo seed no longer matches, and need updating
