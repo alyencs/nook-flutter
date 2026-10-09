@@ -2,6 +2,7 @@ import 'package:device_preview/device_preview.dart';
 import 'package:flutter/material.dart';
 
 import 'ai/ai_config.dart';
+import 'ai/geocoder.dart';
 import 'app.dart';
 import 'app_scope.dart';
 import 'data/database.dart';
@@ -22,6 +23,9 @@ Future<void> main() async {
   final tab = ValueNotifier<int>(0);
   final extractor = NookAi.createExtractor();
   final itinerary = NookAi.createItineraryGenerator();
+  // No key and no billing account, so this runs in every build, deployed
+  // included: it is the same OpenStreetMap project the tiles come from.
+  final geocoder = NominatimGeocoder();
   // Belt and braces: the seed normally runs when the database is created.
   await db.seedIfEmpty();
 
@@ -35,6 +39,7 @@ Future<void> main() async {
       tab: tab,
       extractor: extractor,
       itinerary: itinerary,
+      geocoder: geocoder,
       // On in release on purpose: the live link is opened on a desktop
       // browser, where an unframed phone layout looks broken. Build with
       // --dart-define=NOOK_DEVICE_PREVIEW=false to drop it, which is how the

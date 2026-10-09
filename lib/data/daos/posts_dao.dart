@@ -94,6 +94,17 @@ class PostsDao {
     );
   }
 
+  /// Stores coordinates resolved after the fact, so a post saved without them
+  /// is looked up once rather than on every visit to Travel Details.
+  Future<void> updateCoordinates(int id, double latitude, double longitude) {
+    return (_db.update(_db.savedPosts)..where((p) => p.id.equals(id))).write(
+      SavedPostsCompanion(
+        aiLatitude: Value(latitude),
+        aiLongitude: Value(longitude),
+      ),
+    );
+  }
+
   Future<void> updateDetected(int id, {String? destination, String? category}) {
     return (_db.update(_db.savedPosts)..where((p) => p.id.equals(id))).write(
       SavedPostsCompanion(

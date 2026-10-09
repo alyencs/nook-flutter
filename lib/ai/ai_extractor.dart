@@ -1,3 +1,4 @@
+import 'location_scope.dart';
 import 'post_place.dart';
 import 'source_metadata.dart';
 
@@ -100,15 +101,25 @@ class ExtractionResult {
 
   bool get hasCoordinates => latitude != null && longitude != null;
 
-  /// Whether the location is specific enough to be worth a map pin.
-  ///
-  /// A country name is a true answer but not a place: dropping a marker on the
-  /// middle of Japan claims a precision the source never had.
+  /// Whether the location is a particular spot rather than a whole city,
+  /// region or country. Decides how closely the map is framed, not whether
+  /// there is one: every located post gets a map.
   bool get hasPreciseLocation =>
       placeName != null ||
       address != null ||
       neighbourhood != null ||
       city != null;
+
+  /// How specific the location is, which is what the map zooms to.
+  LocationScope get locationScope => LocationScope.of(
+    placeName: placeName,
+    address: address,
+    neighbourhood: neighbourhood,
+    city: city,
+    region: region,
+    country: country,
+    destination: destination,
+  );
 
   /// True when this came from [SampleExtractor], so the UI can say so out loud
   /// instead of passing invented data off as a real extraction.

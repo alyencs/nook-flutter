@@ -19,11 +19,16 @@ class MapScreen extends StatelessWidget {
     required this.latitude,
     required this.longitude,
     required this.label,
+    this.zoom = 14,
   });
 
   final double latitude;
   final double longitude;
   final String label;
+
+  /// Opens at the frame the preview was showing, so a country does not arrive
+  /// as a street corner.
+  final double zoom;
 
   /// Pushes the screen. Kept here so callers do not each rebuild the route.
   static Future<void> open(
@@ -31,11 +36,16 @@ class MapScreen extends StatelessWidget {
     required double latitude,
     required double longitude,
     required String label,
+    double zoom = 14,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            MapScreen(latitude: latitude, longitude: longitude, label: label),
+        builder: (_) => MapScreen(
+          latitude: latitude,
+          longitude: longitude,
+          label: label,
+          zoom: zoom,
+        ),
       ),
     );
   }
@@ -74,6 +84,7 @@ class MapScreen extends StatelessWidget {
                   latitude: latitude,
                   longitude: longitude,
                   label: label,
+                  zoom: zoom,
                   interaction: MapInteraction.full,
                 ),
               ),

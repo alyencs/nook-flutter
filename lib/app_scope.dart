@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'ai/ai_extractor.dart';
+import 'ai/geocoder.dart';
 import 'ai/itinerary_generator.dart';
 import 'ai/sample_itinerary_generator.dart';
 import 'data/daos/posts_dao.dart';
@@ -23,7 +24,9 @@ class AppScope extends InheritedWidget {
     required this.tab,
     required super.child,
     ItineraryGenerator? itinerary,
+    Geocoder? geocoder,
   }) : itinerary = itinerary ?? const SampleItineraryGenerator(),
+       geocoder = geocoder ?? const NoGeocoder(),
        posts = PostsDao(db),
        trips = TripsDao(db),
        users = UsersDao(db),
@@ -36,6 +39,10 @@ class AppScope extends InheritedWidget {
   /// Plans a trip from the posts saved into it. Defaults to the sample
   /// planner, so a screen or a test can be built without wiring one up.
   final ItineraryGenerator itinerary;
+
+  /// Places a post that was saved without coordinates. Defaults to the one that
+  /// answers nothing, so a widget test makes no network call unless it asks to.
+  final Geocoder geocoder;
 
   /// Which root tab is showing. Shared rather than held in [RootShell] because
   /// the profile sub-screens are pushed routes that still draw the tab bar, and
@@ -58,5 +65,6 @@ class AppScope extends InheritedWidget {
       db != oldWidget.db ||
       extractor != oldWidget.extractor ||
       itinerary != oldWidget.itinerary ||
+      geocoder != oldWidget.geocoder ||
       tab != oldWidget.tab;
 }

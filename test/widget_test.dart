@@ -323,17 +323,18 @@ void main() {
   // rendered map is checked in the browser.
 
   testWidgets(
-    'a post with no coordinates keeps the placeholder, and says why',
+    'a post that is about nowhere keeps the placeholder, and says why',
     (tester) async {
-      // "Southeast Asia" is a region, not a point, so extraction returns no
-      // coordinates and the mockup's placeholder stands in.
-      final id = await postId(tester, 'Top 10 Hostels in Southeast Asia');
+      // A packing guide is not a place. Nothing can be looked up for it, and
+      // the mockup's placeholder stands in — but breadth is never the reason a
+      // map is withheld, so the message must not claim it is.
+      final id = await postId(tester, 'How to Pack for 2 Weeks in a Carry-On');
       await pumpApp(tester, db, TravelDetailsScreen(postId: id));
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.byType(PostMapPlaceholder), findsOneWidget);
       expect(find.byType(PostMap), findsNothing);
-      expect(find.textContaining('too broad to place'), findsOneWidget);
+      expect(find.textContaining('too broad'), findsNothing);
 
       await unmount(tester);
     },
