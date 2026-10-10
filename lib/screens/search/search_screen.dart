@@ -56,7 +56,6 @@ class _SearchBodyState extends State<SearchBody> {
         const SizedBox(height: NookSpacing.section),
         NookSearchBar(
           controller: _query,
-          autofocus: true,
           onChanged: (value) => setState(() => _term = value),
           onSubmitted: _run,
           onClear: () {

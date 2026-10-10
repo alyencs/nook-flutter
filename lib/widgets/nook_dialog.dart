@@ -113,7 +113,6 @@ Future<TripDraft?> showTripDialog(
                 ),
                 child: TextField(
                   controller: controller,
-                  autofocus: true,
                   style: NookType.body,
                   cursorColor: NookColors.primary,
                   textCapitalization: TextCapitalization.words,

@@ -684,21 +684,52 @@ GitHub Pages had never been switched on, so every deploy run built the app and
 then failed at `actions/deploy-pages` with a 404. Turning it on (Settings >
 Pages > Source: GitHub Actions) was the whole of that fix — no file changed.
 
-What the live link then showed was a second problem. The deployed build shipped
-`device_preview`, a development tool, wrapped around the whole app. It draws a
-dev toolbar pinned to the bottom of the window, and on a window narrower than
-700pt — every phone — that toolbar is the first thing a thumb finds. Opening it
-puts a sheet over the app and a full-screen `Navigator` in front of it, and
-every setting it offers, the simulated on-screen keyboard included, is written
-to `localStorage`, so a state that hides the app's buttons is restored on the
-next load rather than cleared by one. There is no console on a live link; it
-just looks like an app that does not respond.
+What the live link then showed was a second problem: the app rendered, but
+the forms did nothing. Two guesses were wrong before the measurement was
+right, and both are worth writing down.
 
-It is gone, replaced by `DemoFrame` — a `Center`, a `SizedBox` and a border,
-about forty lines, no overlay and no second `Navigator`. It holds the app at
-phone proportions on a wide window and stands aside on a narrow one, which is
-all the dev tool was wanted for. `demo_frame_test.dart` asserts the part that
-matters: that five taps in a row all reach the button, at three window sizes.
+The first guess was that `device_preview`'s wrapper was swallowing pointers —
+it does put a full-screen `Navigator` over the window while its tool sheet is
+open. Driving the deployed bundle disproved it: open the sheet in the narrow
+layout, widen past 700pt to orphan it, and both the app and the panel still
+respond. The second guess followed from the first and was worse — the package
+was removed, which took the preview panel with it. It is back.
+
+What it actually is: **a tap on a text field that already holds focus drops
+that focus, and everything typed afterwards is discarded.** The app is drawn
+inside the preview, which scales it to fit the window, and the tap is
+resolved through that scale to place the caret. Under the scale it resolves
+to nothing. Measured in the browser against the deployed bundle:
+
+| what a visitor does | before | after |
+| --- | --- | --- |
+| does not touch the field (it focused itself) | types | — |
+| taps the field once | **nothing** | types |
+| taps it twice | **nothing** | types |
+| taps elsewhere, then the field | types | types |
+
+Every text field in the app set `autofocus: true` — Set Up Profile, Paste
+Link, Create Note, Search, the rename dialog — so every one of them arrived
+already focused, and the first, most natural tap killed it. Set Up Profile is
+the wall: a new visitor cannot type a name, "Enter Nook" never enables, and
+nothing beyond that screen can be reached. From the outside that is an app
+that has stopped responding.
+
+So the autofocus is gone from all five, and `TapKeepsFocus` covers the rest:
+it watches for a field that held focus when a tap landed and has lost it a
+moment later, and takes the focus back. It drops the node and re-requests it
+rather than asking for focus the node believes it still has — the Dart node
+can read as focused while the engine's editing connection has gone, and in
+that state a bare `requestFocus` does nothing. `text_entry_test.dart` holds
+the line.
+
+The underlying fault is in the package rather than in Nook. `device_preview`
+1.3.1 still asserts that the app sets `useInheritedMediaQuery`, a
+`MaterialApp` property that no longer does anything, so its simulated metrics
+and the app's real ones were never going to agree. Its 3.x releases are a
+different product with no in-app UI at all — the controls move to a DevTools
+extension and the wrappers are skipped in release builds — so upgrading would
+delete the panel. Pinned at 1.3.1, worked around in the app.
 
 One more thing had to be dealt with before any of that could reach a browser.
 The builds up to this point registered Flutter's generated service worker, and

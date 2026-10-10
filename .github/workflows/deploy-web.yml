@@ -105,8 +105,6 @@ jobs:
         # --base-href matters: on a project page the site lives at
         # username.github.io/<repo>/, and without it every asset 404s and you get
         # a white screen.
-        # The phone frame the live link is viewed in is part of the app
-        # (lib/widgets/demo_frame.dart), so there is no flag to pass for it.
         run: |
           flutter build web --release \
             --base-href "/${{ github.event.repository.name }}/"

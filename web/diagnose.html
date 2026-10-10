@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nook — deployment self-check</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0; padding: 24px 20px 64px;
+    background: #FAFAF8; color: #2E2E2E;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lede { margin: 0 0 28px; color: #8A8F98; }
+  section { margin: 0 0 26px; }
+  h2 {
+    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    color: #8A8F98; margin: 0 0 8px; font-weight: 700;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 0; vertical-align: top; border-bottom: 1px solid #ECEDF0; }
+  td:first-child { width: 42%; color: #8A8F98; padding-right: 12px; }
+  td:last-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; word-break: break-word; }
+  .ok   { color: #1C7C42; }
+  .bad  { color: #D9534F; }
+  .warn { color: #B4690E; }
+  #pad {
+    height: 150px; border: 2px dashed #D9DADF; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    color: #8A8F98; background: #fff; user-select: none; touch-action: none;
+    padding: 0 16px;
+  }
+  #pad.hit { border-color: #DD700B; color: #DD700B; }
+  button {
+    font: inherit; padding: 9px 16px; border-radius: 10px; cursor: pointer;
+    border: 1px solid #D9DADF; background: #fff; color: #2E2E2E;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  pre {
+    background: #fff; border: 1px solid #ECEDF0; border-radius: 10px;
+    padding: 12px; overflow-x: auto; font-size: 12.5px; margin: 0;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Nook — deployment self-check</h1>
+  <p class="lede">Open this on the live site. It reports what this browser is
+  actually being served and whether it is delivering clicks to the page.</p>
+
+  <section>
+    <h2>Which build this browser has</h2>
+    <table id="build"></table>
+  </section>
+
+  <section>
+    <h2>Service workers and caches</h2>
+    <table id="workers"></table>
+    <div class="row">
+      <button id="purge">Unregister workers and clear caches</button>
+      <button id="again">Re-run checks</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>This browser</h2>
+    <table id="env"></table>
+  </section>
+
+  <section>
+    <h2>Does this page receive clicks?</h2>
+    <div id="pad">Click or tap inside this box</div>
+    <table id="pointer"></table>
+  </section>
+
+  <section>
+    <h2>Copy this</h2>
+    <pre id="dump">…</pre>
+  </section>
+</main>
+
+<script>
+const report = {};
+
+function rows(id, pairs) {
+  document.getElementById(id).innerHTML = pairs.map(([k, v, cls]) =>
+    `<tr><td>${k}</td><td class="${cls || ''}">${v}</td></tr>`).join('');
+}
+function dump() {
+  document.getElementById('dump').textContent = JSON.stringify(report, null, 2);
+}
+
+// ---- which build -----------------------------------------------------------
+async function checkBuild() {
+  const out = [];
+
+  let stamp = '(no build.txt — deployed before the stamp was added)';
+  try {
+    const r = await fetch('build.txt', { cache: 'no-store' });
+    if (r.ok) stamp = (await r.text()).trim();
+  } catch (e) { stamp = 'could not be read: ' + e; }
+  report.build = stamp;
+  out.push(['build.txt', stamp.replace(/\n/g, '<br>')]);
+
+  // The bundle itself, not the cache's idea of it.
+  try {
+    const r = await fetch('main.dart.js', { cache: 'no-store' });
+    const text = await r.text();
+    report.bundleBytes = text.length;
+    const hasPanel = text.includes('Device Preview');
+    out.push(['main.dart.js', text.length.toLocaleString() + ' bytes']);
+    out.push(['preview panel in bundle', hasPanel ? 'yes' : 'no',
+              hasPanel ? 'ok' : 'warn']);
+    report.previewPanelInBundle = hasPanel;
+  } catch (e) {
+    out.push(['main.dart.js', 'could not be read: ' + e, 'bad']);
+  }
+
+  try {
+    const r = await fetch('index.html', { cache: 'no-store' });
+    const html = await r.text();
+    const base = (html.match(/<base href="([^"]*)"/) || [])[1] || '(none)';
+    report.baseHref = base;
+    out.push(['&lt;base href&gt;', base,
+              base === location.pathname.replace(/[^/]*$/, '') ? 'ok' : 'warn']);
+  } catch (e) {
+    out.push(['index.html', 'could not be read: ' + e, 'bad']);
+  }
+
+  out.push(['page URL', location.href]);
+  report.url = location.href;
+  rows('build', out);
+}
+
+// ---- service workers -------------------------------------------------------
+async function checkWorkers() {
+  const out = [];
+  if (!('serviceWorker' in navigator)) {
+    out.push(['support', 'not available in this browser']);
+    report.workers = 'unsupported';
+  } else {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      const urls = regs.map(r => (r.active || r.waiting || r.installing || {}).scriptURL || '?');
+      report.workers = urls;
+      out.push(['registered', regs.length === 0 ? 'none' : urls.join('<br>'),
+                regs.length === 0 ? 'ok' : 'warn']);
+      const c = navigator.serviceWorker.controller;
+      report.controller = c ? c.scriptURL : null;
+      out.push(['controlling this page', c ? c.scriptURL : 'none',
+                c ? 'warn' : 'ok']);
+    } catch (e) {
+      out.push(['registered', 'could not be read: ' + e, 'bad']);
+    }
+  }
+  try {
+    const keys = await caches.keys();
+    report.caches = keys;
+    out.push(['cache storage', keys.length ? keys.join('<br>') : 'empty',
+              keys.length ? 'warn' : 'ok']);
+  } catch (e) {
+    out.push(['cache storage', 'not available']);
+  }
+  rows('workers', out);
+}
+
+// ---- environment -----------------------------------------------------------
+function webgl() {
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    if (!gl) return 'unavailable';
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    return dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'available';
+  } catch (e) { return 'unavailable (' + e + ')'; }
+}
+
+async function checkEnv() {
+  const vv = window.visualViewport;
+  const zoom = vv ? Math.round((vv.scale || 1) * 100) / 100 : 1;
+  let storage = 'unknown';
+  try {
+    await new Promise((res, rej) => {
+      const req = indexedDB.open('nook-selfcheck');
+      req.onsuccess = () => { req.result.close(); res(); };
+      req.onerror = () => rej(req.error);
+      req.onblocked = () => rej(new Error('blocked by another tab'));
+    });
+    storage = 'IndexedDB opens';
+  } catch (e) { storage = 'IndexedDB refused: ' + e; }
+
+  const gl = webgl();
+  Object.assign(report, {
+    userAgent: navigator.userAgent,
+    window: innerWidth + 'x' + innerHeight,
+    dpr: devicePixelRatio,
+    zoom, webgl: gl, storage,
+    pointerEvents: 'PointerEvent' in window,
+    maxTouchPoints: navigator.maxTouchPoints,
+  });
+
+  rows('env', [
+    ['browser', navigator.userAgent],
+    ['window', innerWidth + ' x ' + innerHeight + ' css px'],
+    ['device pixel ratio', String(devicePixelRatio)],
+    ['page zoom', zoom === 1 ? '100%' : Math.round(zoom * 100) + '%',
+     zoom === 1 ? 'ok' : 'warn'],
+    ['WebGL', gl, gl === 'unavailable' ? 'bad' : 'ok'],
+    ['PointerEvent API', ('PointerEvent' in window) ? 'yes' : 'no',
+     ('PointerEvent' in window) ? 'ok' : 'bad'],
+    ['touch points', String(navigator.maxTouchPoints)],
+    ['storage', storage, storage.startsWith('IndexedDB opens') ? 'ok' : 'bad'],
+    ['topmost element at centre', topmost()],
+  ]);
+}
+
+function topmost() {
+  const el = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+  if (!el) return 'nothing';
+  const cs = getComputedStyle(el);
+  report.topmost = el.tagName.toLowerCase();
+  return `&lt;${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}&gt; ` +
+         `pointer-events: ${cs.pointerEvents}`;
+}
+
+// ---- pointer delivery ------------------------------------------------------
+const counts = { pointerdown: 0, pointerup: 0, click: 0 };
+let last = '—';
+const pad = document.getElementById('pad');
+for (const type of Object.keys(counts)) {
+  pad.addEventListener(type, (e) => {
+    counts[type]++;
+    if (e.clientX !== undefined) last = Math.round(e.clientX) + ', ' + Math.round(e.clientY);
+    pad.classList.add('hit');
+    pad.textContent = 'Received ' + counts.click + ' click' + (counts.click === 1 ? '' : 's');
+    showPointer();
+  });
+}
+function showPointer() {
+  report.pointer = { ...counts, lastAt: last };
+  rows('pointer', [
+    ['pointerdown', String(counts.pointerdown), counts.pointerdown ? 'ok' : ''],
+    ['pointerup', String(counts.pointerup), counts.pointerup ? 'ok' : ''],
+    ['click', String(counts.click), counts.click ? 'ok' : ''],
+    ['last coordinates', last],
+    ['verdict', counts.click
+      ? 'this browser does deliver clicks to the page'
+      : 'no click received yet', counts.click ? 'ok' : 'warn'],
+  ]);
+  dump();
+}
+
+// ---- actions ---------------------------------------------------------------
+document.getElementById('purge').addEventListener('click', async () => {
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r => r.unregister()));
+  } catch (e) { /* none registered, or unsupported */ }
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  } catch (e) { /* no cache storage */ }
+  await checkWorkers();
+  dump();
+});
+document.getElementById('again').addEventListener('click', run);
+
+async function run() {
+  await checkBuild();
+  await checkWorkers();
+  await checkEnv();
+  showPointer();
+}
+run();
+</script>
+</body>
+</html>

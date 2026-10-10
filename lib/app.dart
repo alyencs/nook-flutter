@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:device_preview/device_preview.dart';
 import 'package:flutter/material.dart';
 
 import 'app_scope.dart';
@@ -6,8 +9,9 @@ import 'share/shared_link.dart';
 import 'screens/add/paste_link_screen.dart';
 import 'screens/onboarding/splash_screen.dart';
 import 'screens/root_shell.dart';
+import 'widgets/logo_assembly.dart';
+import 'theme/nook_colors.dart';
 import 'theme/nook_theme.dart';
-import 'widgets/demo_frame.dart';
 
 class NookApp extends StatelessWidget {
   const NookApp({super.key});
@@ -18,10 +22,8 @@ class NookApp extends StatelessWidget {
       title: 'Nook',
       debugShowCheckedModeBanner: false,
       theme: NookTheme.theme,
-      // Inside MaterialApp, not above it: MaterialApp rebuilds the
-      // MediaQuery from the browser window, so a size set higher up is
-      // thrown away. Every route, dialog and snackbar lands inside the frame.
-      builder: (context, child) => DemoFrame(child: child ?? const SizedBox()),
+      locale: DevicePreview.locale(context),
+      builder: DevicePreview.appBuilder,
       home: const _LaunchGate(),
     );
   }
@@ -75,8 +77,9 @@ class _LaunchGateState extends State<_LaunchGate> {
       stream: scope.users.watchCurrentUser(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: SizedBox.shrink());
+          return const _Opening();
         }
+        if (snapshot.hasError) return _StorageUnavailable(error: snapshot.error);
         final user = snapshot.data;
         final needsSetup = user == null || user.name.trim().isEmpty;
         if (needsSetup) return const SplashScreen();
@@ -91,6 +94,108 @@ class _LaunchGateState extends State<_LaunchGate> {
         }
         return const RootShell();
       },
+    );
+  }
+}
+
+/// The moment before the first query answers.
+///
+/// It used to be an empty [Scaffold]. On a desktop that is a plain coloured
+/// rectangle, and on a browser that will not open the database — a second tab
+/// already holding the lock, or storage refused outright — it is where the app
+/// stays, which reads as a page that loaded and then ignored every click. The
+/// mark says the app is alive, and [_StorageUnavailable] says so in words if
+/// the wait turns out to be permanent.
+class _Opening extends StatefulWidget {
+  const _Opening();
+
+  @override
+  State<_Opening> createState() => _OpeningState();
+}
+
+class _OpeningState extends State<_Opening> {
+  /// Long enough that nobody sees it on a working browser, short enough to
+  /// beat the patience of someone who thinks the app has died.
+  static const _patience = Duration(seconds: 8);
+
+  Timer? _giveUp;
+  bool _slow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _giveUp = Timer(_patience, () {
+      if (mounted) setState(() => _slow = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _giveUp?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_slow) return const _StorageUnavailable();
+    return const _LaunchBackdrop(child: LogoAssembly(size: 96));
+  }
+}
+
+/// Shown when the device's storage cannot be opened.
+///
+/// Nook keeps everything on the device, so there is no version of the app that
+/// runs without it. Saying that plainly is better than a screen that looks
+/// finished and answers nothing.
+class _StorageUnavailable extends StatelessWidget {
+  const _StorageUnavailable({this.error});
+
+  final Object? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return _LaunchBackdrop(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const LogoAssembly(size: 72),
+            const SizedBox(height: 24),
+            Text(
+              'Nook cannot reach this device\u2019s storage.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Everything Nook saves lives on the device, so it needs storage '
+              'to start. Close any other tab with Nook open and reload. In a '
+              'private window, allow site data.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: NookColors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LaunchBackdrop extends StatelessWidget {
+  const _LaunchBackdrop({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: const BoxDecoration(gradient: NookColors.screenGradient),
+        child: Center(child: child),
+      ),
     );
   }
 }

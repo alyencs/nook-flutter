@@ -106,7 +106,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             NookTextField(
               controller: _name,
               hint: 'Your name',
-              autofocus: true,
               onSubmitted: (_) {
                 if (_canContinue) _continue();
               },
