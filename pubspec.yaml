@@ -49,11 +49,16 @@ flutter:
   uses-material-design: true
 
   assets:
-    # flutter_dotenv reads .env through the asset bundle, so it must be listed.
-    # It is git-ignored; the deploy workflow creates one from .env.example,
-    # which carries no key, so the deployed build runs the sample extractor.
-    - .env
-    - .env.example
+    # flutter_dotenv reads this through the asset bundle, so it must be listed.
+    # It is git-ignored; copy .env.example over it to fill it in, and the
+    # deploy workflow writes a keyless one so the deployed build runs the
+    # sample extractor.
+    #
+    # Not called `.env`: the GitHub Pages upload tars the build with
+    # `--exclude=.[^/]*`, which drops every dotfile, so an asset named `.env`
+    # is built, listed in the manifest, and then silently missing from the
+    # deployed site. The browser 404s on it on every load.
+    - nook.env
     # The Nook mark, cut from the supplied nook_logo.png along its own gutters:
     # four transparent tiles that reassemble into that file exactly. The splash
     # flies them into place; NookLogo draws them still.

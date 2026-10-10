@@ -163,7 +163,7 @@ reasoning is in [`docs/01-proposal.md`](docs/01-proposal.md).
 
 ```bash
 flutter pub get
-cp .env.example .env      # required, even left empty — see below
+cp .env.example nook.env  # required, even left empty — see below
 flutter run -d web-server --web-port 8080
 ```
 
@@ -171,7 +171,7 @@ Then open http://localhost:8080. Built and tested with **Flutter 3.47.6 /
 Dart 3.13.5**; `pubspec.yaml` requires Dart `^3.8.0`. This is a web-only project
 — there is no `android/` or `ios/` directory.
 
-`.env` is listed as an asset in `pubspec.yaml` (that is how `flutter_dotenv`
+`nook.env` is listed as an asset in `pubspec.yaml` (that is how `flutter_dotenv`
 reads it), so **the file has to exist before the app will build**, even empty.
 Every value in it is optional; Nook runs with none of them set, and first launch
 seeds a small fictional demo library so the app opens looking like the design.
@@ -204,8 +204,9 @@ live link does not behave:
 
 ### Environment variables
 
-This project reads its configuration from a `.env` file that is **not** in the
-repository. Copy `.env.example`, fill in your own values, and never commit the
+This project reads its configuration from a `nook.env` file that is **not** in
+the repository. Copy `.env.example` over it, fill in your own values, and never
+commit the
 result.
 
 | Variable | What it is | Where to get one |
@@ -235,7 +236,7 @@ four external services, all of them optional:
 | `tile.openstreetmap.org` | Map tiles on Travel Details | No |
 
 Because the Anthropic call is made from the client, a web build carries whatever
-key is in its `.env`. That is why the deployed build carries none. If you ever
+key is in its `nook.env`. That is why the deployed build carries none. If you ever
 want real AI on a public deployment, the key has to move behind a server you
 control — see [`docs/06-security-and-privacy.md`](docs/06-security-and-privacy.md).
 
@@ -247,9 +248,11 @@ control — see [`docs/06-security-and-privacy.md`](docs/06-security-and-privacy
   server, so there is no service side to protect: no Firestore rules, no Supabase
   RLS, no credentials. The only thing that ever leaves the device is a link you
   asked Nook to analyse, plus what the platform has already published about it.
-- **Where the secrets live.** `.env`, which is git-ignored — and was ignored from
+- **Where the secrets live.** `nook.env`, which is git-ignored — and was ignored from
   the very first commit, before any such file existed. The deploy workflow builds
   from a keyless `.env.example`, so the published site has nothing to leak.
+  The name carries no leading dot because the Pages upload strips dotfiles from
+  the artifact, which left the asset missing from the live site.
 - **No real personal information** appears in the sample data, the screenshots or
   the video. Every trip, post, handle and link in the seeded library is invented.
 

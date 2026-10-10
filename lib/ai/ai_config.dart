@@ -54,13 +54,15 @@ abstract final class NookAi {
     return ClaudeItineraryGenerator(apiKey: key, model: _env('CLAUDE_MODEL'));
   }
 
-  /// Loads `.env` if it is there. A missing or empty file is a normal state,
-  /// not an error: it is what every deployed build looks like.
+  /// Loads `nook.env` if it is there. A missing or empty file is a normal
+  /// state, not an error: it is what every deployed build looks like.
+  ///
+  /// The name has no leading dot on purpose — see the note in pubspec.yaml.
   static Future<void> load() async {
     try {
-      await dotenv.load(fileName: '.env');
+      await dotenv.load(fileName: 'nook.env');
     } catch (_) {
-      // No .env in the bundle. The sample extractor takes over.
+      // No env file in the bundle. The sample extractor takes over.
     }
   }
 
