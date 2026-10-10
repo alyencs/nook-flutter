@@ -74,18 +74,22 @@ jobs:
       - if: steps.check.outputs.ready == 'true'
         run: flutter pub get
 
-      # pubspec.yaml lists .env as an asset (that is how flutter_dotenv reads
-      # it), but .env is git-ignored, so the runner has none. This creates one
-      # from .env.example, which carries no key: the deployed build therefore
-      # runs Nook's sample extractor rather than the real model. The API key is
-      # deliberately NOT a repository secret — see docs/06-security-and-privacy.md.
+      # pubspec.yaml lists nook.env as an asset (that is how flutter_dotenv
+      # reads it), but it is git-ignored, so the runner has none. This creates
+      # one from .env.example, which carries no key: the deployed build
+      # therefore runs Nook's sample extractor rather than the real model. The
+      # API key is deliberately NOT a repository secret — see
+      # docs/06-security-and-privacy.md.
+      #
+      # The name has no leading dot because the Pages upload strips dotfiles
+      # from the artifact, which left the asset 404ing on the live site.
       #
       # Before analyze and test, not after: without a .env both of them stop at
-      # "No file or variants found for asset: .env" and never reach a line of
+      # "No file or variants found for asset: nook.env" and never reach a line of
       # Dart, so the checks below silently pass over a build they never ran.
-      - name: Provide a keyless .env
+      - name: Provide a keyless env file
         if: steps.check.outputs.ready == 'true'
-        run: cp .env.example .env
+        run: cp .env.example nook.env
 
       # Neither of these blocks your deploy: a failing test should not take your
       # live link down. They are here so you find out before your grader does.

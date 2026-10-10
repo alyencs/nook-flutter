@@ -40,6 +40,27 @@ void main() {
     );
   });
 
+  test('a drawn-on keyboard does not cover the tab bar again', () async {
+    final inner = _FakeStorage(
+      const DevicePreviewData(isVirtualKeyboardVisible: true),
+    );
+
+    expect(
+      (await RecoverablePreviewStorage(inner).load())!.isVirtualKeyboardVisible,
+      isFalse,
+      reason: 'it sits exactly where Home, Trips, Add and Profile are',
+    );
+  });
+
+  test('text scaled past the phone comes back to normal', () async {
+    final inner = _FakeStorage(const DevicePreviewData(textScaleFactor: 3));
+
+    expect(
+      (await RecoverablePreviewStorage(inner).load())!.textScaleFactor,
+      1,
+    );
+  });
+
   test('a hidden toolbar comes back', () async {
     final inner = _FakeStorage(
       const DevicePreviewData(isToolbarVisible: false),
@@ -54,7 +75,10 @@ void main() {
       orientation: Orientation.landscape,
       isFrameVisible: false,
       isDarkMode: true,
-      textScaleFactor: 1.4,
+      boldText: true,
+      highContrast: true,
+      invertColors: true,
+      accessibleNavigation: true,
       locale: 'fr_FR',
     );
     final inner = _FakeStorage(stored);
@@ -64,7 +88,10 @@ void main() {
     expect(loaded!.orientation, Orientation.landscape);
     expect(loaded.isFrameVisible, isFalse);
     expect(loaded.isDarkMode, isTrue);
-    expect(loaded.textScaleFactor, 1.4);
+    expect(loaded.boldText, isTrue);
+    expect(loaded.highContrast, isTrue);
+    expect(loaded.invertColors, isTrue);
+    expect(loaded.accessibleNavigation, isTrue);
     expect(loaded.locale, 'fr_FR');
   });
 

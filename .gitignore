@@ -1,5 +1,6 @@
 # Secrets: NEVER commit these. Add the line before you create the file.
 .env
+nook.env
 .env.*
 !.env.example
 env.json

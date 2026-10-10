@@ -731,6 +731,36 @@ different product with no in-app UI at all — the controls move to a DevTools
 extension and the wrappers are skipped in release builds — so upgrading would
 delete the panel. Pinned at 1.3.1, worked around in the app.
 
+Then the same report came back: still dead in a normal Chrome window, but
+perfectly fine in Incognito. That asymmetry is the whole diagnosis. Incognito
+has no local storage; a normal window has whatever the preview panel last
+wrote there, and the panel writes everything it offers. Setting each saved
+value in turn and reloading found two that make the app unusable:
+
+| saved value | what it does |
+| --- | --- |
+| `isVirtualKeyboardVisible: true` | a drawn-on keyboard covers the bottom of the simulated phone — exactly where Home, Trips, Add and Profile sit |
+| `textScaleFactor: 3` | the text stops fitting and the controls are pushed off the screen |
+
+Neither announces itself, and a reload restores the state rather than clearing
+it, so it reads as an app that simply stopped working. `RecoverablePreviewStorage`
+now resets both as the settings load, alongside `isEnabled` and
+`isToolbarVisible`. They are simulations, not preferences: worth switching on
+to see what happens, not worth outliving the page. The device, orientation,
+frame, locale, dark mode, bold text, high contrast, inverted colours and
+accessible navigation are all still remembered.
+
+The console log that came with the report had a second, unrelated fault in it:
+`GET /nook-flutter/assets/.env 404` on every load. The local build does produce
+`build/web/assets/.env`, but `actions/upload-pages-artifact` tars the build
+with `--exclude=.[^/]*`, which drops every dotfile, so an asset named `.env` is
+compiled, written into the manifest, and then silently absent from the deployed
+site. `NookAi.load()` caught the failure, which is why nothing broke — but the
+file the pubspec promised never shipped. The bundled name is `nook.env` now,
+with no leading dot, and it survives the tar. The favicon 404 in the same log
+was the browser asking the site root for an icon the page never declared; the
+page declares one.
+
 One more thing had to be dealt with before any of that could reach a browser.
 The builds up to this point registered Flutter's generated service worker, and
 a service worker answers navigations from its own cache first. Anyone who had
@@ -751,7 +781,7 @@ The deploy also writes `build.txt`, so which commit is live can be read off
 serving the previous build when a run fails to deploy, and from the browser
 the two are indistinguishable.
 
-Two deployment details went with it. `cp .env.example .env` ran *after*
+Two deployment details went with it. `cp .env.example nook.env` ran *after*
 `flutter analyze` and `flutter test` in the workflow, so both stopped at "No
 file or variants found for asset: .env" on every run and never reached a line
 of Dart — green-looking checks over a build they had not read. It runs before
