@@ -234,7 +234,6 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
               controller: _url,
               hint: 'Paste your link here...',
               keyboardType: TextInputType.url,
-              autofocus: true,
               onSubmitted: (_) => _analyze(),
             ),
             if (_busy) ...[

@@ -105,7 +105,7 @@ trip, the profile or the search history goes with it.
 - [ ] `YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` set if the run includes those platforms
 - [ ] Nothing personal is on screen: no real bookmarks, tabs, notifications or names
 - [ ] The seeded demo library is intact — a fresh browser profile is the simplest way
-- [ ] Recorded at phone proportions, or with the live link's phone frame visible
+- [ ] Recorded at phone proportions, or with the `device_preview` frame visible
 - [ ] A photograph ready to use for the profile picture, so the crop window has
       something to position
 - [ ] A trip with two or three saved posts in it, so Explore Itinerary has

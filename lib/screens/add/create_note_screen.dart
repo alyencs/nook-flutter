@@ -66,7 +66,6 @@ class _CreateNoteScreenState extends State<CreateNoteScreen> {
               controller: _title,
               hint: 'What is this about?',
               label: 'Title',
-              autofocus: true,
             ),
             const SizedBox(height: NookSpacing.section),
             NookNoteField(

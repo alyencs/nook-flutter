@@ -33,9 +33,9 @@ public repo means for secrets and personal data, and
 | --- | --- | --- |
 | ![Choose a duration](docs/assets/screen-itinerary-plan.png) | ![Generated itinerary](docs/assets/screen-itinerary.png) | ![Recently Deleted](docs/assets/screen-recently-deleted.png) |
 
-*Captured from the current build at 390×844 on a 3× screen — a window that
-size is already phone-shaped, so the frame stands aside and the app fills it.
-The itinerary shown is the keyless one: the machine they were taken on has no API
+*Captured from the current build at 390×844 on a 3× screen, with
+`--dart-define=NOOK_DEVICE_PREVIEW=false` so the preview frame is off. The
+itinerary shown is the keyless one: the machine they were taken on has no API
 key, so Nook's own planner arranged the saved posts and the screen says so.
 Travel Details is not included because its map tiles could not be reached from
 that machine. The live link renders both.*
@@ -151,7 +151,7 @@ Generate**.
 | State | `setState` plus Drift stream queries read through `StreamBuilder` — no state-management package, because every screen reads one query and a package would be ceremony |
 | Storage | [Drift](https://drift.simonbinder.eu) — on-device SQL, five tables at schema version 7, works on web. Chosen over Hive because a post belonging to exactly one trip is a foreign key, not a key-value pair |
 | AI | Anthropic Messages API, Claude Haiku 4.5, called over `http` with structured output via tool use |
-| Other packages | `http` (the Messages API and the oEmbed lookups — plain HTTP, so the status code survives and a retryable 529 can be told from a fatal 400), `flutter_map` + `latlong2` (OpenStreetMap tiles, no key and no billing account), `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `url_launcher`, `font_awesome_flutter` (platform brand marks) |
+| Other packages | `http` (the Messages API and the oEmbed lookups — plain HTTP, so the status code survives and a retryable 529 can be told from a fatal 400), `flutter_map` + `latlong2` (OpenStreetMap tiles, no key and no billing account), `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `url_launcher`, `font_awesome_flutter` (platform brand marks), `device_preview` (the phone frame and the preview panel on the live link) |
 
 Storage is on the device and nowhere else, deliberately: two travellers never
 need to see the same saved posts, so a server would be work for nothing. The
@@ -183,14 +183,24 @@ flutter build web --release
 dart run build_runner build --delete-conflicting-outputs   # after editing lib/data/tables.dart
 ```
 
-Which commit is live is readable at
-`https://<username>.github.io/<repo>/build.txt`: a run that fails to deploy
-leaves the previous build up, and from the browser the two look the same.
+To build without the preview — which is how the screenshots above were taken:
 
-There is no flag for the phone frame. `DemoFrame`
-(`lib/widgets/demo_frame.dart`) draws one when the window is wider than a
-phone and stands aside when it is not, so a narrow window — or a phone — gets
-the app full width without being asked.
+```bash
+flutter build web --release --dart-define=NOOK_DEVICE_PREVIEW=false
+```
+
+### Checking a deployment
+
+Two things are served next to the app and are worth knowing about when the
+live link does not behave:
+
+* `build.txt` — the commit, branch and time of the build that is actually
+  live. A run that fails to deploy leaves the previous build up, and from the
+  browser the two are indistinguishable.
+* `diagnose.html` — a standalone page that reports which bundle this browser
+  has, any service worker still registered, the window size, zoom, WebGL and
+  storage, and whether the browser is delivering clicks to the page at all. It
+  loads none of the app, so it still answers when the app does not.
 
 ### Environment variables
 
