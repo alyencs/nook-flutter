@@ -171,8 +171,8 @@ jobs:
       # point of a guard.
       - name: Refuse to publish a build carrying a credential
         if: steps.check.outputs.ready == 'true'
-        run: ./tool/check_bundle.sh build/web
-
+        run: bash ./tool/check_bundle.sh build/web
+        
       - if: steps.check.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
