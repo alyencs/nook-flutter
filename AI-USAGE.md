@@ -11,15 +11,58 @@ below is tied to a real commit in this repository, and the authorship figures in
 section 3 come from `git blame` and `git log` with the commands written out so
 anyone can re-run them.
 
-**Twenty-seven of the repository's forty-seven commits are mine**, and **23% of
-`lib/` and 29% of `test/` carry my name**. The most recent phase of the project —
-the Explore Itinerary feature, moving the whole AI layer onto the Anthropic
-Messages API, and roughly two thousand lines of tests — I built on my own, with
-no AI co-authorship on any of those commits.
+**Forty-five of the repository's sixty-five commits are mine**, and **27% of
+`lib/` and 37% of `test/` carry my name** — a little under a third of the
+application and its tests together. The phase that took the project to its
+current shape — the Explore Itinerary feature, moving the whole AI layer onto
+the Anthropic Messages API, and roughly two thousand lines of tests — I built on
+my own, with no AI co-authorship on any of those commits.
 
-**Contents:** [1. How I used AI](#1-how-i-used-ai) ·
+**What this file measures, and what it does not.** Everything below is about
+*authorship*: who wrote the lines that are in this repository. It is not a
+record of how much the Anthropic API was *called*, because no such record
+exists for this project — see
+[What this file cannot tell you](#what-this-file-cannot-tell-you).
+
+**Contents:** [What this file cannot tell you](#what-this-file-cannot-tell-you) ·
+[1. How I used AI](#1-how-i-used-ai) ·
 [2. Where the AI got it wrong](#2-where-the-ai-got-it-wrong) ·
 [3. Who wrote what](#3-who-wrote-what)
+
+---
+
+## What this file cannot tell you
+
+Two different things get called "AI usage", and conflating them would make this
+document say more than its evidence supports.
+
+| | Measured here | Evidence |
+| --- | --- | --- |
+| **Development authorship** — who wrote the code in this repository | **Yes**, in section 3 | `git blame` and `git log` over the repository's own history. Reproducible by anyone with a clone. |
+| **Runtime API consumption** — how many Anthropic API requests Nook has made, how many tokens they used, what they cost | **No** | None available. See below. |
+
+**There is no runtime usage record for this project, and none is reconstructed
+here.** The reasons are structural rather than an oversight:
+
+- Nook has no analytics, no telemetry and no server-side request log. The
+  AI service in `server/` forwards a request and returns the answer; it does
+  not persist request content, counts or totals. That is a deliberate privacy
+  property, and it also means there is nothing to read back.
+- The published GitHub Pages build has, for most of the project's life, run
+  `SampleExtractor` and `SampleItineraryGenerator` — deterministic, offline, and
+  making no API request at all.
+- Real calls were made from development machines during building and testing,
+  against a personal API key. Those counts live in the Anthropic Console's
+  usage dashboard for that account, which is outside this repository.
+
+**Commit counts are not request counts.** A commit records a change to the
+source; it says nothing about how many times the running app later called a
+model. Nothing in this file should be read as a token, request or cost figure,
+and no such figure is given. Anyone needing actual consumption should read it
+from the Anthropic Console for the key in question.
+
+What *can* be established from the repository, and is, is which lines of the
+shipped code each of us wrote.
 
 ---
 
@@ -261,16 +304,43 @@ done | sort | uniq -c | sort -rn
 `git blame` attributes a line to whoever last committed it. Generated drift
 output is excluded, because nobody writes it by hand.
 
+**Measured at commit [`a74082b`](https://github.com/alyencs/nook-flutter/commit/a74082b)
+on `main`, 10 October 2026** — the tip of the repository at the time of writing.
+Re-running the commands on a later commit will give different numbers, which is
+the point of writing the commands down.
+
 | Measure | Mine | Total | My share |
 | --- | --- | --- | --- |
-| Surviving lines in `lib/` | **3,819** | 16,523 | **23.1%** |
-| Surviving lines in `test/` | **2,072** | 7,171 | **28.9%** |
-| `lib/` and `test/` together | **5,891** | 23,694 | **24.9%** |
-| Lines ever added to `lib/` (`git log --numstat`) | **5,691** | 22,559 | **25.2%** |
-| Commits in the repository | **27** | 47 | **57%** |
+| Surviving lines in `lib/` | **4,668** | 17,271 | **27.0%** |
+| Surviving lines in `test/` | **2,900** | 7,935 | **36.5%** |
+| `lib/` and `test/` together | **7,568** | 25,206 | **30.0%** |
+| Lines ever added to `lib/` (`git log --numstat`) | **6,515** | 23,383 | **27.9%** |
+| Commits in the repository | **45** | 65 | **69%** |
+| …excluding the 20 merge commits | **27** | 45 | **60%** |
 
 Two independent methods — what survives today, and what was ever written — agree
-at roughly a quarter of the application.
+at a little under a third of the application.
+
+**On the commit count.** My commits appear under two author names with the same
+address, `acsampang07@gmail.com`: 23 as `alyencs` (the GitHub username, used
+when committing through the web interface) and 22 as `Alison Sampang`. Both are
+me. Twenty of the 65 are merge commits, 18 of them mine, which flatter the
+headline figure — so the table gives the count with and without them. The
+line-level measures above are the ones to trust, because a merge commit adds no
+lines.
+
+**Assumptions and limits of this method.**
+
+- `git blame` credits a line to whoever *last touched* it. A line I rewrote
+  inside a file Claude first wrote counts as mine, and a line of mine that
+  Claude later reformatted counts as Claude's. Over 25,000 lines this evens out
+  reasonably, but it is an attribution heuristic, not a transcript.
+- Generated Drift output (`.g.dart`) is excluded throughout: nobody writes it
+  by hand, and including it would inflate whoever last ran the generator.
+- Only `lib/` and `test/` are counted. Documentation, assets and configuration
+  are not, so this is a statement about the application, not the repository.
+- The figures describe lines, which is a measure of volume and not of
+  difficulty, novelty or value.
 
 ---
 
@@ -473,12 +543,12 @@ was mine.
 
 ## Project state at the time of writing
 
-`flutter analyze` is clean. **331 of 336 tests pass.** The five failures are in
-`dao_test.dart` and `widget_test.dart` and are assertions about the demo seed
-rather than about the app: they still expect the old remote `https://` thumbnail
-URLs and the old post counts, both of which changed when I moved the seeded
-photographs to local assets. Fixing those assertions is the next thing on my
-list, and it is recorded in the README's known issues rather than left for
-someone else to discover.
+`flutter analyze` is clean. **383 of 386 Flutter tests pass**, and the AI
+service's own suite is **37 of 37**. The three remaining failures are in
+`dao_test.dart` (two) and `widget_test.dart` (one) and are assertions about the
+demo seed rather than about the app: they expect post counts and a thumbnail
+shape that changed when I moved the seeded photographs to local assets. Fixing
+those assertions is the next thing on my list, and it is recorded in the
+README's known issues rather than left for someone else to discover.
 
 ---

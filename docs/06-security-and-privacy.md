@@ -2,7 +2,7 @@
 
 This repository is public.
 
-**Last checked:** 2026-10-10, against schema version 7.
+**Last checked:** 2026-10-11, against schema version 7.
 
 This document explains *why* Nook handles data and secrets the way it does.
 The line-by-line audit — every item checked, with the file that proves it and
@@ -325,9 +325,14 @@ summary:
 - [x] No real personal data in the code, the seed data, the screenshots or the video
 - [x] No `student.json`, no student number
 - [x] Deletion is reversible for 30 days and permanent afterwards
-- [x] `flutter analyze` is clean, 383 Flutter tests pass and 31 service tests pass
-- [x] Dependencies are pinned by `pubspec.lock`, which is committed
+- [x] `flutter analyze` is clean, 383 of 386 Flutter tests pass and 37 of 37 service tests pass
+- [x] Dependencies are pinned by `pubspec.lock` and `server/package-lock.json`, both committed
+- [x] `npm audit --omit=dev` on the service reports 0 vulnerabilities
+- [x] The service keeps no log of request content, and the app logs nothing sensitive
 - [x] Deletion clears every table, and the export writes every column
-- [ ] **Five open items** remain in the checklist, including an opportunistic
-      retention purge, two credentials that travel in query strings, and live
-      third-party calls that this environment could not exercise
+- [ ] **Five open items** remain in the checklist: `ALLOWED_ORIGINS` is
+      commented out so the service currently answers any origin; the AI
+      endpoint is unauthenticated by design; GitHub Actions are pinned to
+      moveable tags rather than SHAs; the commented example in `.env.example`
+      omits the `/v1` suffix the base URL needs; and secret scanning could not
+      be confirmed from outside the repository settings

@@ -71,18 +71,30 @@ that machine. The live link renders both.*
 
 ## How it works
 
-Nook is a single Flutter web app with no backend. Everything a person saves
-lives in a [Drift](https://drift.simonbinder.eu) (SQLite) database on their own
-device, and the only thing that ever leaves it is a link they asked Nook to
-analyse.
+Nook is a Flutter web app with **no backend for user data**. Everything a person
+saves lives in a [Drift](https://drift.simonbinder.eu) (SQLite) database on their
+own device — no account, no sync, no server-side copy. The only thing that ever
+leaves the device is a link they asked Nook to analyse.
+
+There is one small server-side piece, and it holds exactly one thing: the
+Anthropic API key. It stores no user data. A web build is public in full, so a
+billable key cannot live inside one; the key sits on that service instead and
+the browser asks the service. See
+[How the deployed app reaches the model](#how-the-deployed-app-reaches-the-model).
 
 ```
 a link ──▶ platform lookup (oEmbed / Graph API)
                  │
                  ▼
-          Claude Haiku 4.5 ──▶ structured JSON ──▶ editable review ──▶ Drift
-                                                                        │
-    saved posts in a trip ──▶ Claude Haiku 4.5 ──▶ a day-by-day itinerary
+         Nook's AI service ──▶ Claude Haiku 4.5 ──▶ structured JSON
+         (holds the key)                                   │
+                                                           ▼
+                                        editable review ──▶ Drift (on device)
+                                                              │
+   saved posts in a trip ──▶ Nook's AI service ──▶ Claude Haiku 4.5
+                                                       │
+                                                       ▼
+                                           a day-by-day itinerary
 ```
 
 - `lib/ai/` — the model client, the two AI features, and a keyless fallback for
@@ -103,10 +115,19 @@ a link ──▶ platform lookup (oEmbed / Graph API)
 (`claude-haiku-4-5-20251001`), pinned by id so a new release cannot change how
 an installed build behaves. `CLAUDE_MODEL` overrides it.
 
-Nook calls the Messages API directly over HTTP (`lib/ai/claude_api.dart`), with
+Nook speaks the Messages API over plain HTTP (`lib/ai/claude_api.dart`), with
 retry and backoff that honour the server's own `retry-after`. Both features ask
 for structured output through a forced tool call, so the reply arrives as a
 decoded object of a known shape rather than prose that has to be parsed.
+
+**Where that request goes depends on how the build is configured**, and the
+request body is identical either way:
+
+| Configuration | The request goes to | Carries a key? |
+| --- | --- | --- |
+| `AI_BACKEND_URL` set (how the deployed site runs) | Nook's AI service, which attaches the key and forwards it | No |
+| A key passed as `--dart-define` (local work only) | `api.anthropic.com` directly | Yes — so such a build must not be published |
+| Neither | Nowhere; the sample extractor and sample planner run | No |
 
 Two features use it:
 
@@ -117,11 +138,13 @@ Two features use it:
 2. **Explore Itinerary** (`lib/ai/claude_itinerary_generator.dart`) — builds a
    plan from several saved posts at once.
 
-**Without a key, both still work.** `SampleExtractor` and
+**With nothing configured, both still work.** `SampleExtractor` and
 `SampleItineraryGenerator` do the same jobs deterministically and without a
 network, and the UI says on screen which one produced what you are looking at.
-That is what the published GitHub Pages build runs, because a billable key must
-never be compiled into a public web build.
+That fallback is why the app has always been publishable: a billable key must
+never be compiled into a public web build, so before the service existed the
+deployed site ran the samples. With `NOOK_AI_BACKEND` pointed at a deployed
+service, the published site now runs the real model and still carries no key.
 
 ### Explore Itinerary
 
@@ -150,7 +173,8 @@ Generate**.
 | Framework | Flutter (Dart), web target |
 | State | `setState` plus Drift stream queries read through `StreamBuilder` — no state-management package, because every screen reads one query and a package would be ceremony |
 | Storage | [Drift](https://drift.simonbinder.eu) — on-device SQL, five tables at schema version 7, works on web. Chosen over Hive because a post belonging to exactly one trip is a foreign key, not a key-value pair |
-| AI | Anthropic Messages API, Claude Haiku 4.5, called over `http` with structured output via tool use |
+| AI | Anthropic Messages API, Claude Haiku 4.5, spoken over `http` with structured output via tool use |
+| AI service | `server/` — a single `fetch` handler (plain JavaScript, no framework) for Cloudflare Workers, holding the API key so the web build never does. Tested with `node --test`; no key needed to run its suite |
 | Other packages | `http` (the Messages API and the oEmbed lookups — plain HTTP, so the status code survives and a retryable 529 can be told from a fatal 400), `flutter_map` + `latlong2` (OpenStreetMap tiles, no key and no billing account), `flutter_dotenv` (keys out of git), `image_picker` (profile photo), `url_launcher`, `font_awesome_flutter` (platform brand marks), `device_preview` (the phone frame and the preview panel on the live link) |
 
 Storage is on the device and nowhere else, deliberately: two travellers never
@@ -207,6 +231,16 @@ The only AI-related thing the published bundle carries is that service's
 address, which is public by necessity. `server/README.md` has the deployment
 steps; they take about five minutes and need no payment details.
 
+**The address must end in `/v1`** — for example
+`https://nook-ai.your-subdomain.workers.dev/v1`. The app configures a *base*
+and appends the method to it, exactly as it would with Anthropic's own base of
+`https://api.anthropic.com/v1`, and the service answers on `/v1/messages` so
+that the two are interchangeable. Leave the `/v1` off and every request lands
+on `/messages`, which returns 404 — and because the screens report a failure in
+plain words rather than a status code, it looks like the model is down rather
+than like a mis-typed URL. `server/README.md` has a table of the other failure
+modes.
+
 Without the service configured, the app runs its sample extractor and sample
 planner and says so on screen — which is what every build did before, and is
 still a perfectly good demo.
@@ -244,7 +278,7 @@ build, even empty.
 
 | Variable | What it is | Where to get one |
 | --- | --- | --- |
-| `AI_BACKEND_URL` | Nook's AI service, which holds the Anthropic key so the app never has to. This is how a published build reaches the real model. A public address by necessity — the browser has to know where to knock. Blank, and Nook runs its sample extractor and sample planner and says so on screen. | `server/README.md` |
+| `AI_BACKEND_URL` | Nook's AI service, which holds the Anthropic key so the app never has to. This is how a published build reaches the real model. A public address by necessity — the browser has to know where to knock. **Must end in `/v1`** (see below). Blank, and Nook runs its sample extractor and sample planner and says so on screen. | `server/README.md` |
 | `CLAUDE_MODEL` | Optional model id to pin. Blank lets the service choose, which is the point of letting it choose: the model can change without rebuilding the app. | — |
 
 That is the whole list, and no credential is on it. The app reads nothing else
@@ -315,10 +349,12 @@ reasoning, and what the service will and will not do with the key, is in
 
 - **What is stored.** A local profile (a name and an optional photo), saved posts,
   trips, recent searches and four settings toggles — all in a Drift database on
-  the device. Nothing is uploaded, shared or synced. There is no account and no
-  server, so there is no service side to protect: no Firestore rules, no Supabase
-  RLS, no credentials. The only thing that ever leaves the device is a link you
+  the device. Nothing is uploaded, shared or synced. There is no account, so
+  there are no user records anywhere to protect: no Firestore rules, no Supabase
+  RLS, no password. The only thing that ever leaves the device is a link you
   asked Nook to analyse, plus what the platform has already published about it.
+  Nook's AI service sees that link on its way to the model and stores none of
+  it — it has no database and keeps no log of request content.
 - **Where the secrets live.** The Anthropic key lives on Nook's AI service, in
   the hosting platform's encrypted environment, where it cannot be read back —
   only replaced. Nothing credential-shaped goes in `nook.env`, because that file
@@ -346,6 +382,7 @@ The full audit, including the open items, is
 | [Security and privacy](docs/06-security-and-privacy.md) | the checklist, filled in |
 | [Security checklist](SECURITY-CHECKLIST.md) | the audit, item by item |
 | [AI use](AI-USAGE.md) | the full account of how AI was used |
+| [AI service](server/README.md) | what the service does, its limits, and how to deploy it |
 
 ## Status and what is next
 
@@ -362,10 +399,10 @@ a post *out* of Nook is drawn but inert.
 
 **Known issues, honestly:**
 
-- **Five tests fail on the seeded library.** `dao_test.dart` and
-  `widget_test.dart` assert counts and coordinates that the current demo seed no
-  longer matches. They are assertions about the fixture, not about the app, and
-  they are the next thing to fix.
+- **Three tests fail on the seeded library.** Two in `dao_test.dart` and one in
+  `widget_test.dart`, asserting post counts and a thumbnail shape that the
+  current demo seed no longer matches. They are assertions about the fixture,
+  not about the app, and they are the next thing to fix.
 - **The 40-link extraction test is still outstanding.** Ten real links per
   platform, logging how often a usable destination comes back. It is the
   mitigation the proposal committed to for its biggest risk, and it needs a
@@ -406,8 +443,8 @@ a post *out* of Nook is drawn but inert.
 full build and much of what followed, working to my specification and under my
 review — I specified it, rejected parts of it, and merged all of it.
 
-**About a quarter of this application is mine: 23% of `lib/` and 29% of `test/`
-by line, across 27 of the repository's 47 commits.** That includes Explore
+**A little under a third of this application is mine: 27% of `lib/` and 37% of
+`test/` by line, across 45 of the repository's 65 commits.** That includes Explore
 Itinerary end to end — eight files and 1,906 lines with no AI co-authorship on any
 of the commits — the Anthropic Messages API client in `lib/ai/claude_api.dart`,
 which I wrote by hand over plain `http` so a retryable overload stays
