@@ -16,8 +16,17 @@ name: Deploy web demo
 #
 #   NOT safe to ship: anything billable or privileged. An Anthropic API key, a
 #   Supabase secret (service_role) key, a service account JSON. A stranger can
-#   read these off your deployed site and spend your quota. Keep those features
-#   local and demo them on video, or put a server in front.
+#   read these off your deployed site and spend your quota.
+#
+# Note what that rules out: a repository secret does not help. A secret used at
+# build time is compiled into the output, and the output is the thing being
+# served, so marking it secret only hides it from this log. There is no way to
+# hand a static site a runtime key and keep it.
+#
+# Which is why Nook's API key is not here in any form. It sits on Nook's own AI
+# service, the build is given that service's public address, and the browser
+# asks the service instead of asking Anthropic. See server/README.md. The
+# "Refuse to publish a build carrying a credential" step below enforces it.
 #
 # Whatever you do pass in, put it in Settings > Secrets and variables > Actions
 # and reference it below. Never write a key literally in this file: it is public.
@@ -103,15 +112,28 @@ jobs:
 
       - name: Build web
         if: steps.check.outputs.ready == 'true'
-        # No repository secrets, on purpose. Nook stores everything on the
-        # device, so there is no backend URL or publishable key to pass in, and
-        # the Anthropic key is billable and stays local.
+        # No repository secrets, on purpose, and none needed: the API key
+        # lives on the AI service (see server/README.md) and never comes near
+        # this build. What is passed in below is that service's address.
         # --base-href matters: on a project page the site lives at
         # username.github.io/<repo>/, and without it every asset 404s and you get
         # a white screen.
+        env:
+          # A public address, not a credential, which is the whole point of it:
+          # it is the only AI-related thing the bundle carries. A repository
+          # VARIABLE rather than a secret, because a secret compiled into a
+          # static site stops being secret the moment the site is served, and
+          # masking it in the log does not change that. Set it under
+          # Settings > Secrets and variables > Actions > Variables.
+          #
+          # Unset is a valid state: the build then ships no AI at all and runs
+          # the sample extractor, which is what every build did before the
+          # service existed.
+          NOOK_AI_BACKEND: ${{ vars.NOOK_AI_BACKEND }}
         run: |
           flutter build web --release \
-            --base-href "/${{ github.event.repository.name }}/"
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=NOOK_AI_BACKEND="$NOOK_AI_BACKEND"
 
       # The app registers no service worker any more, but builds up to 9
       # October did, and that worker is still in the browser of anyone who
@@ -140,6 +162,16 @@ jobs:
             echo "run:       ${{ github.run_id }}"
           } > build/web/build.txt
           cat build/web/build.txt
+
+      # The last thing before the build leaves: every file about to be served
+      # is checked for a credential. Unlike analyze and test above, this one is
+      # allowed to stop the deploy — a failing test costs you a green tick, a
+      # published key costs you your Anthropic balance, and the second cannot
+      # be undone by pushing a fix. Nothing should ever trip it; that is the
+      # point of a guard.
+      - name: Refuse to publish a build carrying a credential
+        if: steps.check.outputs.ready == 'true'
+        run: ./tool/check_bundle.sh build/web
 
       - if: steps.check.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v5

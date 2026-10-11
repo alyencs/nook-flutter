@@ -8,7 +8,8 @@ The live link cannot demonstrate everything, and two things in particular have
 to be shown here instead: **real extraction** and **a real generated
 itinerary**. The published build ships without an API key on purpose, so both
 are the sample fallback there. The video is where the real thing gets
-demonstrated, running locally with an `ANTHROPIC_API_KEY` in `.env`.
+demonstrated, running locally with an `ANTHROPIC_API_KEY` passed as a
+`--dart-define`.
 
 Two optional values make the extraction noticeably better and are worth having
 set before recording: `YOUTUBE_API_KEY`, which gives the model a video's
@@ -101,7 +102,8 @@ trip, the profile or the search history goes with it.
 
 ## Before recording
 
-- [ ] An `ANTHROPIC_API_KEY` is in `.env` so extraction and the itinerary are real
+- [ ] An `ANTHROPIC_API_KEY` is passed with `--dart-define`, or `AI_BACKEND_URL`
+      points at a deployed AI service, so extraction and the itinerary are real
 - [ ] `YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` set if the run includes those platforms
 - [ ] Nothing personal is on screen: no real bookmarks, tabs, notifications or names
 - [ ] The seeded demo library is intact — a fresh browser profile is the simplest way

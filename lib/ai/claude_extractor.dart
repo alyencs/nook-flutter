@@ -22,8 +22,11 @@ import 'thumbnail_from_url.dart';
 /// Nothing here invents a result: every failure path throws, and
 /// [SampleExtractor] is reached only by having no key at all.
 class ClaudeExtractor implements AiExtractor {
+  /// Either [apiKey] or [backendUrl]. With a backend the request carries no
+  /// credential and the service attaches one it holds; see [ClaudeClient].
   ClaudeExtractor({
-    required String apiKey,
+    String? apiKey,
+    String? backendUrl,
     String? model,
     String? youTubeApiKey,
     String? facebookToken,
@@ -35,6 +38,7 @@ class ClaudeExtractor implements AiExtractor {
        _sourceClient = httpClient,
        _client = ClaudeClient(
          apiKey: apiKey,
+         baseUrl: backendUrl,
          httpClient: httpClient,
          retry: retry,
        );
@@ -549,12 +553,16 @@ call it more than once.
   ///
   /// No vendor names, model ids or status codes: say what happened in their
   /// terms and what they can do. The configuration failures are the exception,
-  /// because only the developer can fix them — and even those name the `.env`
-  /// setting rather than the service behind it.
+  /// because only the developer can fix them — and even those name the setting
+  /// rather than the service behind it.
+  ///
+  /// An authentication failure can only be the locally built case: when the
+  /// app goes through its own service, the service reports a key problem as a
+  /// misconfiguration on its side and never as a rejected credential.
   String _friendly(ClaudeApiException e) {
     if (e.isAuthFailure) {
-      return 'Nook could not authenticate with its AI service. Check '
-          'ANTHROPIC_API_KEY in your .env file.';
+      return 'Nook could not authenticate with its AI service. Check the '
+          'ANTHROPIC_API_KEY passed to this build with --dart-define.';
     }
     if (e.isBillingFailure) {
       return 'Nook\'s AI service has no credit left on this key. Top it up and '
@@ -566,7 +574,7 @@ call it more than once.
     }
     if (e.isModelUnavailable) {
       return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
-          'your .env file, or leave it blank to use the default.';
+          'your nook.env file, or leave it blank to use the default.';
     }
     if (e.isTransient) {
       return "We couldn't analyse this post right now. Nook tried a few times "

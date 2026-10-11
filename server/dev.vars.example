@@ -1,0 +1,6 @@
+# Local development only. Copy to `.dev.vars`, which is git-ignored, and put
+# your own key in it. `wrangler dev` reads this file; `wrangler deploy` does
+# not, so nothing here is ever uploaded.
+#
+# The deployed service gets its key from `wrangler secret put` instead.
+ANTHROPIC_API_KEY=

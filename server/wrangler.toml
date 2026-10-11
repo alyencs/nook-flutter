@@ -1,0 +1,47 @@
+# Cloudflare Workers deployment.
+#
+# The key is NOT in this file and must never be. It is set once with
+#   npx wrangler secret put ANTHROPIC_API_KEY
+# which stores it encrypted on the account; it is not readable afterwards,
+# not printed by any command, and not part of the repository.
+#
+# Everything under [vars] is public — it is served with the Worker — so only
+# non-secret settings belong there.
+
+name = "nook-ai"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# The model the service asks for when a request does not name one, and the
+# full set it will accept. Keeping this server-side means the model can be
+# changed without rebuilding or redeploying the app.
+CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+ALLOWED_MODELS = "claude-haiku-4-5-20251001"
+
+# The only two tasks this service performs. A request naming anything else is
+# refused, which is what stops the endpoint being useful as a general chat
+# service to anyone who finds the URL.
+ALLOWED_TOOLS = "record_extraction,record_itinerary"
+
+# Ceiling on one answer. A request asking for more is refused rather than
+# quietly clamped: a half-written itinerary looks like a bad model, not like a
+# limit, and is harder to diagnose than an error saying so.
+#
+# 6144 is not arbitrary — it is the largest the app itself asks for (an
+# itinerary; extraction asks 4096). Lower it and Explore Itinerary stops
+# working.
+MAX_OUTPUT_TOKENS = "6144"
+
+# Per-caller limit: this many requests per window.
+RATE_LIMIT = "30"
+RATE_WINDOW_SECONDS = "60"
+
+# How long to wait for the model before giving up.
+UPSTREAM_TIMEOUT_MS = "30000"
+
+# Browsers that may read the answers. Leave unset while setting up to allow
+# any origin; set it to the live site once that is working. Comma-separated,
+# scheme and host, no trailing slash.
+# ALLOWED_ORIGINS = "https://your-username.github.io"

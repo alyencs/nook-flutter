@@ -296,8 +296,8 @@ class _SampleModeNote extends StatelessWidget {
         const SizedBox(width: NookSpacing.tight),
         Expanded(
           child: Text(
-            'No API key found, so this will use sample details. Add '
-            'ANTHROPIC_API_KEY to .env for real extraction.',
+            'No AI service configured, so this will use sample details. '
+            'Set AI_BACKEND_URL in nook.env for real extraction.',
             style: NookType.caption,
           ),
         ),

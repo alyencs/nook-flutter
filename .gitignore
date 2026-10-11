@@ -8,6 +8,10 @@ env.json
 *.jks
 serviceAccountKey.json
 google-services.json.bak
+# The AI service's local key, and its installed packages.
+server/.dev.vars
+server/node_modules/
+server/.wrangler/
 
 # Flutter / Dart
 .dart_tool/
