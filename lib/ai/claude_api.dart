@@ -123,25 +123,52 @@ class RetryPolicy {
 typedef RetryNotice =
     void Function(int attempt, int maxAttempts, Duration wait);
 
-/// A thin client over `api.anthropic.com`.
+/// A thin client over the Messages API, wherever it is being reached.
+///
+/// Two ways round, and the difference is only who holds the key:
+///
+/// * **Through Nook's own service** — [baseUrl] points at it and [apiKey] is
+///   null. The request carries no credential at all; the service attaches one
+///   it holds server-side. This is what a deployed build does, because
+///   anything a web build ships is readable by whoever opens the page.
+/// * **Straight to `api.anthropic.com`** — [apiKey] is set. Convenient while
+///   working locally, where the key is in a git-ignored file on the machine
+///   and goes no further.
+///
+/// The body and the answer are identical either way, so everything above this
+/// class — the prompts, the schemas, the parsing — cannot tell which is in
+/// use, and none of it changes when the deployment does.
 class ClaudeClient {
   ClaudeClient({
-    required String apiKey,
+    String? apiKey,
+    String? baseUrl,
     http.Client? httpClient,
     this.retry = const RetryPolicy(),
     Random? random,
-  }) : _apiKey = apiKey,
+  }) : assert(
+         apiKey != null || baseUrl != null,
+         'Give it a key to call the API directly, or a backend to call instead.',
+       ),
+       _apiKey = apiKey,
+       _base = _trimSlash(baseUrl ?? anthropicBase),
        _http = httpClient ?? http.Client(),
        _random = random ?? Random();
 
-  static const _base = 'https://api.anthropic.com/v1';
+  static const anthropicBase = 'https://api.anthropic.com/v1';
 
   /// Pinned, so a server-side change cannot alter the response shape under a
   /// build that is already out.
   static const apiVersion = '2023-06-01';
 
-  final String _apiKey;
+  final String? _apiKey;
+  final String _base;
   final http.Client _http;
+
+  /// Whether the key is being sent from here, which only happens off the web.
+  bool get sendsKeyDirectly => _apiKey != null;
+
+  static String _trimSlash(String value) =>
+      value.endsWith('/') ? value.substring(0, value.length - 1) : value;
   final RetryPolicy retry;
   final Random _random;
 
@@ -211,15 +238,17 @@ class ClaudeClient {
     Uri uri,
     Map<String, Object?> body,
   ) async {
+    final key = _apiKey;
     final headers = {
-      'x-api-key': _apiKey,
-      'anthropic-version': apiVersion,
       'content-type': 'application/json',
-      // Without this the browser's preflight is refused and the call never
-      // leaves the page. It also names what a web build is doing: calling the
-      // API from the client, with the key that is in the bundle — fine locally,
-      // never for a deployed build. See docs/06-security-and-privacy.md.
-      if (kIsWeb) 'anthropic-dangerous-direct-browser-access': 'true',
+      if (key != null) ...{
+        'x-api-key': key,
+        'anthropic-version': apiVersion,
+        // Only reached when a key is being sent from the client, which is the
+        // local path. The deployed build has no key to send and never sets
+        // this. See docs/06-security-and-privacy.md.
+        if (kIsWeb) 'anthropic-dangerous-direct-browser-access': 'true',
+      },
     };
 
     http.Response response;

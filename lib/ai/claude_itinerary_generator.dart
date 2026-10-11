@@ -13,14 +13,18 @@ import 'itinerary_generator.dart';
 /// is its own: this reads several posts and organises them, so the reply and
 /// the wait are both longer than an extraction's.
 class ClaudeItineraryGenerator implements ItineraryGenerator {
+  /// Either [apiKey] or [backendUrl]. With a backend the request carries no
+  /// credential and the service attaches one it holds; see [ClaudeClient].
   ClaudeItineraryGenerator({
-    required String apiKey,
+    String? apiKey,
+    String? backendUrl,
     String? model,
     http.Client? httpClient,
     RetryPolicy retry = planningRetry,
   }) : _candidates = ClaudeModels.candidates(model),
        _client = ClaudeClient(
          apiKey: apiKey,
+         baseUrl: backendUrl,
          httpClient: httpClient,
          retry: retry,
        );
@@ -344,12 +348,12 @@ prose, and do not call it more than once.
   }
 
   /// What the traveller reads when a plan cannot be built. No vendor names,
-  /// model ids or status codes; the configuration failures name the `.env`
-  /// setting rather than the service behind it.
+  /// model ids or status codes; the configuration failures name the setting
+  /// rather than the service behind it.
   String _friendly(ClaudeApiException e) {
     if (e.isAuthFailure) {
-      return 'Nook could not authenticate with its AI service. Check '
-          'ANTHROPIC_API_KEY in your .env file.';
+      return 'Nook could not authenticate with its AI service. Check the '
+          'ANTHROPIC_API_KEY passed to this build with --dart-define.';
     }
     if (e.isBillingFailure) {
       return 'Nook\'s AI service has no credit left on this key. Top it up and '
@@ -361,7 +365,7 @@ prose, and do not call it more than once.
     }
     if (e.isModelUnavailable) {
       return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
-          'your .env file, or leave it blank to use the default.';
+          'your nook.env file, or leave it blank to use the default.';
     }
     if (e.isTransient) {
       return "We couldn't build an itinerary right now. Nook tried a few times "

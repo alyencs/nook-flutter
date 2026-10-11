@@ -2,7 +2,7 @@
 
 This repository is public.
 
-**Last checked:** 2026-10-03, against schema version 7.
+**Last checked:** 2026-10-10, against schema version 7.
 
 This document explains *why* Nook handles data and secrets the way it does.
 The line-by-line audit — every item checked, with the file that proves it and
@@ -94,54 +94,105 @@ included with their timestamps, and `format_version` is 2 to mark the change.
 
 ## Secrets
 
-Nook reads four values from `.env`. Three are credentials; one is not.
+### The constraint everything here follows from
 
-| Variable | What it is | Privileged | Needed to run |
+A Flutter web build is public in full. `main.dart.js` is a text file the
+browser downloads; every bundled asset is fetched by URL. There is no private
+region inside one, so a credential compiled into a published build is a
+published credential, whatever it was called on the way in.
+
+This rules out the hiding places that look like they should work:
+
+| Attempt | Why it fails |
+| --- | --- |
+| A GitHub Actions secret, read at build time | The secret is compiled into the output and the output is what GitHub Pages serves. Masking it in the build log does not unpublish it. |
+| A `--dart-define` on the deploy | Same thing by a different route: a define becomes a string constant in `main.dart.js`. |
+| An asset file read at startup | An asset is served by URL. `nook.env` is downloadable at `/assets/nook.env`. |
+| Obfuscating or splitting the value | The running app has to reassemble it, so the browser can too. This buys minutes, not security. |
+
+The only arrangement that holds is for the key never to be in the build, which
+means something else has to hold it. That is what `server/` is for.
+
+### Where each value lives now
+
+| Value | Privileged | Where it lives | Reaches the browser? |
 | --- | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Extraction (destination, category, summary, coordinates) and Explore Itinerary | **Yes, billable** | No — without it the sample extractor and sample planner run, and say so |
-| `YOUTUBE_API_KEY` | A YouTube video's description and the creator's channel picture, via the Data API | **Yes, quota-bearing** | No — without it extraction works from the title alone and no creator picture is available |
-| `FACEBOOK_TOKEN` | `APP_ID\|CLIENT_TOKEN` for Meta's oEmbed endpoints | **Yes, app-scoped** | No — without it Instagram and Facebook extract from the URL alone |
-| `CLAUDE_MODEL` | An optional model id to pin | No | No — without it the app uses the fast tier it pins itself |
+| `ANTHROPIC_API_KEY` | **Yes, billable** | The AI service's encrypted environment, set with `wrangler secret put`. Write-only: it cannot be read back, only replaced. | **Never** |
+| `AI_BACKEND_URL` | No — a public address | `nook.env`, or the `NOOK_AI_BACKEND` repository variable for the deploy | Yes, by design: the browser has to know where to knock |
+| `CLAUDE_MODEL` | No | `nook.env`, or the service's own `[vars]` | Yes, and harmless |
+| `YOUTUBE_API_KEY` | **Yes, quota-bearing** | A `--dart-define` on a local command only | Only in a local build, which must not be published |
+| `FACEBOOK_TOKEN` | **Yes, app-scoped** | A `--dart-define` on a local command only | Only in a local build, which must not be published |
 
-- **Where they live locally:** `.env`, which is git-ignored. `.gitignore` has
-  ignored `.env` since the very first commit, before any such file existed in
-  this repository, and `git log --all -- .env` confirms no commit has ever
-  touched it.
-- **Where the deploy workflow gets them:** it does not. None of the three is a
-  repository secret and none is passed as a `--dart-define`. The workflow copies
-  `.env.example` — which carries four empty values and no key — so the published
-  build has nothing to leak and makes no keyed request at all.
-- **What the deployed build carries that a visitor could read:** nothing
-  sensitive. No backend URL, no publishable key, no project identifier, because
-  there is no backend.
-- **How they travel when they are set.** `ANTHROPIC_API_KEY` is sent as an
-  `x-api-key` header. `YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` are sent as
-  query parameters, because that is the only form the YouTube Data API and the
-  Meta Graph API accept. All three go over HTTPS. A query string is encrypted in
-  transit but is visible in the browser's network inspector and to any proxy that
-  terminates TLS, so prefer keys scoped to those two APIs and revoke them if a
-  machine is shared.
-- **The Meta value is a client token, not an app secret.** A client token is
-  designed to be used from a client: it cannot read user data or change app
-  settings. An app secret would be the wrong value and is never asked for.
+None of the three credentials is a repository secret, and the deploy workflow
+passes no define carrying one. The workflow copies `.env.example` over
+`nook.env`, which holds two empty settings and no credential field at all.
 
-### Why the keys are handled this way
+### How the separation is enforced rather than remembered
 
-An Anthropic key is billable, and a YouTube key carries a quota. Anything compiled
-into a web build is readable by anyone who opens the site, so shipping either
-would let a stranger spend what is behind it. Two options were available: put a
-server in front as a proxy, or keep the feature local. Nook keeps it local,
-because a proxy would mean running a server for an app whose entire storage
-argument is that it does not need one.
+A rule that lives only in a document is one edit away from being gone, and the
+failure is silent — the site still works, the key just starts shipping. So the
+separation is checked in three places:
 
-The consequence is designed for rather than hidden. `AiExtractor` and
-`ItineraryGenerator` each have two implementations, and the one that runs is
-decided at startup by whether a key is present. The published build runs
-`SampleExtractor` and `SampleItineraryGenerator` — deterministic, offline, and
-labelled on the screens where their output appears. Real extraction and real
-itinerary generation run locally and are shown in the demo video. The same rule extends to the two newer values: absent,
-the affected lookups simply do less, and the prompt tells the model it is
-working blind rather than inviting it to invent what it cannot see.
+1. **No code path reads a credential from the bundle.** `NookAi` takes
+   `ANTHROPIC_API_KEY`, `YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` from
+   `String.fromEnvironment` only; its `_env` helper, which reads the asset, is
+   not reachable from any of them.
+2. **A test asserts that absence.** `test/no_bundled_credential_test.dart`
+   loads a bundle with all three credentials filled in, checks the app still
+   falls back to the sample extractor and sample planner, and inspects the
+   configuration source to confirm the only names read from the asset are
+   `AI_BACKEND_URL` and `CLAUDE_MODEL`.
+3. **The built output is scanned before it is published.**
+   `tool/check_bundle.sh` greps the finished build for Anthropic and Google key
+   formats and for any `*KEY`/`*TOKEN`/`*SECRET`/`*PASSWORD` assignment with a
+   value in a bundled env file. The deploy workflow runs it as the last step
+   before handing the build to Pages, and unlike `analyze` and `test` it is
+   allowed to fail the run: a failing test costs a green tick, a published key
+   costs an Anthropic balance and cannot be undone by pushing a fix.
+
+### What the service will and will not do
+
+The key being server-side moves the risk rather than removing it: the address
+is public, so anyone who finds it can spend against the key unless the endpoint
+is bounded. It is written as an allowlist — fields, models, tools, output size,
+body size and rate are each capped, and a request naming no tool of Nook's is
+refused, so the endpoint cannot be used as a general-purpose chat API. The full
+table is in [`../server/README.md`](../server/README.md), including the two
+limits worth stating plainly: the rate limit is per instance and in memory
+rather than distributed, and CORS restricts browsers but not scripts.
+
+Credential failures are never passed through as such. If the service's own key
+is rejected, the caller is told the service is misconfigured — not that a key
+was refused, which would confirm to a stranger that they had found a live
+endpoint with a broken key.
+
+### How the remaining credentials travel
+
+`YOUTUBE_API_KEY` and `FACEBOOK_TOKEN` are sent as query parameters, because
+that is the only form the YouTube Data API and the Meta Graph API accept. Both
+go over HTTPS. A query string is encrypted in transit but is visible in the
+browser's network inspector and to any proxy that terminates TLS, so prefer
+keys scoped to those two APIs and revoke them if a machine is shared. These two
+have not moved behind the service: they are only used on a local build, and
+neither is billable in the way the Anthropic key is.
+
+**The Meta value is a client token, not an app secret.** A client token is
+designed to be used from a client: it cannot read user data or change app
+settings. An app secret would be the wrong value and is never asked for.
+
+### What a visitor to the deployed site can read
+
+The service's address, the model id if one is pinned, and nothing else. With
+the service configured, extraction and Explore Itinerary are real on the
+published site — which they were not before, because the only way to have them
+real used to be a key in the build.
+
+Without the service configured, `AiExtractor` and `ItineraryGenerator` fall
+back to `SampleExtractor` and `SampleItineraryGenerator` — deterministic,
+offline, and labelled on the screens where their output appears. The same rule
+extends to the two optional lookups: absent, they simply do less, and the
+prompt tells the model it is working blind rather than inviting it to invent
+what it cannot see.
 
 ## What leaves the device, and when
 
@@ -150,7 +201,8 @@ Only when the user asks for it — tapping **Analyze** on a pasted link, or
 
 | Host | Purpose | Credential |
 | --- | --- | --- |
-| `api.anthropic.com` | Extraction, and Explore Itinerary generation | `ANTHROPIC_API_KEY`, as a header |
+| Nook's AI service | Extraction, and Explore Itinerary generation. The request carries no credential; the service attaches the key and calls `api.anthropic.com` itself. | none from the browser |
+| `api.anthropic.com` | The same, called directly — local builds only, never the deployed site | `ANTHROPIC_API_KEY`, as a header |
 | `www.youtube.com/oembed` | Title, channel, thumbnail | none — public |
 | `www.googleapis.com/youtube/v3` | The video description, then the channel's picture | `YOUTUBE_API_KEY`, as a query parameter |
 | `www.tiktok.com/oembed` | Caption, author, thumbnail | none — public |
@@ -262,16 +314,18 @@ where the user is.
 The full audit is [`SECURITY-CHECKLIST.md`](../SECURITY-CHECKLIST.md). In
 summary:
 
-- [x] `.env` is git-ignored, was ignored from the first commit, and was never committed
-- [x] `.env.example` contains placeholders only — four empty values, no key
+- [x] `nook.env` is git-ignored, was ignored from the first commit, and was never committed
+- [x] `.env.example` has no credential field at all — two empty public settings
 - [x] No billable or privileged key reaches the deployed build
+- [x] No code path reads a credential from the bundled asset, and a test asserts it
+- [x] The built output is scanned for credentials before it is published
 - [x] No repository secrets are required to build or deploy
 - [x] No hardcoded secrets anywhere in `lib/`, `web/` or `test/`
 - [x] No logging, and no vendor name, model id or status code in any user-facing error
 - [x] No real personal data in the code, the seed data, the screenshots or the video
 - [x] No `student.json`, no student number
 - [x] Deletion is reversible for 30 days and permanent afterwards
-- [x] `flutter analyze` is clean and 279 tests pass
+- [x] `flutter analyze` is clean, 383 Flutter tests pass and 31 service tests pass
 - [x] Dependencies are pinned by `pubspec.lock`, which is committed
 - [x] Deletion clears every table, and the export writes every column
 - [ ] **Five open items** remain in the checklist, including an opportunistic

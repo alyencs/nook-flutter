@@ -178,7 +178,7 @@ seeds a small fictional demo library so the app opens looking like the design.
 
 ```bash
 flutter analyze    # clean
-flutter test       # 336 tests, 331 passing — see known issues below
+flutter test       # 386 tests, 383 passing — see known issues below
 flutter build web --release
 dart run build_runner build --delete-conflicting-outputs   # after editing lib/data/tables.dart
 ```
@@ -188,6 +188,28 @@ To build without the preview — which is how the screenshots above were taken:
 ```bash
 flutter build web --release --dart-define=NOOK_DEVICE_PREVIEW=false
 ```
+
+### How the deployed app reaches the model
+
+GitHub Pages serves static files, so everything the app ships is readable by
+anyone who opens it. A billable key cannot live there, and a GitHub Actions
+secret does not help: a secret used at build time ends up in the build, and
+the build is what is served.
+
+So the key lives in a small service of its own, in `server/`:
+
+```
+browser (github.io)  ──POST /v1/messages──▶  Nook's AI service  ──key──▶  api.anthropic.com
+     carries no key                           holds the key
+```
+
+The only AI-related thing the published bundle carries is that service's
+address, which is public by necessity. `server/README.md` has the deployment
+steps; they take about five minutes and need no payment details.
+
+Without the service configured, the app runs its sample extractor and sample
+planner and says so on screen — which is what every build did before, and is
+still a perfectly good demo.
 
 ### Checking a deployment
 
@@ -202,43 +224,92 @@ live link does not behave:
   storage, and whether the browser is delivering clicks to the page at all. It
   loads none of the app, so it still answers when the app does not.
 
-### Environment variables
+### Configuration
 
-This project reads its configuration from a `nook.env` file that is **not** in
-the repository. Copy `.env.example` over it, fill in your own values, and never
-commit the
-result.
+Configuration comes from two places, and which one a value goes in is decided
+by a single question: **is it safe to publish?**
+
+A web build is public in full. Every string in `main.dart.js` and every bundled
+asset is downloadable by anyone who opens the page, so there is no such thing
+as a private value inside one. That rules out the usual hiding places — a
+repository secret used at build time ends up in the build, and the build is
+what is served.
+
+#### Settings, in `nook.env`
+
+Public values. `pubspec.yaml` lists this file as an asset, which is how
+`flutter_dotenv` reads it and also means **the file is served to visitors
+verbatim**. Copy `.env.example` over it; it must exist before the app will
+build, even empty.
 
 | Variable | What it is | Where to get one |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Powers destination, category, summary and coordinate detection, and writes the Explore Itinerary plans. **Billable.** Without it Nook runs a deterministic sample extractor and sample planner, and says so on screen. | https://console.anthropic.com/settings/keys |
-| `YOUTUBE_API_KEY` | YouTube Data API v3. Fetches a video's description — where the addresses and prices are — and the creator's profile picture. Free tier, no billing account. Without it, extraction works from the title alone. | [Enable YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) |
-| `FACEBOOK_TOKEN` | `APP_ID\|CLIENT_TOKEN` from a Meta app with **oEmbed Read**. The only way to read an Instagram or Facebook caption — both withdrew public oEmbed in 2020. Without it those two extract from the URL alone, and the prompt says so. | [developers.facebook.com/apps](https://developers.facebook.com/apps) → Settings → Advanced |
-| `CLAUDE_MODEL` | Optional model id to pin. Not a secret. Without it Nook uses the fast tier it pins itself. | — |
+| `AI_BACKEND_URL` | Nook's AI service, which holds the Anthropic key so the app never has to. This is how a published build reaches the real model. A public address by necessity — the browser has to know where to knock. Blank, and Nook runs its sample extractor and sample planner and says so on screen. | `server/README.md` |
+| `CLAUDE_MODEL` | Optional model id to pin. Blank lets the service choose, which is the point of letting it choose: the model can change without rebuilding the app. | — |
 
-**No key is ever deployed.** None of these is a repository secret or a
-`--dart-define`. Anyone can read a value compiled into a web build and spend the
-quota behind it, so the GitHub Pages build is created from a keyless
-`.env.example` and runs the sample extractor. Real extraction runs locally and is
-shown in the demo video.
+That is the whole list, and no credential is on it. The app reads nothing else
+from this file — not as a convention, but because no code path exists that
+would. `test/no_bundled_credential_test.dart` fills the file with keys and
+asserts every one of them is ignored.
+
+#### Credentials, as `--dart-define`
+
+Billable values, for running against the real model **from your own machine**
+with no service in between. A `--dart-define` is a property of one command on
+one machine rather than a file that travels with the project:
+
+```bash
+flutter run -d chrome \
+  --dart-define=ANTHROPIC_API_KEY=sk-ant-...
+```
+
+| Define | What it buys | Where to get one |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | Destination, category, summary and coordinate detection, and the Explore Itinerary plans, called straight from the browser. **Billable.** Ignored entirely when `AI_BACKEND_URL` is set — a build that can reach the service has no business also carrying a key. | https://console.anthropic.com/settings/keys |
+| `YOUTUBE_API_KEY` | A video's description, where the addresses and prices are, plus the creator's profile picture. Free tier, no billing account. Without it extraction works from the title alone. | [Enable YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) |
+| `FACEBOOK_TOKEN` | `APP_ID\|CLIENT_TOKEN` from a Meta app with **oEmbed Read**. The only way to read an Instagram or Facebook caption — both withdrew public oEmbed in 2020. Without it those two extract from the URL alone, and the prompt says so. | [developers.facebook.com/apps](https://developers.facebook.com/apps) → Settings → Advanced |
+
+**A build made with any of these must not be published.** A `--dart-define` is
+compiled into `main.dart.js` like anything else; what it avoids is a key
+sitting in a file that gets copied, committed or built by accident. The
+deployed build passes none, which is what makes it safe to serve.
+
+Not a rule to remember, either — `tool/check_bundle.sh` reads the finished
+build and refuses a credential it finds in any file, and the deploy workflow
+runs it as the last step before publishing:
+
+```bash
+flutter build web --release
+./tool/check_bundle.sh build/web
+```
 
 ### Backend and API requirements
 
-There is **no backend to run** — no server, no database to provision, no
-account system, no migrations to apply anywhere but the device. The app talks to
-four external services, all of them optional:
+There is **no database to provision**, no account system and no migrations to
+apply anywhere but the device. Saves, trips and settings never leave the phone.
+
+One small service does exist, in [`server/`](server/README.md), and its only
+job is to hold the Anthropic key. It is a single `fetch` handler of a few
+hundred lines, deployable to Cloudflare Workers' free tier in about five
+minutes with no payment details. It is optional: without it the app runs its
+sample extractor and sample planner.
 
 | Service | Used for | Needs a key |
 | --- | --- | --- |
-| `api.anthropic.com` | Extraction and itinerary generation | `ANTHROPIC_API_KEY` |
+| Nook's AI service (`server/`) | Extraction and itinerary generation, with the key held server-side | Yes, on the server — `wrangler secret put` |
+| `api.anthropic.com` | The same, called directly, for local work only | `ANTHROPIC_API_KEY` as a `--dart-define` |
 | YouTube and TikTok oEmbed | A post's real title, creator and thumbnail | No |
 | YouTube Data API, Meta Graph API | A video's description; Instagram and Facebook captions | `YOUTUBE_API_KEY`, `FACEBOOK_TOKEN` |
 | `tile.openstreetmap.org` | Map tiles on Travel Details | No |
 
-Because the Anthropic call is made from the client, a web build carries whatever
-key is in its `nook.env`. That is why the deployed build carries none. If you ever
-want real AI on a public deployment, the key has to move behind a server you
-control — see [`docs/06-security-and-privacy.md`](docs/06-security-and-privacy.md).
+The two AI rows are the same feature reached two ways, and only one of them is
+publishable. Set `AI_BACKEND_URL` and the app sends its request to the service,
+which attaches the key and forwards it; the bundle carries the address and
+nothing else. Leave it blank and pass a key instead and the browser calls
+Anthropic itself, which is convenient locally and must not be deployed. The
+reasoning, and what the service will and will not do with the key, is in
+[`server/README.md`](server/README.md) and
+[`docs/06-security-and-privacy.md`](docs/06-security-and-privacy.md).
 
 ## Privacy and secrets
 
@@ -248,11 +319,15 @@ control — see [`docs/06-security-and-privacy.md`](docs/06-security-and-privacy
   server, so there is no service side to protect: no Firestore rules, no Supabase
   RLS, no credentials. The only thing that ever leaves the device is a link you
   asked Nook to analyse, plus what the platform has already published about it.
-- **Where the secrets live.** `nook.env`, which is git-ignored — and was ignored from
-  the very first commit, before any such file existed. The deploy workflow builds
-  from a keyless `.env.example`, so the published site has nothing to leak.
-  The name carries no leading dot because the Pages upload strips dotfiles from
-  the artifact, which left the asset missing from the live site.
+- **Where the secrets live.** The Anthropic key lives on Nook's AI service, in
+  the hosting platform's encrypted environment, where it cannot be read back —
+  only replaced. Nothing credential-shaped goes in `nook.env`, because that file
+  is a bundled asset and so is served to every visitor; it holds the service's
+  address and an optional model id, both public. A key for local work is passed
+  as a `--dart-define` to one command instead, and `tool/check_bundle.sh` fails
+  the deploy if a credential is found in a build about to be published.
+  `nook.env` carries no leading dot because the Pages upload strips dotfiles
+  from the artifact, which left the asset missing from the live site.
 - **No real personal information** appears in the sample data, the screenshots or
   the video. Every trip, post, handle and link in the seeded library is invented.
 

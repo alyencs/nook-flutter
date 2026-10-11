@@ -19,8 +19,8 @@ dependencies:
   drift: ^2.20.0
   drift_flutter: ^0.2.0
   path_provider: ^2.1.4
-  # Loads ANTHROPIC_API_KEY from a git-ignored .env. Never shipped to the web
-  # build.
+  # Reads the public settings in nook.env. Never a credential: whatever is in
+  # that file is an asset, and assets are served. See the note under assets.
   flutter_dotenv: ^5.1.0
   # Profile picture on Set Up Profile and Account.
   image_picker: ^1.1.2
@@ -50,9 +50,12 @@ flutter:
 
   assets:
     # flutter_dotenv reads this through the asset bundle, so it must be listed.
-    # It is git-ignored; copy .env.example over it to fill it in, and the
-    # deploy workflow writes a keyless one so the deployed build runs the
-    # sample extractor.
+    # It is git-ignored; copy .env.example over it to fill it in.
+    #
+    # Being listed here means being served: anyone can fetch /assets/nook.env
+    # from the deployed site. So it carries public settings only — which AI
+    # service to call, which model to ask for. Credentials are --dart-define
+    # values instead, and no code reads one from this file.
     #
     # Not called `.env`: the GitHub Pages upload tars the build with
     # `--exclude=.[^/]*`, which drops every dotfile, so an asset named `.env`
