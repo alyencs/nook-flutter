@@ -82,7 +82,7 @@ searchable across platforms.
 > `item_count` is computed rather than stored, so a trip card cannot disagree with
 > the rows behind it. **Email is no longer collected**: Nook talks to no server, so
 > there was never an account for an address to identify. The current structure is
-> in the [README](../README.md#storage).
+> in the [README](../README.md#built-with).
 
 **The choice: Drift (SQL, on-device, works on web).**
 

@@ -15,7 +15,7 @@ Two optional values make the extraction noticeably better and are worth having
 set before recording: `YOUTUBE_API_KEY`, which gives the model a video's
 description rather than only its title, and `FACEBOOK_TOKEN`, which is the only
 way an Instagram or Facebook caption can be read at all. Both are described in
-the [README](../README.md#environment-variables).
+the [README](../README.md#configuration).
 
 ## Suggested run, about three to four minutes
 
