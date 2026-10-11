@@ -189,7 +189,9 @@ class ClaudeClient {
     RetryNotice? onRetry,
   }) async {
     final started = DateTime.now();
-    final uri = Uri.parse('$_base/$path');
+    final uri = Uri.parse(
+      _base.endsWith('/v1') ? '$_base/$path' : '$_base/v1/$path',
+    );
     ClaudeApiException? last;
 
     for (var attempt = 1; attempt <= retry.maxAttempts; attempt++) {
@@ -234,10 +236,7 @@ class ClaudeClient {
   }
 
   /// A single HTTP round trip, with every failure shaped into one exception.
-  Future<Map<String, dynamic>> _once(
-    Uri uri,
-    Map<String, Object?> body,
-  ) async {
+  Future<Map<String, dynamic>> _once(Uri uri, Map<String, Object?> body) async {
     final key = _apiKey;
     final headers = {
       'content-type': 'application/json',
@@ -268,9 +267,7 @@ class ClaudeClient {
       );
     } catch (e) {
       // No status: the request never reached a server. Retryable by definition.
-      throw ClaudeApiException(
-        message: 'Could not reach the AI service: $e',
-      );
+      throw ClaudeApiException(message: 'Could not reach the AI service: $e');
     }
 
     if (response.statusCode == 200) {
@@ -371,11 +368,7 @@ Map<String, Object?> claudeToolRequest({
     {'role': 'user', 'content': prompt},
   ],
   'tools': [
-    {
-      'name': toolName,
-      'description': toolDescription,
-      'input_schema': schema,
-    },
+    {'name': toolName, 'description': toolDescription, 'input_schema': schema},
   ],
   // Forced, not offered: there is no path where it answers in prose instead.
   'tool_choice': {'type': 'tool', 'name': toolName},

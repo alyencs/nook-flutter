@@ -71,7 +71,7 @@ class ClaudeExtractor implements AiExtractor {
 
   /// The name the model calls to hand its answer back. The reply is the tool's
   /// arguments, so there is no prose to find JSON inside of.
-  static const toolName = 'record_post_details';
+  static const toolName = 'record_extraction';
 
   /// A ceiling, so a reply cannot run until it times out — set high enough for
   /// a post that names five venues with an address and a note each.
@@ -196,8 +196,7 @@ class ClaudeExtractor implements AiExtractor {
       claudeToolRequest(
         model: model,
         system: _instructions,
-        prompt:
-            '--- SOURCE ---\n${source.toPromptBlock()}--- END SOURCE ---',
+        prompt: '--- SOURCE ---\n${source.toPromptBlock()}--- END SOURCE ---',
         toolName: toolName,
         toolDescription:
             'Record what the SOURCE block says about this post. Call this '
@@ -246,17 +245,23 @@ class ClaudeExtractor implements AiExtractor {
             'The specific cafe, restaurant, shop, hotel or landmark '
             'the post is about, if it names one.',
       },
-      'address': {'type': ['string', 'null']},
+      'address': {
+        'type': ['string', 'null'],
+      },
       'neighbourhood': {
         'type': ['string', 'null'],
         'description': 'District or neighbourhood, e.g. "Nakazakicho".',
       },
-      'city': {'type': ['string', 'null']},
+      'city': {
+        'type': ['string', 'null'],
+      },
       'region': {
         'type': ['string', 'null'],
         'description': 'Prefecture, state or province.',
       },
-      'country': {'type': ['string', 'null']},
+      'country': {
+        'type': ['string', 'null'],
+      },
       'category': {'type': 'string', 'enum': NookCategories.all},
       'summary': {
         'type': ['string', 'null'],
@@ -282,7 +287,9 @@ class ClaudeExtractor implements AiExtractor {
             'region or country, its own centre. Null only when the post names '
             'nowhere at all.',
       },
-      'longitude': {'type': ['number', 'null']},
+      'longitude': {
+        'type': ['number', 'null'],
+      },
       'places': {
         'type': 'array',
         'description':
@@ -322,7 +329,8 @@ class ClaudeExtractor implements AiExtractor {
     'required': ['title', 'category'],
   };
 
-  static const _instructions = '''
+  static const _instructions =
+      '''
 You extract travel metadata from a saved social media post for a trip-planning
 app called Nook. Everything you need is in the SOURCE block below.
 
