@@ -124,7 +124,7 @@ class _PasteLinkScreenState extends State<PasteLinkScreen> {
   }
 
   Future<void> _analyze() async {
-    final url = _url.text.trim();
+    final url = NookPlatform.normalise(_url.text);
     if (url.isEmpty) return;
     // Enter in the field and the Analyze button both land here, and the error
     // card adds a third way in. The button disables itself while busy; this

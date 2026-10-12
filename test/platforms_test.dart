@@ -231,4 +231,96 @@ void main() {
       }
     });
   });
+
+  group('the shapes a link actually arrives in', () {
+    /// A link is rarely pasted in the tidy form a test writes by hand. It
+    /// comes off a share sheet with tracking parameters on it, from a short
+    /// domain, from the mobile host, or with the scheme already stripped by
+    /// whatever copied it. Each of these is one platform's ordinary output.
+    const variants = <String, List<String>>{
+      NookPlatform.youtube: [
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'https://youtu.be/dQw4w9WgXcQ',
+        'https://m.youtube.com/watch?v=dQw4w9WgXcQ',
+        'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+        'https://www.youtube.com/live/dQw4w9WgXcQ',
+      ],
+      NookPlatform.tiktok: [
+        'https://www.tiktok.com/@wanderwithmia/video/7311234567890',
+        'https://vm.tiktok.com/ZMabcdefg/',
+        'https://vt.tiktok.com/ZSabcdefg/',
+        'https://m.tiktok.com/v/7311234567890.html',
+        'https://www.tiktok.com/@u/video/7311234567890'
+            '?is_from_webapp=1&sender_device=pc',
+      ],
+      NookPlatform.instagram: [
+        'https://www.instagram.com/p/Cx1y2z3AbCd/',
+        'https://www.instagram.com/reel/Cx1y2z3AbCd/',
+        'https://www.instagram.com/tv/Cx1y2z3AbCd/',
+        'https://instagr.am/p/Cx1y2z3AbCd/',
+        'https://www.instagram.com/reel/Cx1y2z3AbCd/?igsh=MzRlODBiNWFlZA==',
+      ],
+      NookPlatform.facebook: [
+        'https://www.facebook.com/visitkyoto/posts/1234567890',
+        'https://www.facebook.com/reel/1234567890',
+        'https://m.facebook.com/story.php?story_fbid=1&id=2',
+        'https://web.facebook.com/watch/?v=1234567890',
+        'https://fb.watch/abcdEFgh/',
+        'https://fb.me/abcdEFgh',
+      ],
+    };
+
+    test('every variant is read as its own platform', () {
+      variants.forEach((platform, urls) {
+        for (final url in urls) {
+          expect(
+            NookPlatform.fromUrl(url),
+            platform,
+            reason: '$url should be $platform',
+          );
+        }
+      });
+    });
+
+    test('a link that lost its scheme is still that platform', () {
+      // A share sheet or a keyboard suggestion hands these over without the
+      // https://, and Uri reads the whole thing as a path with no host.
+      expect(
+        NookPlatform.fromUrl('www.tiktok.com/@u/video/7311234567890'),
+        NookPlatform.tiktok,
+      );
+      expect(
+        NookPlatform.fromUrl('instagram.com/p/Cx1y2z3AbCd/'),
+        NookPlatform.instagram,
+      );
+      expect(
+        NookPlatform.fromUrl('youtu.be/dQw4w9WgXcQ'),
+        NookPlatform.youtube,
+      );
+    });
+
+    test('normalise makes a link absolute without inventing one', () {
+      expect(
+        NookPlatform.normalise('www.tiktok.com/@u/video/1'),
+        'https://www.tiktok.com/@u/video/1',
+      );
+      expect(
+        NookPlatform.normalise('  https://youtu.be/abc  '),
+        'https://youtu.be/abc',
+        reason: 'an absolute link is only trimmed',
+      );
+      expect(
+        NookPlatform.normalise('a note about Kyoto'),
+        'a note about Kyoto',
+        reason: 'ordinary text is not dressed up as a URL',
+      );
+      expect(NookPlatform.normalise(''), '');
+    });
+
+    test('something that is not a link is not claimed by any platform', () {
+      for (final text in ['', '   ', 'just some words', 'not a url at all']) {
+        expect(NookPlatform.fromUrl(text), NookPlatform.other);
+      }
+    });
+  });
 }
