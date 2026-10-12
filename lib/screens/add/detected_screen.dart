@@ -78,6 +78,13 @@ class _DetectedScreenState extends State<DetectedScreen> {
               const SizedBox(height: NookSpacing.section),
               const _SampleNotice(),
             ],
+            // Why the fields above are thin, when they are. Without this a
+            // private post, a deleted post and a service that has not been
+            // redeployed all look identical: blank fields and no explanation.
+            if (!widget.draft.fromSample && widget.draft.sourceNote != null) ...[
+              const SizedBox(height: NookSpacing.section),
+              _SourceNotice(widget.draft.sourceNote!),
+            ],
             StreamBuilder<Map<String, bool>>(
               stream: AppScope.of(context).settings.watchAll(),
               builder: (context, snapshot) {
@@ -166,6 +173,43 @@ class _DestinationField extends StatelessWidget {
 /// The deployed build has no API key — a billable key must never ship in a
 /// public web app — so it says so here rather than passing invented metadata
 /// off as a real extraction.
+/// Why this post could not be read, in the platform's or the service's own
+/// terms, with the one thing the reader can do about it.
+class _SourceNotice extends StatelessWidget {
+  const _SourceNotice(this.note);
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(NookSpacing.section),
+      decoration: BoxDecoration(
+        color: NookColors.secondary,
+        borderRadius: BorderRadius.circular(NookRadius.md),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 20,
+            color: NookColors.primary,
+          ),
+          const SizedBox(width: NookSpacing.tight),
+          Expanded(
+            child: Text(
+              "Nook couldn't read this post. $note You can still fill the "
+              'details in yourself.',
+              style: NookType.caption.copyWith(color: NookColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SampleNotice extends StatelessWidget {
   const _SampleNotice();
 

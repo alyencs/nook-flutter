@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -123,6 +124,25 @@ class SourceMetadata {
   /// and the person pasting the link is the only one who can tell them apart
   /// — so they are told which it was.
   final String? unreadableReason;
+
+  /// The same source, carrying [reason] for why nothing could be read.
+  SourceMetadata withUnreadableReason(String? reason) => SourceMetadata(
+    platform: platform,
+    url: url,
+    sourceId: sourceId,
+    title: title,
+    description: description,
+    creator: creator,
+    creatorHandle: creatorHandle,
+    creatorUrl: creatorUrl,
+    creatorAvatarUrl: creatorAvatarUrl,
+    thumbnailUrl: thumbnailUrl,
+    hashtags: hashtags,
+    canonicalUrl: canonicalUrl,
+    mediaType: mediaType,
+    fetched: fetched,
+    unreadableReason: reason,
+  );
 
   bool get hasText =>
       (title != null && title!.trim().isNotEmpty) ||
@@ -322,13 +342,16 @@ abstract final class SourceMetadataFetcher {
     // asking a platform for a page is a cross-origin request, and Instagram
     // and Facebook send no CORS headers — which is why those two arrived at
     // the model as a bare URL however public the post was.
+    String? serviceNote;
     if (backendUrl != null && backendUrl.trim().isNotEmpty) {
-      final viaService = await _fromService(
+      final attempt = await _fromService(
         trimmed,
         backendUrl.trim(),
         fallback,
         client,
       );
+      serviceNote = attempt.note;
+      final viaService = attempt.source;
       if (viaService != null) {
         // YouTube's description and avatar still come from the Data API, which
         // needs a key the service does not hold.
@@ -340,8 +363,10 @@ abstract final class SourceMetadataFetcher {
         }
         return viaService;
       }
-      // The service is unreachable or refused. Fall through to the direct
-      // lookups below, which still work for YouTube and sometimes TikTok.
+      // The service is unreachable, out of date, or refused. Fall through to
+      // the direct lookups below, which still work for YouTube and sometimes
+      // TikTok — but carry the reason with us so that a post that ends up
+      // unread says why instead of looking like an empty post.
     }
 
     final endpoint = endpointFor(
@@ -349,7 +374,13 @@ abstract final class SourceMetadataFetcher {
       platform,
       facebookToken: facebookToken,
     );
-    if (endpoint == null) return fallback;
+    // Whatever we end up with, a service note travels with it: the floor is
+    // the URL alone, and an unread post has to say why it went unread.
+    SourceMetadata withNote(SourceMetadata source) => source.fetched
+        ? source
+        : source.withUnreadableReason(serviceNote ?? source.unreadableReason);
+
+    if (endpoint == null) return withNote(fallback);
 
     SourceMetadata result = fallback;
     try {
@@ -360,7 +391,7 @@ abstract final class SourceMetadataFetcher {
       } else {
         response = await http.get(uri).timeout(timeout);
       }
-      if (response.statusCode != 200) return fallback;
+      if (response.statusCode != 200) return withNote(fallback);
 
       final json = jsonDecode(utf8.decode(response.bodyBytes));
       if (json is Map<String, dynamic>) result = _fromOEmbed(json, fallback);
@@ -375,7 +406,7 @@ abstract final class SourceMetadataFetcher {
         result.sourceId != null) {
       result = await _withYouTubeSnippet(result, youTubeApiKey, client);
     }
-    return result;
+    return withNote(result);
   }
 
   /// Asks Nook's service to read the post, and maps its answer.
@@ -384,7 +415,7 @@ abstract final class SourceMetadataFetcher {
   /// refused, a shape that does not parse — so the caller can fall back. A
   /// service that answers "this post is private" is not null: that is a real
   /// answer and it carries the reason the person needs to see.
-  static Future<SourceMetadata?> _fromService(
+  static Future<({SourceMetadata? source, String? note})> _fromService(
     String url,
     String backendUrl,
     SourceMetadata fallback,
@@ -404,14 +435,50 @@ abstract final class SourceMetadataFetcher {
           ? await client.post(uri, headers: headers, body: body).timeout(timeout)
           : await http.post(uri, headers: headers, body: body).timeout(timeout);
 
-      if (response.statusCode != 200) return null;
+      if (response.statusCode == 404) {
+        // The route is not there. The service is running a build from before
+        // it could read posts — which is indistinguishable, from inside the
+        // app, from the platforms publishing nothing: Instagram and Facebook
+        // go back to extracting from the URL alone and nothing says why.
+        // Saying so is the difference between a five-minute redeploy and
+        // another round of looking for a bug in the parser.
+        return (
+          source: null,
+          note:
+              'This deployment of Nook\'s AI service has no /v1/metadata '
+              'route, so no post could be read from its platform. Redeploy '
+              'the service (cd server && npx wrangler deploy).',
+        );
+      }
+      if (response.statusCode != 200) {
+        return (
+          source: null,
+          note:
+              'Nook\'s AI service could not read this post '
+              '(HTTP ${response.statusCode}).',
+        );
+      }
+
       final json = jsonDecode(utf8.decode(response.bodyBytes));
-      if (json is! Map<String, dynamic>) return null;
-      return _fromServiceJson(json, fallback);
-    } catch (_) {
-      // Offline, timed out, or the service is an older build with no metadata
-      // route. Neither is fatal: extraction runs on less.
-      return null;
+      if (json is! Map<String, dynamic>) {
+        return (
+          source: null,
+          note: 'Nook\'s AI service returned something unreadable for this post.',
+        );
+      }
+      return (source: _fromServiceJson(json, fallback), note: null);
+    } on TimeoutException {
+      return (
+        source: null,
+        note: 'Reading this post from its platform timed out.',
+      );
+    } catch (error) {
+      // Offline, DNS, CORS on the service itself. Not fatal — extraction runs
+      // on less — but no longer silent.
+      return (
+        source: null,
+        note: 'Nook\'s AI service could not be reached to read this post.',
+      );
     }
   }
 

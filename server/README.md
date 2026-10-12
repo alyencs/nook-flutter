@@ -195,13 +195,24 @@ source actually carries it.
 | --- | --- | --- | --- | --- |
 | Title | yes, a real one | no title field | no title field | no title field |
 | Caption / description | yes | yes | yes | yes |
-| Creator name | yes | yes | sometimes | sometimes |
-| Creator handle | yes | yes | yes | from the page's vanity path |
-| Creator profile URL | yes | yes | yes | yes |
-| Creator avatar | with a YouTube API key, or the channel page | public profiles | public profiles | public pages |
-| Thumbnail | yes | yes | yes | yes |
+| Creator name | oEmbed | oEmbed | JSON-LD, else `og:title` | **`og:title` only** |
+| Creator handle | oEmbed | oEmbed | JSON-LD or `og:title` | none published |
+| Creator profile URL | oEmbed | oEmbed | JSON-LD, else derived | derived from a vanity path, if the URL has one |
+| Creator avatar | API key, or the channel page | embedded state blob, else profile page | JSON-LD, else profile page | none for `/reel/` or `/watch/` |
+| Thumbnail | oEmbed | oEmbed | `og:image` | `og:image` |
 | Hashtags | from the caption | from the caption | from the caption | from the caption |
 | Short links resolved | `youtu.be` | `vt.`/`vm.tiktok.com` | `instagr.am` | `fb.watch`, `fb.me` |
+
+**The three columns are not interchangeable, and assuming they were is what
+kept Facebook broken.** Facebook publishes no keyless oEmbed, no `og:see_also`
+and no handle in its markup; its only creator source is the display name in
+`og:title`, read on its own. TikTok has oEmbed and so needs none of that.
+Instagram has neither oEmbed nor a bare name — it has JSON-LD, and an
+`og:title` of the form `Name (@handle)`.
+
+Nothing is read from `og:see_also`. An earlier version read the creator out of
+it on all three; no platform serves that tag on a post page, and because the
+test fixtures carried it too, the suite passed while the live app got nothing.
 
 Three of those four have no title field at all, which is the point: a post with
 a caption and no title is a complete post, and the caption is where the venue,
@@ -257,7 +268,7 @@ and is never one of these.
 ## Working on it
 
 ```bash
-npm test          # 74 tests, no key needed, nothing spent
+npm test          # 87 tests, no key needed, nothing spent
 npm run dev       # wrangler dev, reads .dev.vars
 ```
 
@@ -322,6 +333,31 @@ holds them that way.
 For `npm run dev` against the real model, copy `.dev.vars.example` to
 `.dev.vars` and put a key in it. That file is git-ignored and is never
 uploaded by `wrangler deploy`.
+
+### Diagnosing one post
+
+Every answer carries `sources` and `diagnostics`, which say where each field
+came from and what the fetch actually saw. A null on its own cannot distinguish
+the platform not publishing a field, a sign-in wall, and a parser bug; these do.
+
+```bash
+curl -s -X POST https://your-service.workers.dev/v1/metadata \
+  -H 'content-type: application/json' \
+  -d '{"url":"https://www.instagram.com/reel/<code>/"}' | jq '{sources, diagnostics, creator, creatorHandle, creatorAvatarUrl, caption}'
+```
+
+| What you see | What it means |
+| --- | --- |
+| `diagnostics.pageStatus: 200`, `metaTagCount: 0` | The page loaded but carries no meta tags — usually an app-interstitial rather than the post. |
+| `diagnostics.loginWall: true` | Not a public post. Nothing to fix. |
+| `jsonLdBlocks: 0` on Instagram | That page served no structured data, so the creator falls to `og:title`. |
+| `oembedAnswered: false` on TikTok | TikTok rate-limited the lookup; the caption still comes from `og:description`. |
+| `sources.creatorAvatarUrl: "rejected: same image as the post thumbnail"` | The avatar source returned the post's cover, so it was dropped rather than shown as a face. |
+| No `sources` key for a field | Nothing published it. That is the honest answer, not a bug. |
+
+If the app shows "Nook couldn't read this post" and names `/v1/metadata`, the
+service is running a build from before it could read posts — `npx wrangler
+deploy` and try again.
 
 ### Verifying the AI path
 

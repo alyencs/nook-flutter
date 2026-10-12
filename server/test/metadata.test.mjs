@@ -11,8 +11,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  avatarFromEmbeddedJson,
+  captionFromJsonLd,
   captionFromOgDescription,
+  creatorFromJsonLd,
+  creatorFromOgTitle,
   decodeEntities,
+  isBoilerplate,
+  parseJsonLd,
+  profileUrlFor,
+  unescapeUrl,
   hashtagsFrom,
   isFetchable,
   looksLikeLoginWall,
@@ -75,26 +83,52 @@ const TIKTOK_PROFILE = html(`<!doctype html><html><head>
 <meta property="og:image" content="https://p16.tiktokcdn.com/avatar/mika-eats-1080.jpeg">
 </head><body></body></html>`);
 
-/** An Instagram Reel: creator and caption, no title. */
+/**
+ * An Instagram Reel: creator and caption, no title.
+ *
+ * Deliberately carries NO `og:see_also`. The previous fixture did, the code
+ * read the creator out of it, and both passed — but Instagram does not serve
+ * that tag on a post page, so the fixture was testing an invention. What is
+ * here instead is what Instagram actually publishes: the creator in
+ * `og:title`, and a JSON-LD block with the author and their avatar.
+ */
 const INSTAGRAM_PAGE = html(`<!doctype html><html><head>
 <title>Nina Reyes on Instagram</title>
 <meta property="og:type" content="video">
 <meta property="og:url" content="https://www.instagram.com/reel/CxYzAbCdEfG/">
-<meta property="og:title" content="Nina Reyes on Instagram: &quot;Three days in Kyoto&quot;">
-<meta property="og:description" content="1,284 likes, 56 comments - nina.reyes on March 2, 2024: &quot;Three days in Kyoto and the best meal was a ¥900 set lunch at Kissa Master in Gion. Go before 11am. #kyoto #japantravel&quot;">
+<meta property="og:title" content="Nina Reyes (@nina.reyes) • Instagram reel">
+<meta property="og:description" content="1,284 likes, 56 comments - nina.reyes on March 2, 2024: &quot;Three days in Kyoto and the best meal was a ¥900 set lunch at Kissa Master in Gion. Go before 11am 🍵 @kissamaster #kyoto #japantravel&quot;">
 <meta property="og:image" content="//scontent.cdninstagram.com/v/reel-CxYzAbCdEfG.jpg">
-<meta property="og:see_also" content="https://www.instagram.com/nina.reyes/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"VideoObject",
+ "author":{"@type":"Person","name":"Nina Reyes","alternateName":"@nina.reyes",
+           "url":"https://www.instagram.com/nina.reyes/",
+           "image":"https://scontent.cdninstagram.com/v/avatar-nina.jpg?a=1\\u0026b=2"}}
+</script>
 </head><body></body></html>`);
 
-/** A Facebook Reel reached through fb.watch, which redirects. */
+/**
+ * A Facebook Reel reached through fb.watch, which redirects.
+ *
+ * Facebook's shape is NOT Instagram's or TikTok's, which is why it could not
+ * be fixed by whatever made those two work:
+ *
+ * - No keyless oEmbed at all, so there is no `author_name` and no
+ *   `author_url` — the field the old code depended on first.
+ * - No `og:see_also`, the field it fell back to.
+ * - No handle anywhere in the markup, and none in a `/reel/<id>` URL.
+ *
+ * What it does publish is the author's display name in `og:title`, on its
+ * own and undecorated. That is the only creator source here, and reading it
+ * is the whole Facebook fix.
+ */
 const FACEBOOK_PAGE = html(`<!doctype html><html><head>
 <title>Alex Cruz</title>
 <meta property="og:type" content="video.other">
 <meta property="og:url" content="https://www.facebook.com/reel/1234567890">
 <meta property="og:title" content="Alex Cruz">
-<meta property="og:description" content="Sagada in two days: ₱800 for the cave tour, ₱2,500 a night at a homestay near the centre. The sunrise at Kiltepan is worth the 4am start.">
-<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/reel-1234567890.jpg">
-<meta property="og:see_also" content="https://www.facebook.com/alex.cruz.travels">
+<meta property="og:description" content="Sagada in two days: ₱800 for the cave tour, ₱2,500 a night at a homestay near the centre. The sunrise at Kiltepan is worth the 4am start 🌄">
+<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/reel-1234567890.jpg?a=1&amp;b=2">
 </head><body></body></html>`);
 
 const FACEBOOK_PROFILE = html(`<!doctype html><html><head>
@@ -295,26 +329,48 @@ test('TikTok: a caption with a place, no title, and a real avatar', async () => 
 });
 
 test('Instagram: a Reel with creator and caption but no title', async () => {
+  const log = [];
   const result = await readMetadata('https://www.instagram.com/reel/CxYzAbCdEfG/', {
-    fetchImpl: stubFetch({
-      '/reel/CxYzAbCdEfG': INSTAGRAM_PAGE,
-      '/nina.reyes/': html('<meta property="og:image" content="https://cdn.test/nina.jpg">'),
-    }),
+    fetchImpl: stubFetch({ '/reel/CxYzAbCdEfG': INSTAGRAM_PAGE }, { log }),
   });
 
   assert.equal(result.fetched, true);
   assert.match(result.caption, /Kissa Master/);
   assert.match(result.caption, /¥900/);
-  // The byline wrapper Instagram puts in og:title must not become the title.
+  // Emoji, a mention and hashtags all survive the caption intact.
+  assert.match(result.caption, /🍵/);
+  assert.match(result.caption, /@kissamaster/);
+  assert.deepEqual(result.hashtags, ['kyoto', 'japantravel']);
+
+  // The byline Instagram puts in og:title must not become the title.
   assert.ok(
-    result.title === null || !result.title.includes('on Instagram:'),
+    result.title === null || !/on Instagram|Instagram reel/.test(result.title),
     `a byline is not a title: ${result.title}`,
   );
+
+  // Creator from the sources Instagram really publishes.
+  assert.equal(result.creator, 'Nina Reyes');
   assert.equal(result.creatorHandle, '@nina.reyes');
-  assert.equal(result.creatorAvatarUrl, 'https://cdn.test/nina.jpg');
+  assert.equal(result.creatorUrl, 'https://www.instagram.com/nina.reyes/');
+
+  // The avatar comes out of JSON-LD, with its `\u0026` unescaped — handed over
+  // escaped it 403s, because the query asked for is not the query signed.
+  assert.equal(
+    result.creatorAvatarUrl,
+    'https://scontent.cdninstagram.com/v/avatar-nina.jpg?a=1&b=2',
+  );
+  assert.equal(result.sources.creatorAvatarUrl, 'ld+json');
+  assert.notEqual(result.creatorAvatarUrl, result.thumbnailUrl);
+
   // Protocol-relative og:image resolved rather than handed over broken.
   assert.equal(result.thumbnailUrl, 'https://scontent.cdninstagram.com/v/reel-CxYzAbCdEfG.jpg');
-  assert.deepEqual(result.hashtags, ['kyoto', 'japantravel']);
+
+  // And the page itself was enough: no second request for a profile page.
+  assert.equal(
+    log.filter((url) => url.endsWith('/nina.reyes/')).length,
+    0,
+    'the avatar was on the post page, so the extra fetch is skipped',
+  );
 });
 
 test('Facebook: a short link is resolved, and the creator is read', async () => {
@@ -336,17 +392,30 @@ test('Facebook: a short link is resolved, and the creator is read', async () => 
 
   assert.equal(result.platform, 'facebook');
   assert.equal(result.fetched, true, 'Facebook must read like the others, not worse');
-  assert.equal(result.creator, null, 'Facebook publishes no oEmbed author_name');
-  // Facebook profile URLs carry no `@`, so a handle only appears once the
-  // vanity path is read as one. Before that, Facebook posts had no creator at
-  // all — the symptom that started this.
-  assert.equal(result.creatorHandle, '@alex.cruz.travels');
-  assert.equal(result.creatorUrl, 'https://www.facebook.com/alex.cruz.travels');
-  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/v/avatar-alex-cruz.jpg');
+
+  // THE reported bug. Facebook publishes no keyless oEmbed and no
+  // `og:see_also`, which were the only two sources the old code had, so the
+  // creator came back null on every Facebook post. `og:title` is where the
+  // author's name actually is.
+  assert.equal(result.creator, 'Alex Cruz');
+  assert.equal(result.sources.creator, 'og:title');
+
+  // There is genuinely no handle in Facebook's markup or in a /reel/<id> URL.
+  // Null is the honest answer; inventing one from the share code is not.
+  assert.equal(result.creatorHandle, null);
+
   assert.match(result.caption, /Sagada in two days/);
   assert.match(result.caption, /₱800/);
+  assert.match(result.caption, /🌄/, 'an emoji in the caption survives');
   assert.equal(result.canonicalUrl, 'https://www.facebook.com/reel/1234567890');
   assert.equal(result.mediaType, 'video');
+
+  // `&amp;` in the og:image unescaped, or the CDN rejects the query.
+  assert.equal(
+    result.thumbnailUrl,
+    'https://scontent.xx.fbcdn.net/v/reel-1234567890.jpg?a=1&b=2',
+  );
+
   assert.ok(
     log.some((url) => url.includes('/reel/1234567890')),
     'the redirect was followed to the real post',
@@ -471,5 +540,217 @@ test('no credential of any kind is sent', async () => {
     }
     // And it says who it is rather than pretending to be a browser.
     assert.match(headers['user-agent'], /NookBot/);
+  }
+});
+
+// --- the sources each platform really publishes ---------------------------
+//
+// The previous round's fixtures carried `og:see_also` and the code read the
+// creator out of it. Both passed. Neither Instagram nor Facebook serves that
+// tag on a post page, so the fixtures were testing an invention and the live
+// app got nothing — the same shape of mistake as the extraction tool name.
+//
+// These tests pin the sources that are actually there, one per platform,
+// because the three are not interchangeable.
+
+test('og:title is read per platform, and the patterns are not shared', () => {
+  // Instagram and TikTok: `Name (@handle)`.
+  assert.deepEqual(creatorFromOgTitle('Nina Reyes (@nina.reyes) • Instagram reel', 'instagram'), {
+    name: 'Nina Reyes',
+    handle: '@nina.reyes',
+  });
+  assert.deepEqual(creatorFromOgTitle('Mika Eats (@mika.eats) | TikTok', 'tiktok'), {
+    name: 'Mika Eats',
+    handle: '@mika.eats',
+  });
+
+  // `Name on <platform>` — no handle published.
+  assert.deepEqual(creatorFromOgTitle('Nina Reyes on Instagram: "three days"', 'instagram'), {
+    name: 'Nina Reyes',
+  });
+
+  // Facebook: the display name on its own. Nothing to strip, no handle.
+  assert.deepEqual(creatorFromOgTitle('Alex Cruz', 'facebook'), { name: 'Alex Cruz' });
+  assert.deepEqual(creatorFromOgTitle('Alex Cruz | Facebook', 'facebook'), {
+    name: 'Alex Cruz',
+  });
+
+  // But Facebook also puts the post body there, and prose is not a name.
+  assert.equal(
+    creatorFromOgTitle('Sagada in two days: ₱800 for the cave tour, go early!', 'facebook'),
+    null,
+  );
+  assert.equal(creatorFromOgTitle('Check out my trip #sagada', 'facebook'), null);
+
+  // Boilerplate is never a creator.
+  assert.equal(creatorFromOgTitle('Log in to Facebook', 'facebook'), null);
+  assert.equal(creatorFromOgTitle('', 'facebook'), null);
+  assert.equal(creatorFromOgTitle(null, 'facebook'), null);
+});
+
+test('JSON-LD is read for the creator and the avatar', () => {
+  const nodes = parseJsonLd(`
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@graph":[
+      {"@type":"VideoObject","caption":"A ¥900 set lunch in Gion",
+       "author":{"@type":"Person","name":"Nina Reyes","alternateName":"@nina.reyes",
+                 "url":"https://www.instagram.com/nina.reyes/",
+                 "image":"https://cdn.test/avatar.jpg?a=1\\u0026b=2"}}]}
+    </script>`);
+
+  assert.equal(nodes.length, 2, '@graph is flattened, and its members kept');
+  const creator = creatorFromJsonLd(nodes);
+  assert.equal(creator.name, 'Nina Reyes');
+  assert.equal(creator.handle, '@nina.reyes');
+  assert.equal(creator.url, 'https://www.instagram.com/nina.reyes/');
+  assert.equal(captionFromJsonLd(nodes), 'A ¥900 set lunch in Gion');
+});
+
+test('a malformed JSON-LD block does not lose the good ones', () => {
+  const nodes = parseJsonLd(`
+    <script type="application/ld+json">{ this is not json </script>
+    <script type="application/ld+json">{"author":{"name":"Alex Cruz"}}</script>`);
+
+  assert.equal(creatorFromJsonLd(nodes).name, 'Alex Cruz');
+});
+
+test('no structured data at all yields null, not a crash', () => {
+  assert.deepEqual(parseJsonLd('<html><head></head></html>'), []);
+  assert.equal(creatorFromJsonLd([]), null);
+  assert.equal(captionFromJsonLd([]), null);
+  assert.equal(avatarFromEmbeddedJson(''), null);
+});
+
+test('platform boilerplate is never mistaken for a caption', () => {
+  for (const blurb of [
+    'See posts, photos and more on Facebook.',
+    'Log in to Facebook',
+    'Join Facebook to connect with Alex Cruz',
+    '1,284 followers, 318 following, 94 posts - See Instagram photos and videos from Nina',
+    'See Instagram photos and videos from Nina Reyes',
+    'TikTok - Make Your Day',
+    'Discover videos related to Baguio on TikTok',
+    '',
+    null,
+  ]) {
+    assert.equal(isBoilerplate(blurb), true, String(blurb));
+  }
+  assert.equal(isBoilerplate('₱150 unlimited wings at Good Taste Baguio'), false);
+});
+
+test('an escaped or entity-encoded image URL is unescaped', () => {
+  assert.equal(unescapeUrl('https://cdn/x.jpg?a=1\\u0026b=2'), 'https://cdn/x.jpg?a=1&b=2');
+  assert.equal(unescapeUrl('https://cdn/x.jpg?a=1&amp;b=2'), 'https://cdn/x.jpg?a=1&b=2');
+  assert.equal(unescapeUrl('https:\\/\\/cdn\\/x.jpg'), 'https://cdn/x.jpg');
+  assert.equal(unescapeUrl(null), null);
+});
+
+test('an avatar is read out of the platform embedded state blob', () => {
+  // TikTok ships the page state in a script tag; the avatar is in there under
+  // a stable key even when the meta tags carry none.
+  assert.equal(
+    avatarFromEmbeddedJson('{"user":{"avatarLarger":"https://p16.test/a.jpg?x=1\\u0026y=2"}}'),
+    'https://p16.test/a.jpg?x=1&y=2',
+  );
+  assert.equal(
+    avatarFromEmbeddedJson('{"owner":{"profile_pic_url_hd":"https://scontent.test/p.jpg"}}'),
+    'https://scontent.test/p.jpg',
+  );
+  // Not a URL: refused rather than handed to the UI.
+  assert.equal(avatarFromEmbeddedJson('{"avatarLarger":"/relative/only.jpg"}'), null);
+});
+
+test('a profile URL is derived from a handle, per platform', () => {
+  assert.equal(profileUrlFor('@mika.eats', 'tiktok'), 'https://www.tiktok.com/@mika.eats');
+  assert.equal(profileUrlFor('nina.reyes', 'instagram'), 'https://www.instagram.com/nina.reyes/');
+  assert.equal(profileUrlFor('@alex.cruz', 'facebook'), 'https://www.facebook.com/alex.cruz');
+  // Nothing injectable becomes a URL.
+  for (const bad of ['', '@', 'a/../b', 'a b', '@x?y=1', null]) {
+    assert.equal(profileUrlFor(bad, 'tiktok'), null, String(bad));
+  }
+});
+
+test('provenance says where every field came from', async () => {
+  const result = await readMetadata('https://www.instagram.com/reel/CxYzAbCdEfG/', {
+    fetchImpl: stubFetch({ '/reel/': INSTAGRAM_PAGE }),
+  });
+
+  // The point of this field: a null is otherwise indistinguishable from the
+  // platform not publishing it, from a wall, and from a parser bug.
+  // JSON-LD before og:title: it names the author explicitly, where og:title
+  // has to be pattern-matched out of a decorated string.
+  assert.equal(result.sources.creator, 'ld+json');
+  assert.equal(result.sources.caption, 'og:description');
+  assert.equal(result.sources.creatorAvatarUrl, 'ld+json');
+  assert.equal(result.sources.thumbnailUrl, 'og:image');
+  assert.equal(result.diagnostics.pageStatus, 200);
+  assert.equal(result.diagnostics.jsonLdBlocks > 0, true);
+  assert.equal(result.diagnostics.loginWall, false);
+});
+
+test('an avatar equal to the post thumbnail is rejected', async () => {
+  // A page whose profile lookup returns the post's own cover. Showing that as
+  // a face is worse than showing the initial.
+  const page = html(
+    '<meta property="og:title" content="Mika Eats (@mika.eats) | TikTok">' +
+      '<meta property="og:description" content="wings in Baguio">' +
+      '<meta property="og:image" content="https://cdn.test/same.jpg">',
+  );
+  const result = await readMetadata('https://www.tiktok.com/@mika.eats/video/1', {
+    fetchImpl: stubFetch({
+      '/oembed': () => new Response('no', { status: 404 }),
+      '/@mika.eats/video/': page,
+      '/@mika.eats': html('<meta property="og:image" content="https://cdn.test/same.jpg">'),
+    }),
+  });
+
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.match(result.sources.creatorAvatarUrl, /rejected/);
+  assert.equal(result.thumbnailUrl, 'https://cdn.test/same.jpg');
+});
+
+test('a generic title with a meaningful caption keeps both apart', async () => {
+  const page = html(
+    '<meta property="og:title" content="TikTok - Make Your Day">' +
+      '<meta property="og:description" content="2 likes. &quot;Lunch at Good Taste in Baguio City, ₱150 unlimited 🍗 #baguio&quot;">',
+  );
+  const result = await readMetadata('https://www.tiktok.com/@mika.eats/video/1', {
+    fetchImpl: stubFetch({
+      '/oembed': () => new Response('no', { status: 404 }),
+      '': page,
+    }),
+    withAvatar: false,
+  });
+
+  // The generic platform title is boilerplate and must not become the title.
+  assert.equal(result.title, null);
+  assert.match(result.caption, /Good Taste in Baguio City/);
+  assert.match(result.caption, /₱150/);
+  assert.deepEqual(result.hashtags, ['baguio']);
+  assert.equal(result.fetched, true, 'a caption alone is a readable post');
+});
+
+test('partially available metadata keeps what there is', async () => {
+  // og:description only: no title, no creator, no image, no oEmbed.
+  const result = await readMetadata('https://www.facebook.com/reel/99', {
+    fetchImpl: stubFetch({
+      '': html('<meta property="og:description" content="Two days in Sagada, ₱800 cave tour">'),
+    }),
+  });
+
+  assert.equal(result.fetched, true);
+  assert.match(result.caption, /Sagada/);
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.equal(result.thumbnailUrl, null);
+});
+
+test('an empty or malformed response is not a crash', async () => {
+  for (const body of ['', '<html>', 'not html at all', '<meta property="og:title">']) {
+    const result = await readMetadata('https://www.tiktok.com/@a/video/1', {
+      fetchImpl: stubFetch({ '': () => new Response(body, { status: 200 }) }),
+      withAvatar: false,
+    });
+    assert.equal(typeof result.fetched, 'boolean', JSON.stringify(body));
   }
 });

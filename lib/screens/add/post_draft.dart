@@ -38,6 +38,7 @@ class PostDraft {
       latitude = result.latitude,
       longitude = result.longitude,
       thumbnailUrl = result.thumbnailUrl,
+      sourceNote = result.sourceNote,
       fromSample = result.isSample;
 
   /// The "Enter manually" path, taken when extraction fails or the user would
@@ -69,6 +70,7 @@ class PostDraft {
       latitude = null,
       longitude = null,
       thumbnailUrl = PostThumbnails.fromUrl(url),
+      sourceNote = null,
       fromSample = false;
 
   /// A note with no link and no extraction: the second tile on Add Post.
@@ -99,6 +101,7 @@ class PostDraft {
       latitude = null,
       longitude = null,
       thumbnailUrl = null,
+      sourceNote = null,
       fromSample = false;
 
   final String? url;
@@ -109,6 +112,10 @@ class PostDraft {
   /// so
   /// the review screen can say so instead of implying a real extraction.
   final bool fromSample;
+
+  /// Why the post could not be read, when it could not. Shown on the review
+  /// screen so blank fields have a stated cause.
+  final String? sourceNote;
 
   String title;
   String? caption;

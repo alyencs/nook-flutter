@@ -520,6 +520,8 @@ void main() {
 
   group('into the row and onto the screen', mappingTests);
 
+  group('when the service cannot read the post', serviceFailureTests);
+
   group('short links', () {
     test('the resolved address is given to the model', () {
       final source = SourceMetadata(
@@ -672,5 +674,172 @@ void mappingTests() {
     );
 
     expect(find.text('·'), findsOneWidget);
+  });
+}
+
+/// What the app does when the service cannot read the post.
+///
+/// The failure these cover is the one that made the whole previous round look
+/// like it had changed nothing: `_fromService` returned null on any non-200
+/// and the app fell through to the URL alone, silently. A service still
+/// running a build from before `/v1/metadata` existed is indistinguishable,
+/// from inside the app, from Instagram and Facebook publishing nothing — same
+/// blank fields, same absent creator, no clue which.
+void serviceFailureTests() {
+  const backend = 'https://nook-ai.example.workers.dev';
+  const tiktok = 'https://www.tiktok.com/@mika.eats/video/7311223344556677889';
+
+  /// Answers the metadata route with [status], and nothing else.
+  http.Client refusing(int status, {String body = 'nope'}) =>
+      MockClient((request) async {
+        if (request.url.path.endsWith('/v1/metadata')) {
+          return http.Response(body, status);
+        }
+        return http.Response('{}', 404);
+      });
+
+  test('a 404 on the metadata route names the redeploy', () async {
+    final source = await SourceMetadataFetcher.fetch(
+      tiktok,
+      client: refusing(404),
+      backendUrl: backend,
+    );
+
+    expect(source.fetched, isFalse);
+    expect(source.unreadableReason, isNotNull);
+    expect(
+      source.unreadableReason,
+      contains('/v1/metadata'),
+      reason: 'the route being absent is the cause, and it is fixable',
+    );
+    expect(source.unreadableReason, contains('wrangler deploy'));
+    // And it reaches the model, so the answer is not a confident set of nulls.
+    expect(source.toPromptBlock(), contains('/v1/metadata'));
+  });
+
+  test('a 500 says the service failed, not that the post is empty', () async {
+    final source = await SourceMetadataFetcher.fetch(
+      tiktok,
+      client: refusing(500),
+      backendUrl: backend,
+    );
+
+    expect(source.fetched, isFalse);
+    expect(source.unreadableReason, contains('500'));
+  });
+
+  test('an unparseable answer is reported rather than swallowed', () async {
+    final source = await SourceMetadataFetcher.fetch(
+      tiktok,
+      client: refusing(200, body: 'not json at all'),
+      backendUrl: backend,
+    );
+
+    expect(source.fetched, isFalse);
+    expect(source.unreadableReason, isNotNull);
+  });
+
+  test('the URL-derived handle is still kept when the service fails', () async {
+    final source = await SourceMetadataFetcher.fetch(
+      tiktok,
+      client: refusing(404),
+      backendUrl: backend,
+    );
+
+    // Degrading is fine. Losing what the URL already told us is not.
+    expect(source.creatorHandle, '@mika.eats');
+    expect(source.sourceId, '7311223344556677889');
+  });
+
+  test('a reason reaches the review screen through the draft', () async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/v1/metadata')) {
+        return http.Response('nope', 404);
+      }
+      if (request.url.path.endsWith('/v1/messages')) {
+        return http.Response(
+          jsonEncode({
+            'id': 'm',
+            'type': 'message',
+            'role': 'assistant',
+            'stop_reason': 'tool_use',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 't',
+                'name': ClaudeExtractor.toolName,
+                'input': {'title': 'A saved link', 'category': 'Other'},
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{}', 404);
+    });
+
+    final result = await ClaudeExtractor(
+      backendUrl: backend,
+      httpClient: client,
+    ).extract(tiktok);
+
+    expect(result.sourceNote, isNotNull);
+    expect(result.sourceNote, contains('/v1/metadata'));
+
+    final draft = PostDraft.fromLink(url: tiktok, result: result);
+    expect(draft.sourceNote, contains('/v1/metadata'));
+  });
+
+  test('a post that WAS read carries no notice', () async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/v1/metadata')) {
+        return http.Response(
+          jsonEncode({
+            'platform': 'tiktok',
+            'url': tiktok,
+            'title': null,
+            'caption': 'Good Taste Baguio, ₱150 unlimited wings',
+            'hashtags': <String>[],
+            'creator': 'Mika Eats',
+            'creatorHandle': '@mika.eats',
+            'creatorUrl': null,
+            'creatorAvatarUrl': null,
+            'thumbnailUrl': null,
+            'mediaType': 'video',
+            'fetched': true,
+            'reason': null,
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response(
+        jsonEncode({
+          'id': 'm',
+          'type': 'message',
+          'role': 'assistant',
+          'stop_reason': 'tool_use',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 't',
+              'name': ClaudeExtractor.toolName,
+              'input': {'title': 'Wings in Baguio', 'category': 'Food'},
+            },
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final result = await ClaudeExtractor(
+      backendUrl: backend,
+      httpClient: client,
+    ).extract(tiktok);
+
+    expect(result.sourceNote, isNull, reason: 'nothing to explain on a success');
+    expect(result.caption, contains('Good Taste Baguio'));
   });
 }
