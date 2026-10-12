@@ -215,9 +215,42 @@ class ClaudeClient {
     }
     if (base.isEmpty) return base;
 
-    final parsed = Uri.tryParse(base);
-    if (parsed == null || !parsed.hasScheme) return 'https://$base';
-    return base;
+    var parsed = Uri.tryParse(base);
+    if (parsed == null || !parsed.hasScheme) {
+      base = 'https://$base';
+      parsed = Uri.tryParse(base);
+    }
+    // Nothing host-shaped to work with. Left as it is so that _endpoint can
+    // refuse it by name rather than this quietly inventing an address.
+    if (parsed == null || parsed.host.isEmpty) return base;
+
+    final segments = [
+      ...parsed.pathSegments.where((segment) => segment.isNotEmpty),
+    ];
+
+    // The method is appended by the caller, so a base that already carries it
+    // would ask for /v1/messages/messages. This is the shape someone lands on
+    // by pasting the endpoint from the documentation, which names the full
+    // URL, into a setting that wants the base.
+    while (segments.isNotEmpty && segments.last == 'messages') {
+      segments.removeLast();
+    }
+
+    // And this is the shape someone lands on by being told to make sure the
+    // address ends in /v1 when it already did.
+    while (segments.length >= 2 &&
+        segments.last == 'v1' &&
+        segments[segments.length - 2] == 'v1') {
+      segments.removeLast();
+    }
+
+    // A bare host is the commonest setting of all, and the version is not
+    // optional: this client speaks one API, and both the service and
+    // api.anthropic.com serve it under /v1. A path that says something else is
+    // left alone, because it was meant.
+    if (segments.isEmpty) segments.add('v1');
+
+    return '${parsed.scheme}://${parsed.authority}/${segments.join('/')}';
   }
 
   /// The URL for [path], or a failure that names the setting to fix.
