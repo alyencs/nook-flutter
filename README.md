@@ -202,7 +202,7 @@ seeds a small fictional demo library so the app opens looking like the design.
 
 ```bash
 flutter analyze    # clean
-flutter test       # 450 tests, 447 passing — see known issues below
+flutter test       # 459 tests, 456 passing — see known issues below
 flutter build web --release
 dart run build_runner build --delete-conflicting-outputs   # after editing lib/data/tables.dart
 ```
@@ -425,12 +425,19 @@ a post *out* of Nook is drawn but inert.
   platform, logging how often a usable destination comes back. It is the
   mitigation the proposal committed to for its biggest risk, and it needs a
   normal network and a key.
-- **Creator profile pictures need a public profile.** A public profile page
-  publishes the avatar as its `og:image`, which is the only route any of the
-  four offers without authentication; a private account publishes none, and
-  YouTube's comes from the Data API with a `YOUTUBE_API_KEY`. When there is
-  none the UI draws the creator's initial rather than inventing a face, and the
-  post's own thumbnail is never substituted for one.
+- **Creator profile pictures depend on the platform.** TikTok and Instagram
+  publish an avatar in their own page data or JSON-LD, and a public profile
+  page publishes one as its `og:image`; YouTube's comes from the Data API with
+  a `YOUTUBE_API_KEY`. **Facebook publishes none for a `/reel/` or `/watch/`
+  URL** — there is no handle in the markup or the URL to find a profile from.
+  When there is no avatar the UI draws the creator's initial rather than
+  inventing a face, and the post's own thumbnail is never substituted for one.
+- **Facebook names the account in the URL, not in the markup.** A share link
+  resolves to `/<page>/videos/<slug>/<id>/`, and that `<page>` is the account —
+  which is where the handle, the profile URL and then the avatar come from. A
+  `/reel/<id>` or `/watch/?v=<id>` link carries no account anywhere, so those
+  posts keep their caption and thumbnail and have no named creator. That is
+  what Facebook publishes, not a bug.
 - **A private, deleted or login-gated post cannot be read, and says so.** Nook
   reads public posts. It does not sign in, and it will not guess at a caption
   it cannot see — those saves keep the placeholder and offer manual entry.

@@ -81,6 +81,15 @@ export class MetadataError extends Error {
   }
 }
 
+/** The platform's name as a person would write it, for a message they read. */
+function NookPlatformLabel(platform) {
+  return (
+    { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook' }[
+      platform
+    ] ?? 'the platform'
+  );
+}
+
 /** Which platform a URL belongs to. Mirrors `lib/ai/platform_from_url.dart`. */
 export function platformOf(url) {
   let host;
@@ -212,6 +221,81 @@ export function parseMetaTags(html) {
 }
 
 /**
+ * Whether an address is a sign-in page.
+ *
+ * The signal that was missing. `looksLikeLoginWall` only ever inspected the
+ * page's own tags, and a sign-in page redirected to at HTTP 200 carries two
+ * meta tags, often no `<title>` at all, and 450KB of script — so there was
+ * nothing in the content to recognise. The address says it outright:
+ * `/login/?next=…` is not the post, whatever the body contains.
+ *
+ * Each platform words it differently, so each is listed rather than assumed.
+ */
+export function looksLikeLoginUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const path = parsed.pathname.toLowerCase().replace(/\/+$/, '');
+
+  const loginPaths = [
+    '/login', '/login.php', '/r.php', '/checkpoint', '/recover',
+    '/recover/initiate', '/authenticate', '/signin', '/signup',
+    // Instagram
+    '/accounts/login', '/accounts/signup', '/accounts/emailsignup',
+    // TikTok
+    '/signup/phone-or-email', '/foryou',
+  ];
+  if (loginPaths.some((p) => path === p || path.startsWith(`${p}/`))) return true;
+
+  // `?next=` and friends on any path are how a wall says where it would send
+  // you once signed in. On its own that is not conclusive — plenty of pages
+  // carry a `next` — so it only counts alongside a login-ish path segment.
+  if (/(^|\/)(login|signin|sign_in|signup|checkpoint)(\/|$)/.test(path)) return true;
+
+  return false;
+}
+
+/**
+ * The address a sign-in redirect was going to send you to.
+ *
+ * `/login/?next=https%3A%2F%2F…%2F1Nesh.D%2Fvideos%2F…` is Facebook naming the
+ * post it wants a session for, which is the one piece of the original address
+ * still recoverable once the redirect has happened. Used for the account
+ * handle only, and never as evidence the post was read.
+ */
+export function targetOfLoginRedirect(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  for (const key of ['next', 'redirect', 'redirect_uri', 'u', 'return_to']) {
+    const raw = parsed.searchParams.get(key);
+    if (!raw) continue;
+    let candidate = raw;
+    // Some of these arrive doubly encoded.
+    for (let i = 0; i < 2; i++) {
+      try {
+        const decoded = decodeURIComponent(candidate);
+        if (decoded === candidate) break;
+        candidate = decoded;
+      } catch {
+        break;
+      }
+    }
+    const absolute = /^https?:\/\//i.test(candidate)
+      ? candidate
+      : `${parsed.origin}${candidate.startsWith('/') ? '' : '/'}${candidate}`;
+    if (isFetchable(absolute) && !looksLikeLoginUrl(absolute)) return absolute;
+  }
+  return null;
+}
+
+/**
  * Whether what came back is a login wall rather than the post.
  *
  * Instagram and Facebook answer an unauthenticated request for a private,
@@ -219,7 +303,11 @@ export function parseMetaTags(html) {
  * that as a successful read is how a post ends up described as "Log in to
  * Facebook", so it is detected and reported as unreadable instead.
  */
-export function looksLikeLoginWall(tags, html) {
+export function looksLikeLoginWall(tags, html, url = null) {
+  // The address first: it is the one signal a content-free sign-in page
+  // cannot hide.
+  if (url !== null && looksLikeLoginUrl(url)) return true;
+
   const title = `${tags['og:title'] ?? ''} ${tags['<title>'] ?? ''}`.toLowerCase();
   if (
     /^\s*(log in|login|sign up|sign in)\b/.test(title) ||
@@ -312,6 +400,312 @@ export function captionFromOgDescription(description, platform) {
   return text === '' ? null : text;
 }
 
+/**
+ * Platform boilerplate that must never become a caption.
+ *
+ * Facebook and Instagram answer an unauthenticated request for a page they
+ * will not show with a generic marketing blurb in `og:description`. It is a
+ * well-formed sentence, so nothing downstream can tell it from a real caption
+ * — the model reads "See posts, photos and more on Facebook" and dutifully
+ * extracts no destination from it, which looks like the caption being useless
+ * rather than absent.
+ */
+const BOILERPLATE = [
+  /^see posts, photos and more on facebook/i,
+  /^log ?in(to| to)? facebook/i,
+  // The wall's own wording. Without this it passes the prose test — six
+  // ordinary words, no punctuation — and becomes the creator's name.
+  /^log ?in or sign ?up/i,
+  // Anchored to the wall's actual wording. A looser pattern ate real names:
+  // a page called "Login Travel Co" is not a sign-in page.
+  /^(log ?in|sign ?up|sign ?in)( or (sign ?up|log ?in))?( (to|for) (view|see|continue|facebook|instagram))?[.!]?$/i,
+  /^you must log in to continue/i,
+  // The platform's own name, which is what `og:title` falls back to on a page
+  // that will not show its contents. Read as a creator it produced
+  // `creator: "Facebook"` — a fabricated name that looks entirely plausible.
+  /^(facebook|instagram|tiktok|youtube|meta)$/i,
+  /^(facebook|instagram|tiktok|youtube)\s*[|\-–—]\s*(log ?in|sign ?up|home)?$/i,
+  /^watch\s*[|\-–—]\s*facebook$/i,
+  /^this content is(n.t| not) available/i,
+  /^join facebook to connect/i,
+  /^facebook is a social (utility|network)/i,
+  /^create an account or log in/i,
+  // Counts carry thousands separators, so `\d+` alone misses `1,284 followers`.
+  /^[\d,.]+\s*(k|m|b)?\s*followers?.{0,80}see instagram photos/i,
+  /^see instagram photos and videos from/i,
+  /^discover videos related to/i,
+  /^tiktok - (make your day|trends start here)/i,
+  /^watch the latest videos? from/i,
+  /^upload, livestream, and create your own videos/i,
+];
+
+/** Whether this text is the platform talking rather than the poster. */
+export function isBoilerplate(text) {
+  if (typeof text !== 'string') return true;
+  const trimmed = text.trim();
+  if (trimmed === '') return true;
+  return BOILERPLATE.some((pattern) => pattern.test(trimmed));
+}
+
+/**
+ * Unescapes a URL as platforms embed them in JSON and HTML.
+ *
+ * Inside a `<script>` JSON blob a CDN URL arrives as
+ * `https://cdn/x.jpg?a=1\u0026b=2`, and in an attribute as `?a=1&amp;b=2`.
+ * Handed to `Image.network` either way it 403s, because the query it asks for
+ * is not the query that was signed.
+ */
+export function unescapeUrl(value) {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/\\u0026/gi, '&')
+    .replace(/\\u002F/gi, '/')
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#0?38;/g, '&');
+}
+
+/**
+ * Every `application/ld+json` block on the page, flattened.
+ *
+ * This is the structured data the platforms publish about themselves, and it
+ * is the only unauthenticated place some of them name the creator at all. It
+ * was not being read: creator identity came from `og:see_also`, a tag none of
+ * these three actually serves on a post page, so Facebook — which publishes no
+ * keyless oEmbed either — had no source for a creator whatsoever.
+ *
+ * `@graph` and bare arrays are flattened, because all three shapes turn up.
+ */
+export function parseJsonLd(html) {
+  const found = [];
+  const pattern =
+    /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+
+  for (const match of html.matchAll(pattern)) {
+    let parsed;
+    try {
+      parsed = JSON.parse(match[1].trim());
+    } catch {
+      // A truncated or templated block. The others may still be good.
+      continue;
+    }
+    const queue = Array.isArray(parsed) ? [...parsed] : [parsed];
+    while (queue.length > 0) {
+      const node = queue.shift();
+      if (node === null || typeof node !== 'object') continue;
+      if (Array.isArray(node)) {
+        queue.push(...node);
+        continue;
+      }
+      if (Array.isArray(node['@graph'])) queue.push(...node['@graph']);
+      found.push(node);
+    }
+  }
+  return found;
+}
+
+/** The first non-empty string among several possible shapes. */
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+    if (Array.isArray(value)) {
+      const inner = firstString(...value);
+      if (inner) return inner;
+    }
+    if (value !== null && typeof value === 'object') {
+      const inner = firstString(value.name, value.url, value['@id'], value.contentUrl);
+      if (inner) return inner;
+    }
+  }
+  return null;
+}
+
+/**
+ * Creator identity out of JSON-LD, where the platform published any.
+ *
+ * `author` is the usual home; Instagram has also used `creator`, and video
+ * pages sometimes nest it under `publisher`. `alternateName` is where a handle
+ * lives when there is one.
+ */
+export function creatorFromJsonLd(nodes) {
+  for (const node of nodes) {
+    // `author` and `creator` name who made the thing. `publisher` names who
+    // distributed it, which on a reshared video is a different entity
+    // entirely — and reading it as the creator attributed a name that had
+    // nothing to do with the account whose page it was.
+    const author = node.author ?? node.creator;
+    if (author === null || author === undefined) continue;
+
+    const candidates = Array.isArray(author) ? author : [author];
+    for (const one of candidates) {
+      if (typeof one === 'string') {
+        if (one.trim() !== '') return { name: one.trim() };
+      } else if (typeof one === 'object') {
+        const name = firstString(one.name);
+        const handle = firstString(one.alternateName, one.identifier);
+        const url = firstString(one.url, one['@id'], one.mainEntityOfPage);
+        const image = firstString(one.image, one.thumbnailUrl, one.logo, one.photo);
+        if (name || handle || url || image) {
+          return {
+            name: name ?? undefined,
+            handle: handle ?? undefined,
+            url: url ?? undefined,
+            image: image ?? undefined,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** A caption out of JSON-LD, where one is published. */
+export function captionFromJsonLd(nodes) {
+  for (const node of nodes) {
+    const text = firstString(
+      node.articleBody,
+      node.caption,
+      node.description,
+      node.text,
+    );
+    if (text && !isBoilerplate(text)) return text;
+  }
+  return null;
+}
+
+/**
+ * Creator identity out of `og:title`, which each platform writes differently.
+ *
+ * This is the source that is actually there on an Instagram or Facebook post,
+ * and the patterns are not interchangeable — which is the whole reason
+ * Facebook could not be fixed by whatever made TikTok work.
+ *
+ *   Instagram  `Nina Reyes (@nina.reyes) • Instagram photo`
+ *              `Nina Reyes on Instagram: "three days in Kyoto…"`
+ *   TikTok     `Mika Eats (@mika.eats) | TikTok`
+ *              `Mika on TikTok`
+ *   Facebook   `Alex Cruz` — the page or person, and nothing else. A Facebook
+ *              post page puts the author's display name here on its own, with
+ *              no handle and no decoration, so there is nothing to strip and
+ *              nothing to pattern-match: the whole string is the name.
+ */
+export function creatorFromOgTitle(ogTitle, platform) {
+  if (typeof ogTitle !== 'string') return null;
+  const text = ogTitle.trim();
+  if (text === '' || isBoilerplate(text)) return null;
+
+  // `Name (@handle)` — Instagram and TikTok profile-style titles.
+  const withHandle = /^(.+?)\s*\(@([A-Za-z0-9._]+)\)/.exec(text);
+  if (withHandle) {
+    return { name: withHandle[1].trim(), handle: `@${withHandle[2]}` };
+  }
+
+  // `Name on Instagram: "caption"` / `Name on TikTok`
+  const onPlatform = /^(.+?)\s+on\s+(instagram|tiktok|facebook)\b/i.exec(text);
+  if (onPlatform) {
+    const name = onPlatform[1].trim();
+    if (name !== '') {
+      // An `@`-prefixed name is a handle rather than a display name.
+      return name.startsWith('@')
+        ? { handle: name }
+        : { name };
+    }
+  }
+
+  if (platform === 'facebook') {
+    const name = text
+      // `| Facebook`, and the section name Facebook appends to a profile.
+      .replace(/\s*[|\-–—]\s*facebook\s*$/i, '')
+      .replace(/\s*[-–—]\s*(home|about|photos|videos|reels|posts|live)\s*$/i, '')
+      .trim();
+
+    if (name !== '' && !looksLikeProse(name)) return { name };
+  }
+
+  return null;
+}
+
+/**
+ * Whether a string is post text rather than somebody's name.
+ *
+ * Facebook puts the post's own words in a video page's `og:title`, so this has
+ * to tell the two apart — and the first version of it rejected anything
+ * containing a full stop, which threw away every name that has one. A period
+ * inside a short name is ordinary: initials, abbreviations, and account-style
+ * names. The page this was reported against is called `1Nesh.D`, so its own
+ * name was the first thing the test discarded.
+ *
+ * Length and word count do the work instead. A sentence-ending stop only
+ * counts against a string long enough to be a sentence, which keeps
+ * "Nesh D." and "St. Nesh Travels" while still refusing
+ * "El Nido Palawan Philippines."
+ */
+function looksLikeProse(text) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (text.length > 60) return true;
+  if (words.length > 8) return true;
+  // A hashtag or a link is never part of a name.
+  if (/[#]/.test(text) || /https?:\/\//i.test(text)) return true;
+  // A terminal stop, but only where there is a clause in front of it.
+  if (/[.!?]$/.test(text) && words.length > 3) return true;
+  // More than one sentence-ending stop is prose however short it is.
+  if ((text.match(/[.!?](\s|$)/g) ?? []).length > 1) return true;
+  return false;
+}
+
+/** A profile URL for a handle, so an avatar can still be looked up. */
+export function profileUrlFor(handle, platform) {
+  if (typeof handle !== 'string') return null;
+  const bare = handle.replace(/^@/, '').trim();
+  if (bare === '' || !/^[A-Za-z0-9._-]+$/.test(bare)) return null;
+
+  return switchPlatform(platform, bare);
+}
+
+function switchPlatform(platform, bare) {
+  switch (platform) {
+    case 'tiktok':
+      return `https://www.tiktok.com/@${bare}`;
+    case 'instagram':
+      return `https://www.instagram.com/${bare}/`;
+    case 'facebook':
+      return `https://www.facebook.com/${bare}`;
+    case 'youtube':
+      return `https://www.youtube.com/@${bare}`;
+    default:
+      return null;
+  }
+}
+
+/**
+ * An avatar out of the platform's own embedded JSON.
+ *
+ * TikTok ships the whole page state in `__UNIVERSAL_DATA_FOR_REHYDRATION__`
+ * and Instagram has used `profile_pic_url`; both carry an avatar that the
+ * meta tags do not. Read by key name rather than by walking a documented
+ * shape, because these blobs are internal and their nesting changes — the key
+ * names have been stable far longer than the paths to them.
+ */
+export function avatarFromEmbeddedJson(html) {
+  const keys = [
+    'avatarLarger',
+    'avatarMedium',
+    'avatarThumb',
+    'profile_pic_url_hd',
+    'profile_pic_url',
+    'profilePicUrl',
+  ];
+  for (const key of keys) {
+    const pattern = new RegExp(`"${key}"\\s*:\\s*"([^"]{8,2000})"`, 'i');
+    const match = pattern.exec(html);
+    if (match) {
+      const url = unescapeUrl(match[1]);
+      if (/^https?:\/\//i.test(url)) return url;
+    }
+  }
+  return null;
+}
+
 /** oEmbed, for the two providers that still publish it keylessly. */
 async function readOEmbed(url, platform, fetchImpl) {
   const endpoint = OEMBED[platform]?.(url);
@@ -333,11 +727,20 @@ async function readOEmbed(url, platform, fetchImpl) {
 async function readOpenGraph(url, fetchImpl) {
   const { response, finalUrl } = await get(url, { fetchImpl });
   if (response.status !== 200) {
-    return { tags: {}, finalUrl, status: response.status, wall: false };
+    return { tags: {}, html: '', finalUrl, status: response.status, wall: false };
   }
   const html = await readCapped(response);
   const tags = parseMetaTags(html);
-  return { tags, finalUrl, status: 200, wall: looksLikeLoginWall(tags, html) };
+  // The HTML is kept, not just its meta tags: JSON-LD and the platforms' own
+  // embedded state blobs are where the creator and the avatar actually live on
+  // the two that publish no oEmbed.
+  return {
+    tags,
+    html,
+    finalUrl,
+    status: 200,
+    wall: looksLikeLoginWall(tags, html, finalUrl),
+  };
 }
 
 /**
@@ -351,17 +754,124 @@ async function readOpenGraph(url, fetchImpl) {
  * This is the only route any of the four offers without authentication, and it
  * does not always work. It is never substituted with the post's thumbnail.
  */
-async function readCreatorAvatar(creatorUrl, fetchImpl) {
-  if (!creatorUrl || !isFetchable(creatorUrl)) return null;
+async function readCreatorProfile(creatorUrl, fetchImpl) {
+  if (!creatorUrl || !isFetchable(creatorUrl)) {
+    return { avatar: null, name: null, status: 'not fetchable' };
+  }
+  const asked = handleFromUrl(creatorUrl);
   try {
     const { response, finalUrl } = await get(creatorUrl, { fetchImpl });
-    if (response.status !== 200) return null;
+    if (response.status !== 200) {
+      return { avatar: null, name: null, status: `HTTP ${response.status}` };
+    }
     const html = await readCapped(response);
     const tags = parseMetaTags(html);
-    if (looksLikeLoginWall(tags, html)) return null;
-    return normaliseImageUrl(tags['og:image'], finalUrl);
+    if (looksLikeLoginWall(tags, html, finalUrl)) {
+      return {
+        avatar: null,
+        name: null,
+        status: looksLikeLoginUrl(finalUrl)
+          ? 'login wall (redirected to a sign-in page)'
+          : 'login wall',
+      };
+    }
+
+    // Is this still the account that was asked for?
+    //
+    // `get` follows redirects, and the name and the avatar were being read off
+    // whatever page it landed on with no check that the page was still the
+    // right account. A vanity URL that redirects to a different account
+    // therefore produced a confident display name belonging to somebody else —
+    // reported with the same `read: name and avatar` as a correct read, so
+    // nothing downstream or in the diagnostics could tell the two apart.
+    // Facebook canonicalises a vanity path to `/people/<Name>/<id>` for the
+    // same account. That is not a different account and must not be refused —
+    // which it was, because `people` was missing from the route words and so
+    // came back as the landed "handle".
+    const canonicalName = nameFromPeoplePath(finalUrl);
+    const landed = canonicalName === null ? handleFromUrl(finalUrl) : null;
+
+    const sameAccount =
+      asked === null ||
+      landed === null ||
+      landed.toLowerCase().replace(/^@/, '') === asked.toLowerCase().replace(/^@/, '');
+
+    if (!sameAccount) {
+      // A redirect to a different vanity handle is a different account.
+      return {
+        avatar: null,
+        name: null,
+        status: `redirected to a different account (asked ${asked}, landed ${landed})`,
+      };
+    }
+
+    const platform = platformOf(finalUrl);
+    const jsonLd = parseJsonLd(html);
+    const ldAuthor = creatorFromJsonLd(jsonLd) ?? {};
+
+    // The name, from each place a profile page may state it. `og:title` is the
+    // usual one; a profile's JSON-LD and `<title>` are the fallbacks, and
+    // `og:site_name` never is — it says "Facebook".
+    const name =
+      creatorFromOgTitle(tags['og:title'], platform)?.name ??
+      ldAuthor.name ??
+      creatorFromOgTitle(tags['<title>'], platform)?.name ??
+      // Last: the name in the canonical path Facebook redirected to. Weakest
+      // of the four because hyphenation is lossy, but it is the account's own
+      // name as Facebook states it, and on a page that serves nothing else it
+      // is the only name there is.
+      canonicalName ??
+      null;
+
+    // The avatar. `og:image` first, then the page's own state blob, then
+    // JSON-LD's author image, then `twitter:image`, which some profile pages
+    // carry when `og:image` is absent.
+    // `og:image`, JSON-LD's author image, then `twitter:image`. All three are
+    // statements the page makes about its own subject.
+    //
+    // `avatarFromEmbeddedJson` is deliberately NOT used here. It scans the
+    // whole document for the first `profile_pic_url`-shaped key, and a profile
+    // page embeds other people — commenters, suggestions — so the first match
+    // need not be the subject at all. On a post page that scan is the author's
+    // own state and is kept; on a profile page it is a coin toss.
+    const avatar =
+      normaliseImageUrl(unescapeUrl(tags['og:image']), finalUrl) ??
+      normaliseImageUrl(unescapeUrl(ldAuthor.image), finalUrl) ??
+      normaliseImageUrl(unescapeUrl(tags['twitter:image']), finalUrl);
+
+    // What was actually found, not merely that a page came back. `read` on its
+    // own said "I fetched something" and was reported for a page that yielded
+    // neither field — which is indistinguishable from success in a log, and is
+    // exactly the diagnostic that sent this round looking in the wrong place.
+    const nameVia =
+      name === null
+        ? null
+        : name === canonicalName &&
+            creatorFromOgTitle(tags['og:title'], platform)?.name == null &&
+            ldAuthor.name == null
+          ? 'name from the canonical /people/ path'
+          : 'name';
+    const found = [nameVia, avatar ? 'avatar' : null].filter(Boolean);
+    const status =
+      found.length === 2
+        ? 'read: name and avatar'
+        : found.length === 1
+          ? `read: ${found[0]} only`
+          : `read: no name, no avatar (${Object.keys(tags).length} meta tags` +
+            // Tag NAMES only. They say what kind of page answered — a profile
+            // carries `og:title`/`og:image`, while `viewport`+`referrer` alone
+            // is a bot-mitigation shell. Values are not included: a name or an
+            // image URL is the page's content, and the names alone settle the
+            // question without reproducing any of it.
+            `: ${Object.keys(tags).slice(0, 12).join(', ') || 'none'}` +
+            `${tags['og:title'] ? `, og:title ${JSON.stringify(tags['og:title'].slice(0, 60))}` : ', no og:title'})`;
+
+    // The address actually read, when it is not the one asked for. A name is
+    // only as trustworthy as the page it came off.
+    const landedNote = finalUrl === creatorUrl ? '' : ` [read ${finalUrl}]`;
+    return { avatar, name, status: `${status}${landedNote}` };
   } catch {
-    return null;
+    return { avatar: null, name: null, status: 'unreachable' };
   }
 }
 
@@ -370,35 +880,124 @@ const RESERVED_SEGMENTS = new Set([
   'p', 'reel', 'reels', 'tv', 'stories', 'explore', 'watch', 'share', 'video',
   'videos', 'posts', 'groups', 'pages', 'shorts', 'embed', 'channel', 'c',
   'permalink.php', 'photo.php', 'profile.php', 'story.php', 'oembed',
+  // `people` was missing, so `/people/<Name>/<id>` — Facebook's canonical
+  // form for an account without a vanity URL — read as the handle `people`.
+  // The identity check then compared `1Nesh.D` against `people`, called it a
+  // different account, and threw away a legitimate canonicalisation.
+  'people', 'pg', 'marketplace', 'events', 'hashtag', 'search', 'login',
 ]);
 
 /** All digits, or a Facebook `pfbid` blob. An id, not a name. */
 const looksLikeId = (segment) => /^\d+$/.test(segment) || segment.startsWith('pfbid');
 
 /**
- * `@handle` from a profile URL.
+ * Hosts whose whole path is an opaque redirect code.
  *
- * TikTok and YouTube put an `@` in the path. Instagram and Facebook do not —
- * a profile is `instagram.com/nina.reyes`, so looking only for an `@` found
- * nothing and the creator came back anonymous on exactly the two platforms
- * this was supposed to fix.
+ * `fb.watch/aBcDeFgHiJ` has the shape of a profile path and is not one. Read
+ * as an account it produces a creator handle that never existed — worse than
+ * the blank it replaces, because it looks like a fact. Resolve the redirect
+ * and read the address it lands on instead.
  */
-function handleFromUrl(url) {
+const SHORT_LINK_HOSTS = new Set([
+  'fb.watch',
+  'fb.me',
+  'vt.tiktok.com',
+  'vm.tiktok.com',
+  'instagr.am',
+  'youtu.be',
+]);
+
+/**
+ * The display name Facebook puts in a canonical profile path, or null.
+ *
+ * An account with no vanity URL canonicalises to
+ * `/people/Priyasad-Wattegedara/100012345678901/`. That middle segment is
+ * Facebook's own statement of the account's display name, and arriving at it
+ * by following a redirect FROM the vanity URL is what ties the two together —
+ * so this is read provenance, not a guess: Facebook was asked about `1Nesh.D`
+ * and answered with that path.
+ *
+ * Requires the trailing numeric id, so that an ordinary `/people` listing or a
+ * truncated path does not produce a name. Hyphens become spaces, which is how
+ * Facebook encodes them — a name with a real hyphen in it loses that hyphen,
+ * which is a fidelity cost accepted for a name that is otherwise unavailable.
+ */
+export function nameFromPeoplePath(url) {
   let segments;
   try {
-    segments = new URL(url).pathname.split('/').filter(Boolean);
+    const parsed = new URL(url);
+    if (!/(^|\.)facebook\.com$/.test(parsed.hostname.toLowerCase().replace(/^www\./, '')) &&
+        parsed.hostname.toLowerCase() !== 'facebook.com') {
+      return null;
+    }
+    segments = parsed.pathname.split('/').filter(Boolean);
   } catch {
     return null;
   }
+
+  const at = segments.findIndex((segment) => segment.toLowerCase() === 'people');
+  if (at === -1 || segments.length < at + 3) return null;
+  if (!/^\d{5,}$/.test(segments[at + 2])) return null;
+
+  let name;
+  try {
+    name = decodeURIComponent(segments[at + 1]);
+  } catch {
+    name = segments[at + 1];
+  }
+  name = name.replace(/[-_+]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Must still read as a name rather than as an id or a sentence.
+  if (name === '' || /^\d+$/.test(name) || looksLikeProse(name) || isBoilerplate(name)) {
+    return null;
+  }
+  return name;
+}
+
+/**
+ * The account named in a post URL, as `@handle` or a bare vanity name.
+ *
+ * TikTok and YouTube mark it with an `@`. Instagram and Facebook put it in the
+ * first path segment instead, and that is where it usually is — which is the
+ * whole point of this function: for both of those platforms the URL is a more
+ * reliable source of the account than anything in the markup.
+ */
+export function handleFromUrl(url) {
+  let segments;
+  let host;
+  try {
+    const parsed = new URL(url);
+    host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    segments = parsed.pathname.split('/').filter(Boolean);
+  } catch {
+    return null;
+  }
+  if (SHORT_LINK_HOSTS.has(host)) return null;
+
+  // TikTok and YouTube mark the account with an `@`, wherever it sits.
   for (const segment of segments) {
     if (segment.startsWith('@') && segment.length > 1) return segment;
   }
-  // A bare vanity path, but only when it is the whole path: the first segment
-  // of a POST url is a username, while the first segment of `/reel/<id>` is
-  // not, and `/<user>/video/<id>` is handled by the `@` case above.
+
+  // Instagram and Facebook do not. There the account is the FIRST path
+  // segment, whatever follows it:
+  //
+  //   instagram.com/forbestravelguide/reel/DMpu7-9ue06/   → forbestravelguide
+  //   facebook.com/1Nesh.D/videos/el-nido-.../6916511.../ → 1Nesh.D
+  //
+  // and it is absent when that first segment is one of the platform's own
+  // route words instead:
+  //
+  //   instagram.com/reel/DMpu7-9ue06/   → none
+  //   facebook.com/share/r/14twxTeWCtK/ → none (resolve the share link first)
+  //
+  // This used to require the path be a single segment, which is the rare case
+  // — a bare profile link. Every real post URL has the account followed by
+  // `/reel/`, `/p/`, `/videos/` or `/posts/`, so the guard rejected exactly
+  // the URLs it was meant to read, and both Instagram and Facebook came back
+  // with no handle and, because the profile URL is derived from it, no avatar.
   const [first] = segments;
   if (
-    segments.length === 1 &&
     first &&
     first.length > 1 &&
     !RESERVED_SEGMENTS.has(first.toLowerCase()) &&
@@ -440,7 +1039,7 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   // Open Graph first, because it resolves the short link and gives the
   // canonical URL that oEmbed then needs: TikTok's oEmbed does not answer a
   // vt.tiktok.com address, which is exactly what the mobile share sheet copies.
-  let page = { tags: {}, finalUrl: target, status: 0, wall: false };
+  let page = { tags: {}, html: '', finalUrl: target, status: 0, wall: false };
   let pageError = null;
   try {
     page = await readOpenGraph(target, fetchImpl);
@@ -456,9 +1055,21 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   // private post came back titled "Log in or sign up to view", so everything
   // the wall served is dropped rather than merged.
   const wall = page.wall;
-  if (wall) page = { ...page, tags: {} };
+  // Counted before the wall's content is dropped. The content must not be
+  // read, but how much of it there was is evidence about what answered — and
+  // zeroing it removed the very numbers that identified the page.
+  const served = { tags: Object.keys(page.tags).length, bytes: (page.html ?? '').length };
+  if (wall) page = { ...page, tags: {}, html: '' };
 
-  const canonical = normaliseImageUrl(page.tags['og:url'], page.finalUrl) ?? page.finalUrl;
+  // A sign-in page is not the post's canonical address, and reporting it as
+  // one put `/login/?next=…` in `canonicalUrl` — a value that would be stored
+  // and shown as the post's own link. Where the redirect named the post it
+  // was going to ask for, that is used; otherwise the address as pasted.
+  const loginRedirect = looksLikeLoginUrl(page.finalUrl);
+  const recovered = loginRedirect ? targetOfLoginRedirect(page.finalUrl) : null;
+  const canonical = loginRedirect
+    ? (recovered ?? target)
+    : (normaliseImageUrl(page.tags['og:url'], page.finalUrl) ?? page.finalUrl);
   const oembed = (await readOEmbed(canonical, platform, fetchImpl)) ?? {};
 
   const str = (value) => {
@@ -472,10 +1083,47 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   const ogTitle = str(page.tags['og:title']);
   const ogDescription = str(page.tags['og:description']);
 
+  // Where each field came from. Returned to the caller, because without it a
+  // field arriving null is indistinguishable from the platform not publishing
+  // it, from the page being walled, and from a parser bug — and the three need
+  // completely different fixes.
+  const sources = {};
+  // What was tried when a field did not come from its first source. A field
+  // can be missing because the platform does not publish it or because a
+  // fallback was never reached, and those need different fixes.
+  const fallbacks = [];
+  const from = (field, source, value) => {
+    if (value !== null && value !== undefined && value !== '') {
+      sources[field] = source;
+      return value;
+    }
+    return null;
+  };
+
+  const jsonLd = parseJsonLd(page.html ?? '');
+
+  // Boilerplate is dropped before anything reads it. `og:description` on a
+  // page the platform will not show is a marketing sentence, and taken as a
+  // caption it reads downstream as a caption with no destination in it.
+  const ogCaption = isBoilerplate(ogDescription)
+    ? null
+    : captionFromOgDescription(ogDescription, platform);
+
   const caption =
-    captionFromOgDescription(ogDescription, platform) ??
-    (platform === 'tiktok' || platform === 'instagram' ? oembedTitle : null) ??
-    str(page.tags['description']);
+    from('caption', 'og:description', ogCaption) ??
+    from(
+      'caption',
+      'oembed.title',
+      platform === 'tiktok' || platform === 'instagram'
+        ? (isBoilerplate(oembedTitle) ? null : oembedTitle)
+        : null,
+    ) ??
+    from('caption', 'ld+json', captionFromJsonLd(jsonLd)) ??
+    from(
+      'caption',
+      'meta[description]',
+      isBoilerplate(page.tags['description']) ? null : str(page.tags['description']),
+    );
 
   // On YouTube the title is a real title. On the caption-first platforms there
   // usually is none, and `og:title` is a truncated echo of the caption dressed
@@ -486,24 +1134,113 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
       ? (oembedTitle ?? ogTitle)
       : (oembedTitle && caption && oembedTitle === caption ? null : oembedTitle) ?? null;
 
-  const creatorUrl = str(oembed.author_url) ?? str(page.tags['og:see_also']);
-  const creator = str(oembed.author_name);
+  // --- the creator ---------------------------------------------------------
+  //
+  // Four independent sources, consulted in order of how much each platform can
+  // be trusted to publish. This used to be one source — `oembed.author_url`
+  // falling back to `og:see_also` — and neither exists on an Instagram or a
+  // Facebook post page, so Facebook (which publishes no keyless oEmbed at all)
+  // had nothing whatever to read a creator from.
+  const ldCreator = creatorFromJsonLd(jsonLd) ?? {};
+  const titleCreator = creatorFromOgTitle(ogTitle, platform) ?? {};
 
-  // Split deliberately. A handle that came from a lookup is something only the
-  // lookup knew; a handle read off the URL is something the app already had and
-  // is no evidence the post itself was readable — counting it as such reported
-  // a deleted post as successfully read.
+  const creator =
+    from('creator', 'oembed.author_name', str(oembed.author_name)) ??
+    from('creator', 'ld+json', str(ldCreator.name)) ??
+    from('creator', 'og:title', str(titleCreator.name)) ??
+    from('creator', 'meta[author]', str(page.tags['author']));
+
+  // A handle from a lookup is something only the lookup knew. One read off the
+  // URL is something the app already had, so it is tracked separately and is
+  // not evidence the post itself was readable.
   const lookedUpHandle =
-    str(oembed.author_unique_id) ?? (creatorUrl ? handleFromUrl(creatorUrl) : null);
-  const handle = lookedUpHandle ?? handleFromUrl(canonical);
+    from('creatorHandle', 'oembed.author_unique_id', str(oembed.author_unique_id)) ??
+    from('creatorHandle', 'ld+json', str(ldCreator.handle)) ??
+    from('creatorHandle', 'og:title', str(titleCreator.handle)) ??
+    from(
+      'creatorHandle',
+      'oembed.author_url',
+      str(oembed.author_url) ? handleFromUrl(oembed.author_url) : null,
+    ) ??
+    from('creatorHandle', 'ld+json.url', str(ldCreator.url) ? handleFromUrl(ldCreator.url) : null);
 
+  // Both URLs are tried, because either can be the one carrying the account.
+  // Instagram's `og:url` is `/reel/<code>/` with the username dropped, while
+  // the URL as pasted is `/forbestravelguide/reel/<code>/` — so the canonical
+  // alone loses it. A Facebook share link is the other way round: `/share/r/
+  // <code>/` says nothing and the canonical it redirects to carries the page.
+  const handle =
+    lookedUpHandle ??
+    from('creatorHandle', 'canonical url', handleFromUrl(canonical)) ??
+    from('creatorHandle', 'url as pasted', handleFromUrl(target)) ??
+    // The post URL out of a sign-in redirect's `next=`. Facebook naming the
+    // post it wants a session for still names the account, so the handle and
+    // the profile URL survive a wall. It is not evidence the post was read:
+    // `fetched` stays false and the reason still says the post is not public.
+    from(
+      'creatorHandle',
+      'login redirect next=',
+      recovered ? handleFromUrl(recovered) : null,
+    );
+
+  // The profile page is the avatar's only unauthenticated home on three of the
+  // four, so a creator URL is worth deriving from a handle rather than giving
+  // up when the platform published no explicit link.
+  const creatorUrl =
+    from('creatorUrl', 'oembed.author_url', str(oembed.author_url)) ??
+    from('creatorUrl', 'ld+json', str(ldCreator.url)) ??
+    from('creatorUrl', 'derived from handle', profileUrlFor(handle, platform));
+
+  // The post's cover image. Kept strictly apart from the avatar below: they
+  // are different pictures and showing one for the other is worse than showing
+  // neither.
   const thumbnail =
-    normaliseImageUrl(oembed.thumbnail_url, canonical) ??
-    normaliseImageUrl(page.tags['og:image'], page.finalUrl) ??
-    null;
+    from(
+      'thumbnailUrl',
+      'oembed.thumbnail_url',
+      normaliseImageUrl(unescapeUrl(oembed.thumbnail_url), canonical),
+    ) ??
+    from(
+      'thumbnailUrl',
+      'og:image',
+      normaliseImageUrl(unescapeUrl(page.tags['og:image']), page.finalUrl),
+    );
 
-  const avatar =
-    withAvatar && creatorUrl ? await readCreatorAvatar(creatorUrl, fetchImpl) : null;
+  // --- the avatar ----------------------------------------------------------
+  //
+  // Three sources, cheapest first. The profile fetch is one extra request, so
+  // it only runs when the page itself gave nothing — which is what made this
+  // unreliable before: the profile page was the ONLY source, and TikTok and
+  // Instagram both answer one with a sign-in wall often enough to matter.
+  let avatar =
+    from('creatorAvatarUrl', 'ld+json', normaliseImageUrl(unescapeUrl(ldCreator.image), page.finalUrl)) ??
+    from(
+      'creatorAvatarUrl',
+      'embedded json',
+      normaliseImageUrl(avatarFromEmbeddedJson(page.html ?? ''), page.finalUrl),
+    );
+
+  let creatorName = creator;
+  if (withAvatar && creatorUrl && (avatar === null || creatorName === null)) {
+    const profile = await readCreatorProfile(creatorUrl, fetchImpl);
+    fallbacks.push(`profile page (${creatorUrl}): ${profile.status}`);
+
+    if (avatar === null) {
+      avatar = from('creatorAvatarUrl', 'profile page og:image', profile.avatar);
+    }
+    // Only ever a name the profile page stated. Never the handle dressed up as
+    // a display name, and never derived from the URL.
+    if (creatorName === null) {
+      creatorName = from('creator', 'profile page og:title', profile.name);
+    }
+  }
+
+  // Never the post's own cover image. If the two ever come out equal, the
+  // avatar source was really the post image and must be dropped.
+  if (avatar !== null && thumbnail !== null && avatar === thumbnail) {
+    avatar = null;
+    sources.creatorAvatarUrl = 'rejected: same image as the post thumbnail';
+  }
 
   const readAnything = Boolean(title || caption || creator || lookedUpHandle);
 
@@ -514,7 +1251,7 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
     title,
     caption,
     hashtags: hashtagsFrom(caption ?? ''),
-    creator,
+    creator: creatorName,
     creatorHandle: handle ? (handle.startsWith('@') ? handle : `@${handle}`) : null,
     creatorUrl,
     // Never the post thumbnail. A face that is not the creator's is worse than
@@ -522,17 +1259,36 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
     creatorAvatarUrl: avatar,
     thumbnailUrl: thumbnail,
     mediaType: mediaTypeFrom(page.tags, oembed, canonical, platform),
+    // Which source each field came from, or why one was rejected. This is the
+    // difference between "the platform does not publish it" and "the parser
+    // missed it", which is otherwise indistinguishable from a null.
+    sources,
+    fallbacks,
+    diagnostics: {
+      pageStatus: page.status,
+      pageBytes: served.bytes,
+      finalUrl: page.finalUrl,
+      oembedAnswered: Object.keys(oembed).length > 0,
+      jsonLdBlocks: jsonLd.length,
+      loginWall: wall,
+      loginRedirect,
+      metaTagCount: served.tags,
+    },
     fetched: readAnything,
     reason: readAnything
       ? null
-      : wall
-        ? 'This post is not public — the platform served a sign-in page instead ' +
-          'of the post. Nook reads public posts only.'
-        : pageError
-          ? 'The post could not be read from its platform.'
-          : page.status === 404
-            ? 'That post no longer exists, or the link is wrong.'
-            : 'The platform returned nothing readable for this link.',
+      : loginRedirect
+        ? `This post is not public — ${NookPlatformLabel(platform)} redirected to ` +
+          'a sign-in page instead of serving it. Nook reads public posts only, ' +
+          'and does not sign in.'
+        : wall
+          ? 'This post is not public — the platform served a sign-in page instead ' +
+            'of the post. Nook reads public posts only.'
+          : pageError
+            ? 'The post could not be read from its platform.'
+            : page.status === 404
+              ? 'That post no longer exists, or the link is wrong.'
+              : 'The platform returned nothing readable for this link.',
   };
 }
 

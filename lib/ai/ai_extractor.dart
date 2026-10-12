@@ -34,6 +34,7 @@ class ExtractionResult {
     this.places = const [],
     this.highlights = const [],
     this.isSample = false,
+    this.sourceNote,
   });
 
   /// The real, human title of the post. Never the platform's id for it — see
@@ -124,6 +125,14 @@ class ExtractionResult {
   /// True when this came from [SampleExtractor], so the UI can say so out loud
   /// instead of passing invented data off as a real extraction.
   final bool isSample;
+
+  /// Why the post itself could not be read, when it could not.
+  ///
+  /// A post whose platform published nothing looks on screen exactly like a
+  /// post whose lookup never happened — same blank fields, same shrug. The
+  /// difference matters: one is a private post and the other is a service that
+  /// needs redeploying, and only this string tells them apart.
+  final String? sourceNote;
 }
 
 /// Where extraction has got to.

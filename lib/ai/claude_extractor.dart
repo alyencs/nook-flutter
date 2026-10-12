@@ -557,6 +557,9 @@ call it more than once.
       mediaType: source.mediaType,
       places: places,
       highlights: highlights,
+      // Only when nothing was read. A post that came back fine has nothing to
+      // explain, and a notice on a successful save is just noise.
+      sourceNote: source.fetched ? null : source.unreadableReason,
     );
   }
 

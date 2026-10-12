@@ -11,11 +11,23 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  avatarFromEmbeddedJson,
+  captionFromJsonLd,
   captionFromOgDescription,
+  creatorFromJsonLd,
+  creatorFromOgTitle,
   decodeEntities,
+  handleFromUrl,
+  isBoilerplate,
+  nameFromPeoplePath,
+  parseJsonLd,
+  profileUrlFor,
+  unescapeUrl,
   hashtagsFrom,
   isFetchable,
+  looksLikeLoginUrl,
   looksLikeLoginWall,
+  targetOfLoginRedirect,
   normaliseImageUrl,
   parseMetaTags,
   platformOf,
@@ -75,26 +87,52 @@ const TIKTOK_PROFILE = html(`<!doctype html><html><head>
 <meta property="og:image" content="https://p16.tiktokcdn.com/avatar/mika-eats-1080.jpeg">
 </head><body></body></html>`);
 
-/** An Instagram Reel: creator and caption, no title. */
+/**
+ * An Instagram Reel: creator and caption, no title.
+ *
+ * Deliberately carries NO `og:see_also`. The previous fixture did, the code
+ * read the creator out of it, and both passed — but Instagram does not serve
+ * that tag on a post page, so the fixture was testing an invention. What is
+ * here instead is what Instagram actually publishes: the creator in
+ * `og:title`, and a JSON-LD block with the author and their avatar.
+ */
 const INSTAGRAM_PAGE = html(`<!doctype html><html><head>
 <title>Nina Reyes on Instagram</title>
 <meta property="og:type" content="video">
 <meta property="og:url" content="https://www.instagram.com/reel/CxYzAbCdEfG/">
-<meta property="og:title" content="Nina Reyes on Instagram: &quot;Three days in Kyoto&quot;">
-<meta property="og:description" content="1,284 likes, 56 comments - nina.reyes on March 2, 2024: &quot;Three days in Kyoto and the best meal was a ¥900 set lunch at Kissa Master in Gion. Go before 11am. #kyoto #japantravel&quot;">
+<meta property="og:title" content="Nina Reyes (@nina.reyes) • Instagram reel">
+<meta property="og:description" content="1,284 likes, 56 comments - nina.reyes on March 2, 2024: &quot;Three days in Kyoto and the best meal was a ¥900 set lunch at Kissa Master in Gion. Go before 11am 🍵 @kissamaster #kyoto #japantravel&quot;">
 <meta property="og:image" content="//scontent.cdninstagram.com/v/reel-CxYzAbCdEfG.jpg">
-<meta property="og:see_also" content="https://www.instagram.com/nina.reyes/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"VideoObject",
+ "author":{"@type":"Person","name":"Nina Reyes","alternateName":"@nina.reyes",
+           "url":"https://www.instagram.com/nina.reyes/",
+           "image":"https://scontent.cdninstagram.com/v/avatar-nina.jpg?a=1\\u0026b=2"}}
+</script>
 </head><body></body></html>`);
 
-/** A Facebook Reel reached through fb.watch, which redirects. */
+/**
+ * A Facebook Reel reached through fb.watch, which redirects.
+ *
+ * Facebook's shape is NOT Instagram's or TikTok's, which is why it could not
+ * be fixed by whatever made those two work:
+ *
+ * - No keyless oEmbed at all, so there is no `author_name` and no
+ *   `author_url` — the field the old code depended on first.
+ * - No `og:see_also`, the field it fell back to.
+ * - No handle anywhere in the markup, and none in a `/reel/<id>` URL.
+ *
+ * What it does publish is the author's display name in `og:title`, on its
+ * own and undecorated. That is the only creator source here, and reading it
+ * is the whole Facebook fix.
+ */
 const FACEBOOK_PAGE = html(`<!doctype html><html><head>
 <title>Alex Cruz</title>
 <meta property="og:type" content="video.other">
 <meta property="og:url" content="https://www.facebook.com/reel/1234567890">
 <meta property="og:title" content="Alex Cruz">
-<meta property="og:description" content="Sagada in two days: ₱800 for the cave tour, ₱2,500 a night at a homestay near the centre. The sunrise at Kiltepan is worth the 4am start.">
-<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/reel-1234567890.jpg">
-<meta property="og:see_also" content="https://www.facebook.com/alex.cruz.travels">
+<meta property="og:description" content="Sagada in two days: ₱800 for the cave tour, ₱2,500 a night at a homestay near the centre. The sunrise at Kiltepan is worth the 4am start 🌄">
+<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/reel-1234567890.jpg?a=1&amp;b=2">
 </head><body></body></html>`);
 
 const FACEBOOK_PROFILE = html(`<!doctype html><html><head>
@@ -295,26 +333,48 @@ test('TikTok: a caption with a place, no title, and a real avatar', async () => 
 });
 
 test('Instagram: a Reel with creator and caption but no title', async () => {
+  const log = [];
   const result = await readMetadata('https://www.instagram.com/reel/CxYzAbCdEfG/', {
-    fetchImpl: stubFetch({
-      '/reel/CxYzAbCdEfG': INSTAGRAM_PAGE,
-      '/nina.reyes/': html('<meta property="og:image" content="https://cdn.test/nina.jpg">'),
-    }),
+    fetchImpl: stubFetch({ '/reel/CxYzAbCdEfG': INSTAGRAM_PAGE }, { log }),
   });
 
   assert.equal(result.fetched, true);
   assert.match(result.caption, /Kissa Master/);
   assert.match(result.caption, /¥900/);
-  // The byline wrapper Instagram puts in og:title must not become the title.
+  // Emoji, a mention and hashtags all survive the caption intact.
+  assert.match(result.caption, /🍵/);
+  assert.match(result.caption, /@kissamaster/);
+  assert.deepEqual(result.hashtags, ['kyoto', 'japantravel']);
+
+  // The byline Instagram puts in og:title must not become the title.
   assert.ok(
-    result.title === null || !result.title.includes('on Instagram:'),
+    result.title === null || !/on Instagram|Instagram reel/.test(result.title),
     `a byline is not a title: ${result.title}`,
   );
+
+  // Creator from the sources Instagram really publishes.
+  assert.equal(result.creator, 'Nina Reyes');
   assert.equal(result.creatorHandle, '@nina.reyes');
-  assert.equal(result.creatorAvatarUrl, 'https://cdn.test/nina.jpg');
+  assert.equal(result.creatorUrl, 'https://www.instagram.com/nina.reyes/');
+
+  // The avatar comes out of JSON-LD, with its `\u0026` unescaped — handed over
+  // escaped it 403s, because the query asked for is not the query signed.
+  assert.equal(
+    result.creatorAvatarUrl,
+    'https://scontent.cdninstagram.com/v/avatar-nina.jpg?a=1&b=2',
+  );
+  assert.equal(result.sources.creatorAvatarUrl, 'ld+json');
+  assert.notEqual(result.creatorAvatarUrl, result.thumbnailUrl);
+
   // Protocol-relative og:image resolved rather than handed over broken.
   assert.equal(result.thumbnailUrl, 'https://scontent.cdninstagram.com/v/reel-CxYzAbCdEfG.jpg');
-  assert.deepEqual(result.hashtags, ['kyoto', 'japantravel']);
+
+  // And the page itself was enough: no second request for a profile page.
+  assert.equal(
+    log.filter((url) => url.endsWith('/nina.reyes/')).length,
+    0,
+    'the avatar was on the post page, so the extra fetch is skipped',
+  );
 });
 
 test('Facebook: a short link is resolved, and the creator is read', async () => {
@@ -336,17 +396,30 @@ test('Facebook: a short link is resolved, and the creator is read', async () => 
 
   assert.equal(result.platform, 'facebook');
   assert.equal(result.fetched, true, 'Facebook must read like the others, not worse');
-  assert.equal(result.creator, null, 'Facebook publishes no oEmbed author_name');
-  // Facebook profile URLs carry no `@`, so a handle only appears once the
-  // vanity path is read as one. Before that, Facebook posts had no creator at
-  // all — the symptom that started this.
-  assert.equal(result.creatorHandle, '@alex.cruz.travels');
-  assert.equal(result.creatorUrl, 'https://www.facebook.com/alex.cruz.travels');
-  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/v/avatar-alex-cruz.jpg');
+
+  // THE reported bug. Facebook publishes no keyless oEmbed and no
+  // `og:see_also`, which were the only two sources the old code had, so the
+  // creator came back null on every Facebook post. `og:title` is where the
+  // author's name actually is.
+  assert.equal(result.creator, 'Alex Cruz');
+  assert.equal(result.sources.creator, 'og:title');
+
+  // There is genuinely no handle in Facebook's markup or in a /reel/<id> URL.
+  // Null is the honest answer; inventing one from the share code is not.
+  assert.equal(result.creatorHandle, null);
+
   assert.match(result.caption, /Sagada in two days/);
   assert.match(result.caption, /₱800/);
+  assert.match(result.caption, /🌄/, 'an emoji in the caption survives');
   assert.equal(result.canonicalUrl, 'https://www.facebook.com/reel/1234567890');
   assert.equal(result.mediaType, 'video');
+
+  // `&amp;` in the og:image unescaped, or the CDN rejects the query.
+  assert.equal(
+    result.thumbnailUrl,
+    'https://scontent.xx.fbcdn.net/v/reel-1234567890.jpg?a=1&b=2',
+  );
+
   assert.ok(
     log.some((url) => url.includes('/reel/1234567890')),
     'the redirect was followed to the real post',
@@ -472,4 +545,1292 @@ test('no credential of any kind is sent', async () => {
     // And it says who it is rather than pretending to be a browser.
     assert.match(headers['user-agent'], /NookBot/);
   }
+});
+
+// --- the sources each platform really publishes ---------------------------
+//
+// The previous round's fixtures carried `og:see_also` and the code read the
+// creator out of it. Both passed. Neither Instagram nor Facebook serves that
+// tag on a post page, so the fixtures were testing an invention and the live
+// app got nothing — the same shape of mistake as the extraction tool name.
+//
+// These tests pin the sources that are actually there, one per platform,
+// because the three are not interchangeable.
+
+test('og:title is read per platform, and the patterns are not shared', () => {
+  // Instagram and TikTok: `Name (@handle)`.
+  assert.deepEqual(creatorFromOgTitle('Nina Reyes (@nina.reyes) • Instagram reel', 'instagram'), {
+    name: 'Nina Reyes',
+    handle: '@nina.reyes',
+  });
+  assert.deepEqual(creatorFromOgTitle('Mika Eats (@mika.eats) | TikTok', 'tiktok'), {
+    name: 'Mika Eats',
+    handle: '@mika.eats',
+  });
+
+  // `Name on <platform>` — no handle published.
+  assert.deepEqual(creatorFromOgTitle('Nina Reyes on Instagram: "three days"', 'instagram'), {
+    name: 'Nina Reyes',
+  });
+
+  // Facebook: the display name on its own. Nothing to strip, no handle.
+  assert.deepEqual(creatorFromOgTitle('Alex Cruz', 'facebook'), { name: 'Alex Cruz' });
+  assert.deepEqual(creatorFromOgTitle('Alex Cruz | Facebook', 'facebook'), {
+    name: 'Alex Cruz',
+  });
+
+  // But Facebook also puts the post body there, and prose is not a name.
+  assert.equal(
+    creatorFromOgTitle('Sagada in two days: ₱800 for the cave tour, go early!', 'facebook'),
+    null,
+  );
+  assert.equal(creatorFromOgTitle('Check out my trip #sagada', 'facebook'), null);
+
+  // Boilerplate is never a creator.
+  assert.equal(creatorFromOgTitle('Log in to Facebook', 'facebook'), null);
+  assert.equal(creatorFromOgTitle('', 'facebook'), null);
+  assert.equal(creatorFromOgTitle(null, 'facebook'), null);
+});
+
+test('JSON-LD is read for the creator and the avatar', () => {
+  const nodes = parseJsonLd(`
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@graph":[
+      {"@type":"VideoObject","caption":"A ¥900 set lunch in Gion",
+       "author":{"@type":"Person","name":"Nina Reyes","alternateName":"@nina.reyes",
+                 "url":"https://www.instagram.com/nina.reyes/",
+                 "image":"https://cdn.test/avatar.jpg?a=1\\u0026b=2"}}]}
+    </script>`);
+
+  assert.equal(nodes.length, 2, '@graph is flattened, and its members kept');
+  const creator = creatorFromJsonLd(nodes);
+  assert.equal(creator.name, 'Nina Reyes');
+  assert.equal(creator.handle, '@nina.reyes');
+  assert.equal(creator.url, 'https://www.instagram.com/nina.reyes/');
+  assert.equal(captionFromJsonLd(nodes), 'A ¥900 set lunch in Gion');
+});
+
+test('a malformed JSON-LD block does not lose the good ones', () => {
+  const nodes = parseJsonLd(`
+    <script type="application/ld+json">{ this is not json </script>
+    <script type="application/ld+json">{"author":{"name":"Alex Cruz"}}</script>`);
+
+  assert.equal(creatorFromJsonLd(nodes).name, 'Alex Cruz');
+});
+
+test('no structured data at all yields null, not a crash', () => {
+  assert.deepEqual(parseJsonLd('<html><head></head></html>'), []);
+  assert.equal(creatorFromJsonLd([]), null);
+  assert.equal(captionFromJsonLd([]), null);
+  assert.equal(avatarFromEmbeddedJson(''), null);
+});
+
+test('platform boilerplate is never mistaken for a caption', () => {
+  for (const blurb of [
+    'See posts, photos and more on Facebook.',
+    'Log in to Facebook',
+    'Join Facebook to connect with Alex Cruz',
+    '1,284 followers, 318 following, 94 posts - See Instagram photos and videos from Nina',
+    'See Instagram photos and videos from Nina Reyes',
+    'TikTok - Make Your Day',
+    'Discover videos related to Baguio on TikTok',
+    '',
+    null,
+  ]) {
+    assert.equal(isBoilerplate(blurb), true, String(blurb));
+  }
+  assert.equal(isBoilerplate('₱150 unlimited wings at Good Taste Baguio'), false);
+});
+
+test('an escaped or entity-encoded image URL is unescaped', () => {
+  assert.equal(unescapeUrl('https://cdn/x.jpg?a=1\\u0026b=2'), 'https://cdn/x.jpg?a=1&b=2');
+  assert.equal(unescapeUrl('https://cdn/x.jpg?a=1&amp;b=2'), 'https://cdn/x.jpg?a=1&b=2');
+  assert.equal(unescapeUrl('https:\\/\\/cdn\\/x.jpg'), 'https://cdn/x.jpg');
+  assert.equal(unescapeUrl(null), null);
+});
+
+test('an avatar is read out of the platform embedded state blob', () => {
+  // TikTok ships the page state in a script tag; the avatar is in there under
+  // a stable key even when the meta tags carry none.
+  assert.equal(
+    avatarFromEmbeddedJson('{"user":{"avatarLarger":"https://p16.test/a.jpg?x=1\\u0026y=2"}}'),
+    'https://p16.test/a.jpg?x=1&y=2',
+  );
+  assert.equal(
+    avatarFromEmbeddedJson('{"owner":{"profile_pic_url_hd":"https://scontent.test/p.jpg"}}'),
+    'https://scontent.test/p.jpg',
+  );
+  // Not a URL: refused rather than handed to the UI.
+  assert.equal(avatarFromEmbeddedJson('{"avatarLarger":"/relative/only.jpg"}'), null);
+});
+
+test('a profile URL is derived from a handle, per platform', () => {
+  assert.equal(profileUrlFor('@mika.eats', 'tiktok'), 'https://www.tiktok.com/@mika.eats');
+  assert.equal(profileUrlFor('nina.reyes', 'instagram'), 'https://www.instagram.com/nina.reyes/');
+  assert.equal(profileUrlFor('@alex.cruz', 'facebook'), 'https://www.facebook.com/alex.cruz');
+  // Nothing injectable becomes a URL.
+  for (const bad of ['', '@', 'a/../b', 'a b', '@x?y=1', null]) {
+    assert.equal(profileUrlFor(bad, 'tiktok'), null, String(bad));
+  }
+});
+
+test('provenance says where every field came from', async () => {
+  const result = await readMetadata('https://www.instagram.com/reel/CxYzAbCdEfG/', {
+    fetchImpl: stubFetch({ '/reel/': INSTAGRAM_PAGE }),
+  });
+
+  // The point of this field: a null is otherwise indistinguishable from the
+  // platform not publishing it, from a wall, and from a parser bug.
+  // JSON-LD before og:title: it names the author explicitly, where og:title
+  // has to be pattern-matched out of a decorated string.
+  assert.equal(result.sources.creator, 'ld+json');
+  assert.equal(result.sources.caption, 'og:description');
+  assert.equal(result.sources.creatorAvatarUrl, 'ld+json');
+  assert.equal(result.sources.thumbnailUrl, 'og:image');
+  assert.equal(result.diagnostics.pageStatus, 200);
+  assert.equal(result.diagnostics.jsonLdBlocks > 0, true);
+  assert.equal(result.diagnostics.loginWall, false);
+});
+
+test('an avatar equal to the post thumbnail is rejected', async () => {
+  // A page whose profile lookup returns the post's own cover. Showing that as
+  // a face is worse than showing the initial.
+  const page = html(
+    '<meta property="og:title" content="Mika Eats (@mika.eats) | TikTok">' +
+      '<meta property="og:description" content="wings in Baguio">' +
+      '<meta property="og:image" content="https://cdn.test/same.jpg">',
+  );
+  const result = await readMetadata('https://www.tiktok.com/@mika.eats/video/1', {
+    fetchImpl: stubFetch({
+      '/oembed': () => new Response('no', { status: 404 }),
+      '/@mika.eats/video/': page,
+      '/@mika.eats': html('<meta property="og:image" content="https://cdn.test/same.jpg">'),
+    }),
+  });
+
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.match(result.sources.creatorAvatarUrl, /rejected/);
+  assert.equal(result.thumbnailUrl, 'https://cdn.test/same.jpg');
+});
+
+test('a generic title with a meaningful caption keeps both apart', async () => {
+  const page = html(
+    '<meta property="og:title" content="TikTok - Make Your Day">' +
+      '<meta property="og:description" content="2 likes. &quot;Lunch at Good Taste in Baguio City, ₱150 unlimited 🍗 #baguio&quot;">',
+  );
+  const result = await readMetadata('https://www.tiktok.com/@mika.eats/video/1', {
+    fetchImpl: stubFetch({
+      '/oembed': () => new Response('no', { status: 404 }),
+      '': page,
+    }),
+    withAvatar: false,
+  });
+
+  // The generic platform title is boilerplate and must not become the title.
+  assert.equal(result.title, null);
+  assert.match(result.caption, /Good Taste in Baguio City/);
+  assert.match(result.caption, /₱150/);
+  assert.deepEqual(result.hashtags, ['baguio']);
+  assert.equal(result.fetched, true, 'a caption alone is a readable post');
+});
+
+test('partially available metadata keeps what there is', async () => {
+  // og:description only: no title, no creator, no image, no oEmbed.
+  const result = await readMetadata('https://www.facebook.com/reel/99', {
+    fetchImpl: stubFetch({
+      '': html('<meta property="og:description" content="Two days in Sagada, ₱800 cave tour">'),
+    }),
+  });
+
+  assert.equal(result.fetched, true);
+  assert.match(result.caption, /Sagada/);
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.equal(result.thumbnailUrl, null);
+});
+
+test('an empty or malformed response is not a crash', async () => {
+  for (const body of ['', '<html>', 'not html at all', '<meta property="og:title">']) {
+    const result = await readMetadata('https://www.tiktok.com/@a/video/1', {
+      fetchImpl: stubFetch({ '': () => new Response(body, { status: 200 }) }),
+      withAvatar: false,
+    });
+    assert.equal(typeof result.fetched, 'boolean', JSON.stringify(body));
+  }
+});
+
+// --- the two posts that were tested against the live Worker ---------------
+//
+// Both failed the same way, and these fixtures are built from what the
+// deployed service actually returned for them rather than from what these
+// pages were assumed to look like. The caption and the thumbnail came back
+// fine in both cases; only the creator fields were empty, and in both cases
+// the account name was sitting in the URL the whole time.
+
+/** instagram.com/forbestravelguide/reel/DMpu7-9ue06/ — name but no handle. */
+const IG_REEL_WITH_USER_IN_PATH = html(`<!doctype html><html><head>
+<meta property="og:type" content="video">
+<meta property="og:title" content="Forbes Travel Guide on Instagram: &quot;Sunset over El Nido&quot;">
+<meta property="og:description" content="412 likes, 18 comments - forbestravelguide on July 28, 2025: &quot;Golden hour in El Nido, Palawan 🌅 Island hopping from Corong-Corong beach, ₱1,800 per person for Tour A. #elnido #palawan #philippines&quot;">
+<meta property="og:image" content="https://scontent.cdninstagram.com/v/reel-DMpu7.jpg">
+<script type="application/ld+json">
+{"@type":"VideoObject","author":{"@type":"Person","name":"Forbes Travel Guide",
+ "image":"https://scontent.cdninstagram.com/v/avatar-ftg.jpg"}}
+</script>
+</head><body></body></html>`);
+
+test('Instagram: the username in the path becomes the handle and the URL', async () => {
+  // What the live service returned: creator "Forbes Travel Guide", caption and
+  // avatar fine, and creatorHandle / creatorUrl / canonicalUrl all null —
+  // while `forbestravelguide` sat in the URL that was passed in. JSON-LD here
+  // carries the name and the avatar but no `alternateName` and no `url`, which
+  // is why nothing downstream had a handle to work from.
+  const asked = 'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/';
+  const result = await readMetadata(asked, {
+    fetchImpl: stubFetch({
+      '/forbestravelguide/reel/': IG_REEL_WITH_USER_IN_PATH,
+      '/forbestravelguide/': html(
+        '<meta property="og:image" content="https://scontent.cdninstagram.com/v/avatar-ftg.jpg">',
+      ),
+    }),
+  });
+
+  assert.equal(result.creatorHandle, '@forbestravelguide');
+  assert.equal(result.creatorUrl, 'https://www.instagram.com/forbestravelguide/');
+  // This page publishes no `og:url`, so the canonical IS the pasted URL and
+  // either label is the same string. The case where they differ is below.
+  assert.ok(
+    ['canonical url', 'url as pasted'].includes(result.sources.creatorHandle),
+    result.sources.creatorHandle,
+  );
+  assert.equal(result.sources.creatorUrl, 'derived from handle');
+
+  // The display name stays the published one. The handle must never be
+  // promoted into it.
+  assert.equal(result.creator, 'Forbes Travel Guide');
+  assert.notEqual(result.creator, 'forbestravelguide');
+
+  // And none of the fields that already worked are disturbed.
+  assert.match(result.caption, /El Nido, Palawan/);
+  assert.match(result.caption, /₱1,800/);
+  assert.match(result.caption, /🌅/);
+  assert.deepEqual(result.hashtags, ['elnido', 'palawan', 'philippines']);
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.cdninstagram.com/v/avatar-ftg.jpg');
+  assert.equal(result.thumbnailUrl, 'https://scontent.cdninstagram.com/v/reel-DMpu7.jpg');
+  assert.equal(result.title, null, 'a byline is not a title');
+});
+
+test('Instagram: an og:url that drops the username falls back to the pasted URL', async () => {
+  // Instagram's own canonical for a reel is `/reel/<code>/` — the account is
+  // not in it. Deriving the handle from the canonical alone therefore loses
+  // the username that the URL the person pasted was carrying all along, which
+  // is why both are tried.
+  const page = html(`<!doctype html><html><head>
+<meta property="og:url" content="https://www.instagram.com/reel/DMpu7-9ue06/">
+<meta property="og:title" content="Forbes Travel Guide on Instagram">
+<meta property="og:description" content="412 likes - forbestravelguide: &quot;Golden hour in El Nido&quot;">
+</head><body></body></html>`);
+
+  const result = await readMetadata(
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    { fetchImpl: stubFetch({ '': page }), withAvatar: false },
+  );
+
+  assert.equal(result.creatorHandle, '@forbestravelguide');
+  assert.equal(result.sources.creatorHandle, 'url as pasted');
+  assert.equal(result.creatorUrl, 'https://www.instagram.com/forbestravelguide/');
+});
+
+test('Instagram: a reel URL without a username still yields no handle', async () => {
+  // `/reel/<code>/` carries no account, and inventing one from the code would
+  // be a fabricated creator.
+  const result = await readMetadata('https://www.instagram.com/reel/DMpu7-9ue06/', {
+    fetchImpl: stubFetch({ '': IG_REEL_WITH_USER_IN_PATH }),
+    withAvatar: false,
+  });
+
+  assert.equal(result.creatorHandle, null);
+  assert.equal(result.creatorUrl, null);
+  // The name the page published is still there.
+  assert.equal(result.creator, 'Forbes Travel Guide');
+});
+
+/**
+ * facebook.com/share/r/14twxTeWCtK/ — the share link, which redirects to a
+ * canonical video URL carrying the page's vanity name.
+ *
+ * The post's own `og:title` is the video's text, not a name, which is why no
+ * display name can be read from the post page: `creatorFromOgTitle` refuses
+ * prose, correctly. The page's name is on the page's own profile.
+ */
+const FB_VIDEO_PAGE = html(`<!doctype html><html><head>
+<meta property="og:type" content="video.other">
+<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/el-nido-palawan-philippines-el-nido-on-the-island-of-palawan-in-the-philippines-/691651166719048/">
+<meta property="og:title" content="El Nido Palawan Philippines. El Nido on the island of Palawan in the Philippines is one of the most beautiful places on earth.">
+<meta property="og:description" content="El Nido Palawan Philippines 🏝️ El Nido on the island of Palawan in the Philippines is one of the most beautiful places on earth. Tour A is ₱1,400.">
+<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/t15/691651166719048.jpg?a=1&amp;b=2">
+</head><body></body></html>`);
+
+test('Facebook: the share link resolves and the page identifier is read', async () => {
+  // What the live service returned for this exact post: caption and thumbnail
+  // fine, canonicalUrl resolved to `/1Nesh.D/videos/...`, and creator,
+  // creatorHandle, creatorUrl and creatorAvatarUrl all null — with `1Nesh.D`
+  // sitting in that canonical URL.
+  const log = [];
+  const fetchImpl = async (url) => {
+    log.push(url);
+    if (url.includes('/share/r/')) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location:
+            'https://www.facebook.com/1Nesh.D/videos/el-nido-palawan-philippines-el-nido-on-the-island-of-palawan-in-the-philippines-/691651166719048/',
+        },
+      });
+    }
+    if (/facebook\.com\/1Nesh\.D\/?$/.test(url)) {
+      return html(
+        '<meta property="og:title" content="Nesh D">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg">',
+      )();
+    }
+    if (url.includes('/videos/')) return FB_VIDEO_PAGE();
+    return new Response('not found', { status: 404 });
+  };
+
+  const result = await readMetadata(
+    'https://www.facebook.com/share/r/14twxTeWCtK/?mibextid=wwXIfr',
+    { fetchImpl },
+  );
+
+  // The page identifier, from the canonical the share link redirected to.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.equal(result.sources.creatorHandle, 'canonical url');
+
+  // The display name comes from the page's own profile, which is the only
+  // place Facebook publishes one for a video post — the post's og:title is
+  // the video's text.
+  assert.equal(result.creator, 'Nesh D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg');
+
+  // Caption and thumbnail were never dependent on any of that.
+  assert.match(result.caption, /El Nido/);
+  assert.match(result.caption, /Palawan/);
+  assert.match(result.caption, /₱1,400/);
+  assert.equal(
+    result.thumbnailUrl,
+    'https://scontent.xx.fbcdn.net/v/t15/691651166719048.jpg?a=1&b=2',
+  );
+  assert.equal(result.title, null, 'the post text is not a title');
+  assert.ok(result.canonicalUrl.includes('/1Nesh.D/videos/'));
+});
+
+test('Facebook: a prose og:title never becomes a display name', async () => {
+  // With no profile page to read, the name stays null rather than becoming the
+  // first sentence of the video.
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () => new Response('denied', { status: 403 }),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null, 'a sentence is not a name');
+  // But the identifier from the URL is real and is kept.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('profile page')),
+    'the attempt and its outcome are recorded',
+  );
+});
+
+test('Facebook: every link shape is handled', async () => {
+  const shapes = {
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/': '@1Nesh.D',
+    'https://www.facebook.com/1Nesh.D/posts/pfbid0abc123': '@1Nesh.D',
+    'https://m.facebook.com/1Nesh.D/videos/691651166719048/': '@1Nesh.D',
+    'https://www.facebook.com/reel/691651166719048': null,
+    'https://www.facebook.com/watch/?v=691651166719048': null,
+    'https://www.facebook.com/share/r/14twxTeWCtK/': null,
+    'https://fb.watch/aBcDeFgHiJ/': null,
+    'https://www.facebook.com/profile.php?id=100064': null,
+  };
+
+  for (const [url, expected] of Object.entries(shapes)) {
+    const result = await readMetadata(url, {
+      fetchImpl: stubFetch({ '': () => new Response('<html></html>', { status: 200 }) }),
+      withAvatar: false,
+    });
+    assert.equal(result.creatorHandle, expected, url);
+  }
+});
+
+test('a caption survives when every creator field fails', async () => {
+  // The guarantee: creator extraction failing must never cost the caption,
+  // which is where the destination is.
+  const result = await readMetadata('https://www.facebook.com/share/r/abc/', {
+    fetchImpl: stubFetch({
+      '': html(
+        '<meta property="og:description" content="El Nido Palawan Philippines 🏝️ Tour A is ₱1,400.">',
+      ),
+    }),
+  });
+
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorHandle, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.match(result.caption, /El Nido Palawan Philippines/);
+  assert.equal(result.fetched, true, 'a caption alone is a readable post');
+});
+
+test('a malformed URL produces no profile information at all', async () => {
+  for (const url of [
+    'https://www.instagram.com//reel//',
+    'https://www.facebook.com/',
+    'https://www.instagram.com/%20/reel/abc/',
+  ]) {
+    const result = await readMetadata(url, {
+      fetchImpl: stubFetch({ '': () => new Response('<html></html>', { status: 200 }) }),
+      withAvatar: false,
+    });
+    assert.equal(result.creator, null, url);
+    assert.equal(result.creatorAvatarUrl, null, url);
+  }
+});
+
+// --- the Facebook display name and avatar --------------------------------
+//
+// After the handle fix the live service returned `@1Nesh.D` and the profile
+// URL, with `creator` and `creatorAvatarUrl` still null and a fallback line
+// reading `profile page (...): read`.
+//
+// Two things were wrong, and the diagnostic hid the second:
+//
+// 1. `read` was returned for any 200 that was not a detected login wall,
+//    whether or not anything had been extracted. It meant "a page came back",
+//    which in a log is indistinguishable from success.
+// 2. `looksLikeProse` rejected any string containing a full stop, so every
+//    name with one in it was discarded — including this page's own, `1Nesh.D`.
+
+test('a name with a full stop in it is a name', () => {
+  // The page this was reported against is called `1Nesh.D`. Its own name was
+  // the first thing the prose test threw away.
+  for (const [title, expected] of Object.entries({
+    '1Nesh.D': '1Nesh.D',
+    '1Nesh.D | Facebook': '1Nesh.D',
+    'Nesh D.': 'Nesh D.',
+    'St. Nesh Travels': 'St. Nesh Travels',
+    'Nesh D - Home | Facebook': 'Nesh D',
+    'Nesh D - Videos | Facebook': 'Nesh D',
+    'Nesh Dumlao Travel & Food': 'Nesh Dumlao Travel & Food',
+    'Nesh D (@1Nesh.D) | Facebook': 'Nesh D',
+  })) {
+    assert.equal(creatorFromOgTitle(title, 'facebook')?.name, expected, title);
+  }
+});
+
+test('post prose is still refused as a name', () => {
+  for (const title of [
+    'El Nido Palawan Philippines. El Nido on the island of Palawan in the Philippines is one of the most beautiful places.',
+    'El Nido Palawan Philippines.',
+    'Check out my trip #sagada',
+    'Sagada in two days: 800 pesos for the cave tour, and go early in the morning!',
+    'https://example.com/post',
+  ]) {
+    assert.equal(creatorFromOgTitle(title, 'facebook'), null, title);
+  }
+});
+
+test('the wall wording is never read as a creator', () => {
+  // Six ordinary words with no punctuation: it passes every prose test, so it
+  // has to be refused by name.
+  for (const title of [
+    'Log in or sign up to view',
+    'Log In or Sign Up',
+    'Log into Facebook',
+    'Sign up for Facebook',
+    'Sign in to continue',
+    'You must log in to continue',
+  ]) {
+    assert.equal(creatorFromOgTitle(title, 'facebook'), null, title);
+    assert.equal(isBoilerplate(title), true, title);
+  }
+  // And a business whose name merely starts with one of those words is fine.
+  for (const title of ['Login Travel Co', 'Signature Travels', 'Sign Co Manila']) {
+    assert.ok(creatorFromOgTitle(title, 'facebook')?.name, title);
+  }
+});
+
+test('Facebook: the display name and avatar come off the profile page', async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes('/share/r/')) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+        },
+      });
+    }
+    if (/facebook\.com\/1Nesh\.D\/?$/.test(url)) {
+      // A page whose og:title is the vanity name, full stop included.
+      return new Response(
+        '<meta property="og:title" content="1Nesh.D | Facebook">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg?a=1&amp;b=2">',
+        { status: 200 },
+      );
+    }
+    return FB_VIDEO_PAGE();
+  };
+
+  const result = await readMetadata(
+    'https://www.facebook.com/share/r/14twxTeWCtK/?mibextid=wwXIfr',
+    { fetchImpl },
+  );
+
+  assert.equal(result.creator, '1Nesh.D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+  assert.equal(
+    result.creatorAvatarUrl,
+    'https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg?a=1&b=2',
+  );
+  assert.equal(result.sources.creatorAvatarUrl, 'profile page og:image');
+  // The status says what it found, not merely that a page came back.
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('read: name and avatar')),
+    result.fallbacks.join(' | '),
+  );
+
+  // And the fields that were already working are untouched.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(result.thumbnailUrl);
+});
+
+test('a profile page with only an avatar reports exactly that', async () => {
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () =>
+          new Response(
+            '<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/a.jpg">',
+            { status: 200 },
+          ),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null, 'no name published, so none reported');
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/v/a.jpg');
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('read: avatar only')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a profile page that yields nothing says so, with what it did carry', async () => {
+  // THE case the old `read` status hid. A 200 that is not a login wall and
+  // carries nothing usable: the status now names the shortfall and quotes the
+  // og:title it did find, which is what makes the next step obvious.
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () =>
+          new Response(
+            '<meta property="og:site_name" content="Facebook">' +
+              '<meta property="og:title" content="Facebook">',
+            { status: 200 },
+          ),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  // Not reported as read.
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('read: no name, no avatar')),
+    result.fallbacks.join(' | '),
+  );
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('og:title')),
+    'the title it did carry is quoted, so the shortfall can be seen',
+  );
+  // Nothing fabricated, and nothing that worked is lost.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(result.thumbnailUrl);
+});
+
+test('a walled profile page is reported as walled, not as empty', async () => {
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () =>
+          new Response(
+            '<meta property="og:title" content="Log in or sign up to view">',
+            { status: 200 },
+          ),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null, 'the wall text is never a name');
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('login wall')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a profile page that refuses the request says which way it refused', async () => {
+  for (const [status, expected] of [
+    [403, 'HTTP 403'],
+    [404, 'HTTP 404'],
+    [429, 'HTTP 429'],
+  ]) {
+    const result = await readMetadata(
+      'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+      {
+        fetchImpl: stubFetch({
+          '/videos/': FB_VIDEO_PAGE,
+          '': () => new Response('no', { status }),
+        }),
+      },
+    );
+    assert.equal(result.creator, null);
+    assert.ok(
+      result.fallbacks.some((line) => line.includes(expected)),
+      `${status}: ${result.fallbacks.join(' | ')}`,
+    );
+  }
+});
+
+test('the profile page is read for a name even when an avatar was already found', async () => {
+  // The post page carried an avatar in its JSON-LD but no name. The profile
+  // fetch still has to run, or the name is lost for the sake of one request.
+  const post = () =>
+    new Response(
+      '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+        '<meta property="og:title" content="El Nido Palawan Philippines. One of the most beautiful places on earth.">' +
+        '<meta property="og:description" content="Tour A is 1400 pesos.">' +
+        '<script type="application/ld+json">{"author":{"image":"https://cdn.test/ld-avatar.jpg"}}</script>',
+      { status: 200 },
+    );
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl: stubFetch({
+      '/videos/': post,
+      '': () => new Response('<meta property="og:title" content="Nesh D">', { status: 200 }),
+    }),
+  });
+
+  assert.equal(result.creatorAvatarUrl, 'https://cdn.test/ld-avatar.jpg');
+  assert.equal(result.sources.creatorAvatarUrl, 'ld+json');
+  assert.equal(result.creator, 'Nesh D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+});
+
+// --- the name has to belong to the account -------------------------------
+//
+// The deployed service returned `creator: "Priyasad Wattegedara"` for the
+// `@1Nesh.D` post, with `read: name and avatar`. The name may well be right —
+// a vanity URL legitimately bears no resemblance to a person's name, so
+// "it looks unrelated" is not evidence of anything. What was wrong is that
+// nothing established the association, and three paths could attribute a name
+// that did not belong to the account. All three reported the same
+// `read: name and avatar` as a correct read, so the diagnostic could not tell
+// them apart either.
+
+test('a profile URL that redirects to a different account yields nothing', async () => {
+  // The name and the avatar were read off whatever page the redirect landed
+  // on, with no check that it was still the right account.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan Philippines. Tour A is 1400 pesos.">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://www.facebook.com/SomeoneElse.Page' },
+      });
+    }
+    return new Response(
+      '<meta property="og:title" content="Priyasad Wattegedara">' +
+        '<meta property="og:image" content="https://cdn.test/other-avatar.jpg">',
+      { status: 200 },
+    );
+  };
+
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/x/1/',
+    { fetchImpl },
+  );
+
+  assert.equal(result.creator, null, 'a name off another account is not this one');
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('redirected to a different account')),
+    result.fallbacks.join(' | '),
+  );
+  // And the status names both accounts, so the mismatch is auditable.
+  assert.ok(result.fallbacks.some((line) => line.includes('1Nesh.D')));
+  assert.ok(result.fallbacks.some((line) => line.includes('SomeoneElse.Page')));
+
+  // Everything that did not depend on the profile page survives.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(result.thumbnailUrl);
+});
+
+test('a redirect to the same account is still read', async () => {
+  // A trailing slash, http to https, or a `?locale=` are all the same account
+  // and must not be refused.
+  for (const landing of [
+    'https://www.facebook.com/1Nesh.D/',
+    'https://www.facebook.com/1Nesh.D?locale=en_GB',
+  ]) {
+    const fetchImpl = async (url) => {
+      if (url.includes('/videos/')) {
+        return new Response(
+          '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+            '<meta property="og:description" content="El Nido.">',
+          { status: 200 },
+        );
+      }
+      if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+        return new Response(null, { status: 302, headers: { location: landing } });
+      }
+      return new Response('<meta property="og:title" content="Nesh D">', { status: 200 });
+    };
+
+    const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+      fetchImpl,
+    });
+    assert.equal(result.creator, 'Nesh D', landing);
+  }
+});
+
+test('a JSON-LD publisher is not read as the creator', () => {
+  // `publisher` names who distributed the content. On a reshared video that is
+  // a different entity from the account whose page it is, and reading it as
+  // the creator attributed an unrelated name.
+  const nodes = parseJsonLd(`
+    <script type="application/ld+json">
+    {"@type":"VideoObject","name":"El Nido",
+     "publisher":{"@type":"Organization","name":"Some Other Page",
+                  "logo":"https://cdn.test/publisher-logo.jpg"}}
+    </script>`);
+
+  assert.equal(creatorFromJsonLd(nodes), null);
+
+  // `author` and `creator` still are read — they name who made the thing.
+  for (const key of ['author', 'creator']) {
+    const withAuthor = parseJsonLd(
+      `<script type="application/ld+json">{"${key}":{"name":"Nesh D"}}</script>`,
+    );
+    assert.equal(creatorFromJsonLd(withAuthor).name, 'Nesh D', key);
+  }
+});
+
+test('a bystander avatar in a profile page is not taken as the creator', async () => {
+  // The page-state scan takes the first `profile_pic_url`-shaped key in the
+  // whole document, and a profile page embeds commenters and suggestions. On a
+  // profile page `og:image` is the subject; a key scan is not.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido.">',
+        { status: 200 },
+      );
+    }
+    return new Response(
+      '<meta property="og:title" content="1Nesh.D">' +
+        '<script>{"comments":[{"author":{"name":"Someone Else",' +
+        '"profile_pic_url":"https://cdn.test/bystander.jpg"}}]}</script>',
+      { status: 200 },
+    );
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, '1Nesh.D', 'the page states its own name');
+  assert.equal(
+    result.creatorAvatarUrl,
+    null,
+    'no avatar is better than a stranger-s face',
+  );
+});
+
+test('a post page state blob is still a valid avatar source', async () => {
+  // The narrowing above is for profile pages only. TikTok publishes the video
+  // author-s avatar in the post page-s own state, and that must keep working.
+  const result = await readMetadata('https://www.tiktok.com/@mika.eats/video/1', {
+    fetchImpl: stubFetch({
+      '/oembed': () => new Response('no', { status: 404 }),
+      '': () =>
+        new Response(
+          '<meta property="og:title" content="Mika Eats (@mika.eats) | TikTok">' +
+            '<meta property="og:description" content="wings in Baguio">' +
+            '<script>{"user":{"avatarLarger":"https://p16.test/mika.jpg"}}</script>',
+          { status: 200 },
+        ),
+    }),
+    withAvatar: false,
+  });
+
+  assert.equal(result.creatorAvatarUrl, 'https://p16.test/mika.jpg');
+  assert.equal(result.sources.creatorAvatarUrl, 'embedded json');
+});
+
+test('the source of the display name is always stated', async () => {
+  // The question "where did this name come from" has to be answerable from the
+  // response alone, which is what `sources.creator` is for.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido.">',
+        { status: 200 },
+      );
+    }
+    return new Response('<meta property="og:title" content="Nesh D">', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, 'Nesh D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+});
+
+// --- Facebook's canonical /people/ profile form --------------------------
+//
+// The deployed run after the identity check returned
+// `read: no name, no avatar (2 meta tags, no og:title)` at HTTP 200. A real
+// profile page carries twenty-odd tags including `og:title` and `og:image`;
+// two tags and no `og:title` is a bot-mitigation shell, not a profile.
+//
+// Investigating that turned up a defect in the check itself. The previous
+// commit's message claimed `/people/<Name>/<id>` "has no handle in it and so
+// is still accepted". It does: `people` was missing from the route words, so
+// it came back as the landed handle, was compared against the vanity name, and
+// Facebook's own canonicalisation was refused as a different account.
+
+test('`people` is a route word, not an account', () => {
+  assert.equal(
+    handleFromUrl('https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/'),
+    null,
+  );
+  for (const route of ['pg', 'marketplace', 'events', 'hashtag', 'search', 'login']) {
+    assert.equal(handleFromUrl(`https://www.facebook.com/${route}/Something/123`), null, route);
+  }
+  // A real vanity path is untouched.
+  assert.equal(handleFromUrl('https://www.facebook.com/1Nesh.D'), '1Nesh.D');
+});
+
+test('the canonical /people/ path yields the name Facebook states', () => {
+  assert.equal(
+    nameFromPeoplePath('https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/'),
+    'Priyasad Wattegedara',
+  );
+  assert.equal(
+    nameFromPeoplePath('https://www.facebook.com/people/Mar%C3%ADa-Santos/100099988877766'),
+    'María Santos',
+  );
+
+  // Not a name, or not the canonical shape: nothing is produced.
+  for (const url of [
+    'https://www.facebook.com/people/Priyasad-Wattegedara', // no id
+    'https://www.facebook.com/people/Priyasad-Wattegedara/abc', // id not numeric
+    'https://www.facebook.com/people/123456/100012345678901', // name is an id
+    'https://www.facebook.com/1Nesh.D', // not the /people/ form
+    'https://www.instagram.com/people/Someone/100012345678901/', // not Facebook
+    'https://www.facebook.com/people/El-Nido-Palawan-Philippines-is-one-of-the-most-beautiful-places/100012345678901/',
+    'not a url',
+  ]) {
+    assert.equal(nameFromPeoplePath(url), null, url);
+  }
+});
+
+test('a vanity URL canonicalised to /people/ is read, and says where from', async () => {
+  // The legitimate redirect, which the identity check was refusing.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan. Tour A is 1400 pesos.">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/',
+        },
+      });
+    }
+    return new Response(
+      '<meta property="og:title" content="Priyasad Wattegedara">' +
+        '<meta property="og:image" content="https://scontent.xx.fbcdn.net/avatar.jpg">',
+      { status: 200 },
+    );
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, 'Priyasad Wattegedara');
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/avatar.jpg');
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  // The address actually read is named, so the name is auditable.
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('/people/Priyasad-Wattegedara/')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('the canonical path alone supplies a name when the page carries none', async () => {
+  // Redirected to /people/<Name>/<id>, but that page serves a shell. The path
+  // Facebook sent us to is still Facebook stating that account's name.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan.">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/',
+        },
+      });
+    }
+    return new Response('<meta name="viewport" content="width=device-width">', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, 'Priyasad Wattegedara');
+  assert.equal(result.creatorAvatarUrl, null, 'no avatar was published');
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('canonical /people/ path')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a redirect to a different vanity account is still refused', async () => {
+  // The /people/ allowance must not become a hole in the identity check.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan.">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://www.facebook.com/SomeoneElse.Page' },
+      });
+    }
+    return new Response('<meta property="og:title" content="Someone Else">', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('redirected to a different account')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a bot shell is reported by its tag names, with no values', async () => {
+  // The run that prompted this. Reproduced exactly: HTTP 200, two tags, no
+  // og:title, no redirect. The names say what kind of page answered — a
+  // profile carries og:title and og:image; viewport and referrer alone do not.
+  const fetchImpl = async (url) =>
+    url.includes('/videos/')
+      ? new Response(
+          '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+            '<meta property="og:description" content="El Nido Palawan. Tour A is 1400 pesos.">' +
+            '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+          { status: 200 },
+        )
+      : new Response(
+          '<meta name="viewport" content="width=device-width">' +
+            '<meta name="referrer" content="origin-when-crossorigin">',
+          { status: 200 },
+        );
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  // Nothing invented.
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+
+  // The diagnostic names the tags, so the shell is identifiable.
+  const line = result.fallbacks.join(' | ');
+  assert.match(line, /2 meta tags: viewport, referrer/);
+  assert.match(line, /no og:title/);
+  // And no tag VALUES are reproduced.
+  assert.ok(!line.includes('width=device-width'), line);
+  assert.ok(!line.includes('origin-when-crossorigin'), line);
+
+  // Everything that does not depend on the profile page survives.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.equal(result.thumbnailUrl, 'https://scontent.xx.fbcdn.net/post.jpg');
+  assert.equal(result.fetched, true);
+});
+
+// --- a 200 served at a sign-in URL ---------------------------------------
+//
+// The deployed run returned `pageStatus: 200`, `pageBytes: 461035`,
+// `metaTagCount: 2`, `loginWall: false`, and `canonicalUrl` set to
+// `/login/?next=…`. Facebook had redirected the share link to its sign-in
+// page and answered 200.
+//
+// `looksLikeLoginWall(tags, html)` never saw a URL — its whole signature was
+// page content. A sign-in page redirected to at 200 carries two meta tags,
+// often no `<title>`, and 450KB of script, so there was nothing in the content
+// to recognise. The address says it outright.
+
+test('a login path is recognised, per platform, and a post path is not', () => {
+  for (const url of [
+    'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2F1Nesh.D%2Fvideos%2F1%2F',
+    'https://www.facebook.com/login.php?next=x',
+    'https://www.facebook.com/r.php',
+    'https://www.facebook.com/checkpoint/1234',
+    'https://www.facebook.com/recover/initiate',
+    'https://www.instagram.com/accounts/login/?next=/reel/abc/',
+    'https://www.instagram.com/accounts/emailsignup/',
+    'https://www.tiktok.com/login',
+  ]) {
+    assert.equal(looksLikeLoginUrl(url), true, url);
+  }
+
+  // Real posts, and the share link itself, are not sign-in pages.
+  for (const url of [
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    'https://www.facebook.com/share/r/14twxTeWCtK/',
+    'https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/',
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    'https://www.tiktok.com/@mika.eats/video/1',
+    'not a url',
+  ]) {
+    assert.equal(looksLikeLoginUrl(url), false, url);
+  }
+});
+
+test('the post a sign-in redirect was going to ask for is recovered', () => {
+  assert.equal(
+    targetOfLoginRedirect(
+      'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2F1Nesh.D%2Fvideos%2F691651166719048%2F',
+    ),
+    'https://www.facebook.com/1Nesh.D/videos/691651166719048/',
+  );
+  // A relative `next`, and Instagram's wording.
+  assert.equal(
+    targetOfLoginRedirect('https://www.instagram.com/accounts/login/?next=/forbestravelguide/reel/abc/'),
+    'https://www.instagram.com/forbestravelguide/reel/abc/',
+  );
+  // Nothing usable, or a target that is itself a wall, or off-platform.
+  for (const url of [
+    'https://www.facebook.com/login/',
+    'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Flogin%2F',
+    'https://www.facebook.com/login/?next=https%3A%2F%2Fevil.test%2Fx',
+    'not a url',
+  ]) {
+    assert.equal(targetOfLoginRedirect(url), null, url);
+  }
+});
+
+test('looksLikeLoginWall uses the final URL when it is given one', () => {
+  // The two-argument form is unchanged, so existing callers behave as before.
+  const shellTags = parseMetaTags(
+    '<title>Facebook</title><meta name="viewport" content="width=device-width">',
+  );
+  assert.equal(looksLikeLoginWall(shellTags, '', null), false);
+  // With the address, the same page is recognised.
+  assert.equal(
+    looksLikeLoginWall(shellTags, '', 'https://www.facebook.com/login/?next=%2F1Nesh.D%2F'),
+    true,
+  );
+});
+
+test('a 200 at a sign-in URL is a wall, with an accurate reason', async () => {
+  // The reported run, reproduced: 302 to /login/?next=…, then 200 with two
+  // meta tags, no og:title, and a large script body.
+  const LOGIN_PAGE =
+    '<!doctype html><html><head><title>Facebook</title>' +
+    '<meta name="viewport" content="width=device-width">' +
+    '<meta name="referrer" content="origin-when-crossorigin">' +
+    `</head><body>${'x'.repeat(4000)}</body></html>`;
+
+  const fetchImpl = async (url) =>
+    url.includes('/share/r/')
+      ? new Response(null, {
+          status: 302,
+          headers: {
+            location:
+              'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2F1Nesh.D%2Fvideos%2F691651166719048%2F',
+          },
+        })
+      : new Response(LOGIN_PAGE, { status: 200 });
+
+  const result = await readMetadata(
+    'https://www.facebook.com/share/r/14twxTeWCtK/?mibextid=wwXIfr',
+    { fetchImpl },
+  );
+
+  // 1. The wall is detected, from the address.
+  assert.equal(result.diagnostics.loginWall, true);
+  assert.equal(result.diagnostics.loginRedirect, true);
+
+  // 2. The reason names the platform and what it did, and says Nook does not
+  //    sign in — rather than "returned nothing readable".
+  assert.match(result.reason, /not public/);
+  assert.match(result.reason, /Facebook redirected to a sign-in page/);
+  assert.match(result.reason, /does not sign in/);
+  assert.equal(result.fetched, false, 'nothing was read, and nothing claims it was');
+
+  // 3. `canonicalUrl` is the post, not the sign-in page. Reporting the login
+  //    URL there put it where the post's own link is stored and shown.
+  assert.equal(result.canonicalUrl, 'https://www.facebook.com/1Nesh.D/videos/691651166719048/');
+  assert.ok(!result.canonicalUrl.includes('/login'));
+
+  // 4. The account is still recoverable from the redirect's own target.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+
+  // 5. Nothing is invented for the fields the wall withheld.
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.equal(result.caption, null);
+  assert.equal(result.title, null);
+
+  // 6. The wall's own content is not read, but its size still reports, because
+  //    that is the evidence of what answered.
+  assert.equal(result.diagnostics.pageStatus, 200);
+  assert.ok(result.diagnostics.metaTagCount >= 2, 'the count survives the content being dropped');
+  assert.ok(result.diagnostics.pageBytes > 0);
+});
+
+test('a sign-in redirect with no recoverable next= still reports honestly', async () => {
+  const fetchImpl = async (url) =>
+    url.includes('/share/r/')
+      ? new Response(null, {
+          status: 302,
+          headers: { location: 'https://www.facebook.com/login/' },
+        })
+      : new Response('<title>Facebook</title>', { status: 200 });
+
+  const result = await readMetadata('https://www.facebook.com/share/r/14twxTeWCtK/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.diagnostics.loginWall, true);
+  assert.match(result.reason, /sign-in page/);
+  assert.equal(result.fetched, false);
+  // No next= to read, so no account — and the canonical falls back to the
+  // address as pasted rather than to the sign-in page.
+  assert.equal(result.creatorHandle, null);
+  assert.ok(!(result.canonicalUrl ?? '').includes('/login'));
+});
+
+test('an Instagram sign-in redirect is handled the same way', async () => {
+  const fetchImpl = async (url) =>
+    url.includes('/reel/')
+      ? new Response(null, {
+          status: 302,
+          headers: {
+            location: 'https://www.instagram.com/accounts/login/?next=%2Fforbestravelguide%2Freel%2FDMpu7-9ue06%2F',
+          },
+        })
+      : new Response('<title>Instagram</title>', { status: 200 });
+
+  const result = await readMetadata(
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    { fetchImpl },
+  );
+
+  assert.equal(result.diagnostics.loginWall, true);
+  assert.match(result.reason, /Instagram redirected to a sign-in page/);
+  assert.equal(result.creatorHandle, '@forbestravelguide');
+  assert.equal(result.caption, null);
+  assert.equal(result.creator, null);
+});
+
+test('a profile fetch that lands on a sign-in page says so', async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan. Tour A is 1400 pesos.">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://www.facebook.com/login/?next=%2F1Nesh.D' },
+      });
+    }
+    return new Response('<title>Facebook</title>', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('login wall (redirected to a sign-in page)')),
+    result.fallbacks.join(' | '),
+  );
+  // The post itself read fine, and keeps everything it had.
+  assert.equal(result.fetched, true);
+  assert.match(result.caption, /El Nido/);
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.ok(result.thumbnailUrl);
 });

@@ -195,13 +195,37 @@ source actually carries it.
 | --- | --- | --- | --- | --- |
 | Title | yes, a real one | no title field | no title field | no title field |
 | Caption / description | yes | yes | yes | yes |
-| Creator name | yes | yes | sometimes | sometimes |
-| Creator handle | yes | yes | yes | from the page's vanity path |
-| Creator profile URL | yes | yes | yes | yes |
-| Creator avatar | with a YouTube API key, or the channel page | public profiles | public profiles | public pages |
-| Thumbnail | yes | yes | yes | yes |
+| Creator name | oEmbed | oEmbed | JSON-LD, else `og:title` | the page's own profile `og:title` |
+| Creator handle | oEmbed | oEmbed | the account in the URL path | the page in the canonical URL path |
+| Creator profile URL | oEmbed | oEmbed | derived from the handle | derived from the handle |
+| Creator avatar | API key, or the channel page | embedded state blob, else profile page | JSON-LD, else profile page | the page's own profile `og:image` |
+| Thumbnail | oEmbed | oEmbed | `og:image` | `og:image` |
 | Hashtags | from the caption | from the caption | from the caption | from the caption |
 | Short links resolved | `youtu.be` | `vt.`/`vm.tiktok.com` | `instagr.am` | `fb.watch`, `fb.me` |
+
+**The three columns are not interchangeable, and assuming they were is what
+kept Facebook broken.** Facebook publishes no keyless oEmbed, no `og:see_also`
+and no handle in its markup; its only creator source is the display name in
+`og:title`, read on its own. TikTok has oEmbed and so needs none of that.
+Instagram has neither oEmbed nor a bare name — it has JSON-LD, and an
+`og:title` of the form `Name (@handle)`.
+
+**The account is usually in the URL, and that is a first-class source.**
+`instagram.com/forbestravelguide/reel/<code>/` and
+`facebook.com/1Nesh.D/videos/<slug>/<id>/` both name the account in their first
+path segment; a Facebook share link names it only in the canonical it redirects
+to, and Instagram's own `og:url` drops it. So the handle is taken from the
+canonical and from the URL as pasted, whichever has one, and the profile URL is
+derived from the handle — which is what then makes the avatar reachable.
+
+A first segment that is one of the platform's own route words (`reel`, `p`,
+`share`, `watch`, `videos`) is not an account, and neither is the path of a
+short-link host (`fb.watch`, `vt.tiktok.com`): reading one as a handle invents
+a creator that never existed.
+
+Nothing is read from `og:see_also`. An earlier version read the creator out of
+it on all three; no platform serves that tag on a post page, and because the
+test fixtures carried it too, the suite passed while the live app got nothing.
 
 Three of those four have no title field at all, which is the point: a post with
 a caption and no title is a complete post, and the caption is where the venue,
@@ -257,7 +281,7 @@ and is never one of these.
 ## Working on it
 
 ```bash
-npm test          # 74 tests, no key needed, nothing spent
+npm test          # 123 tests, no key needed, nothing spent
 npm run dev       # wrangler dev, reads .dev.vars
 ```
 
@@ -322,6 +346,59 @@ holds them that way.
 For `npm run dev` against the real model, copy `.dev.vars.example` to
 `.dev.vars` and put a key in it. That file is git-ignored and is never
 uploaded by `wrangler deploy`.
+
+### Diagnosing one post
+
+Every answer carries `sources` and `diagnostics`, which say where each field
+came from and what the fetch actually saw. A null on its own cannot distinguish
+the platform not publishing a field, a sign-in wall, and a parser bug; these do.
+
+```bash
+curl -s -X POST https://your-service.workers.dev/v1/metadata \
+  -H 'content-type: application/json' \
+  -d '{"url":"https://www.instagram.com/reel/<code>/"}' | jq '{sources, diagnostics, creator, creatorHandle, creatorAvatarUrl, caption}'
+```
+
+| What you see | What it means |
+| --- | --- |
+| `diagnostics.pageStatus: 200`, `metaTagCount: 0` | The page loaded but carries no meta tags — usually an app-interstitial rather than the post. |
+| `diagnostics.loginWall: true` | Not a public post. Nothing to fix. |
+| `jsonLdBlocks: 0` on Instagram | That page served no structured data, so the creator falls to `og:title`. |
+| `oembedAnswered: false` on TikTok | TikTok rate-limited the lookup; the caption still comes from `og:description`. |
+| `sources.creatorAvatarUrl: "rejected: same image as the post thumbnail"` | The avatar source returned the post's cover, so it was dropped rather than shown as a face. |
+| No `sources` key for a field | Nothing published it. That is the honest answer, not a bug. |
+| `fallbacks` naming a profile page and `login wall` | The account's page is not public, so no avatar and no display name. The handle is still real. |
+| `read: name and avatar` / `read: name only` / `read: avatar only` | What the profile page actually yielded. A bare `read` is no longer reported: it used to mean only that a page came back, which read as success for a page that gave nothing. |
+| `read: no name, no avatar (N meta tags: …, no og:title)` | The page answered and carried nothing usable. The tag **names** say what kind of page it was: a profile carries `og:title` and `og:image`, while `viewport, referrer` alone is a bot-mitigation shell. No tag values are reported. |
+| `[read https://www.facebook.com/people/<Name>/<id>/]` | Facebook canonicalised the vanity URL. That path is Facebook's own statement of the account's name, reached by following its redirect, and is used as the name of last resort. |
+| `redirected to a different account (asked X, landed Y)` | The profile URL went somewhere else. Nothing is taken from that page. |
+
+| `diagnostics.loginRedirect: true` | The platform answered 200 at a `/login/` address. Detected from the address, which is the only signal such a page carries: it ships two meta tags, often no `<title>`, and 450KB of script. |
+
+### What Facebook does not expose to an unauthenticated request
+
+A Facebook profile URL does not reliably answer with a profile. The same
+address can return a full page with `og:title` and `og:image` on one request
+and a two-tag shell — `viewport`, `referrer`, no `og:title` — on the next.
+When it returns the shell there is **no display name and no avatar available**,
+and Nook reports null rather than reaching for something else. Signing in to
+get them is not something this service does.
+
+What survives regardless, because none of it depends on the profile page: the
+caption, the thumbnail, the handle, and the profile URL. A post with
+`creator: null` and `creatorHandle: "@1Nesh.D"` is a correctly extracted post
+whose author Facebook declined to name.
+
+It can also decline the post itself. A share link may redirect to
+`/login/?next=…` and answer 200 — a sign-in page, not the post. Then nothing
+is readable and `reason` says so; the account handle is still recovered from
+the redirect's own `next=`, because Facebook naming the post it wants a session
+for also names the account. `fetched` stays `false`: a handle is not a post.
+| `sources.creatorHandle: "canonical url"` | The share or short link was resolved and the account came from where it landed. |
+
+If the app shows "Nook couldn't read this post" and names `/v1/metadata`, the
+service is running a build from before it could read posts — `npx wrangler
+deploy` and try again.
 
 ### Verifying the AI path
 

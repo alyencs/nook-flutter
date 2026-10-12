@@ -71,18 +71,24 @@ const pages = {
     '<meta property="og:title" content="Mika on TikTok">' +
     '<meta property="og:description" content="2.1M likes, 4300 comments. &quot;₱150 lang ang unlimited wings sa Good Taste Baguio! Open 24 hours, 2nd floor pa #baguio #baguiofood #fyp&quot;">' +
     '<meta property="og:image" content="https://placehold.co/600x800?text=TikTok+post">',
+  // No `og:see_also` on either: neither platform serves it, and having it here
+  // is what let the parser depend on a tag that is never there in the wild.
   instagram:
     '<meta property="og:type" content="video">' +
-    '<meta property="og:title" content="nina.reyes on Instagram">' +
-    '<meta property="og:description" content="1,284 likes, 56 comments - nina.reyes on March 2, 2024: &quot;Three days in Kyoto and the best meal was a ¥900 set lunch at Kissa Master in Gion. Go before 11am. #kyoto #japantravel&quot;">' +
+    '<meta property="og:title" content="Nina Reyes (@nina.reyes) • Instagram reel">' +
+    '<meta property="og:description" content="1,284 likes, 56 comments - nina.reyes on March 2, 2024: &quot;Three days in Kyoto and the best meal was a ¥900 set lunch at Kissa Master in Gion. Go before 11am 🍵 #kyoto #japantravel&quot;">' +
     '<meta property="og:image" content="https://placehold.co/600x800?text=Reel">' +
-    '<meta property="og:see_also" content="https://www.instagram.com/nina.reyes/">',
+    '<script type="application/ld+json">' +
+    '{"@type":"VideoObject","author":{"@type":"Person","name":"Nina Reyes",' +
+    '"alternateName":"@nina.reyes","url":"https://www.instagram.com/nina.reyes/",' +
+    '"image":"https://placehold.co/200x200?text=Nina"}}</script>',
+  // Facebook's own shape: a display name in og:title and nothing else. No
+  // oEmbed, no handle, no structured data.
   facebook:
     '<meta property="og:type" content="video.other">' +
     '<meta property="og:title" content="Alex Cruz">' +
-    '<meta property="og:description" content="Sagada in two days: ₱800 for the cave tour, ₱2,500 a night at a homestay near the centre. The sunrise at Kiltepan is worth the 4am start.">' +
-    '<meta property="og:image" content="https://placehold.co/600x800?text=Facebook+reel">' +
-    '<meta property="og:see_also" content="https://www.facebook.com/alex.cruz.travels">',
+    '<meta property="og:description" content="Sagada in two days: ₱800 for the cave tour, ₱2,500 a night at a homestay near the centre. The sunrise at Kiltepan is worth the 4am start 🌄">' +
+    '<meta property="og:image" content="https://placehold.co/600x800?text=Facebook+reel">',
   youtube:
     '<meta property="og:type" content="video.other">' +
     '<meta property="og:title" content="5 Hidden Cafes in Kyoto">' +
