@@ -281,7 +281,7 @@ and is never one of these.
 ## Working on it
 
 ```bash
-npm test          # 116 tests, no key needed, nothing spent
+npm test          # 123 tests, no key needed, nothing spent
 npm run dev       # wrangler dev, reads .dev.vars
 ```
 
@@ -373,6 +373,8 @@ curl -s -X POST https://your-service.workers.dev/v1/metadata \
 | `[read https://www.facebook.com/people/<Name>/<id>/]` | Facebook canonicalised the vanity URL. That path is Facebook's own statement of the account's name, reached by following its redirect, and is used as the name of last resort. |
 | `redirected to a different account (asked X, landed Y)` | The profile URL went somewhere else. Nothing is taken from that page. |
 
+| `diagnostics.loginRedirect: true` | The platform answered 200 at a `/login/` address. Detected from the address, which is the only signal such a page carries: it ships two meta tags, often no `<title>`, and 450KB of script. |
+
 ### What Facebook does not expose to an unauthenticated request
 
 A Facebook profile URL does not reliably answer with a profile. The same
@@ -386,6 +388,12 @@ What survives regardless, because none of it depends on the profile page: the
 caption, the thumbnail, the handle, and the profile URL. A post with
 `creator: null` and `creatorHandle: "@1Nesh.D"` is a correctly extracted post
 whose author Facebook declined to name.
+
+It can also decline the post itself. A share link may redirect to
+`/login/?next=…` and answer 200 — a sign-in page, not the post. Then nothing
+is readable and `reason` says so; the account handle is still recovered from
+the redirect's own `next=`, because Facebook naming the post it wants a session
+for also names the account. `fetched` stays `false`: a handle is not a post.
 | `sources.creatorHandle: "canonical url"` | The share or short link was resolved and the account came from where it landed. |
 
 If the app shows "Nook couldn't read this post" and names `/v1/metadata`, the

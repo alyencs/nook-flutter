@@ -81,6 +81,15 @@ export class MetadataError extends Error {
   }
 }
 
+/** The platform's name as a person would write it, for a message they read. */
+function NookPlatformLabel(platform) {
+  return (
+    { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook' }[
+      platform
+    ] ?? 'the platform'
+  );
+}
+
 /** Which platform a URL belongs to. Mirrors `lib/ai/platform_from_url.dart`. */
 export function platformOf(url) {
   let host;
@@ -212,6 +221,81 @@ export function parseMetaTags(html) {
 }
 
 /**
+ * Whether an address is a sign-in page.
+ *
+ * The signal that was missing. `looksLikeLoginWall` only ever inspected the
+ * page's own tags, and a sign-in page redirected to at HTTP 200 carries two
+ * meta tags, often no `<title>` at all, and 450KB of script — so there was
+ * nothing in the content to recognise. The address says it outright:
+ * `/login/?next=…` is not the post, whatever the body contains.
+ *
+ * Each platform words it differently, so each is listed rather than assumed.
+ */
+export function looksLikeLoginUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const path = parsed.pathname.toLowerCase().replace(/\/+$/, '');
+
+  const loginPaths = [
+    '/login', '/login.php', '/r.php', '/checkpoint', '/recover',
+    '/recover/initiate', '/authenticate', '/signin', '/signup',
+    // Instagram
+    '/accounts/login', '/accounts/signup', '/accounts/emailsignup',
+    // TikTok
+    '/signup/phone-or-email', '/foryou',
+  ];
+  if (loginPaths.some((p) => path === p || path.startsWith(`${p}/`))) return true;
+
+  // `?next=` and friends on any path are how a wall says where it would send
+  // you once signed in. On its own that is not conclusive — plenty of pages
+  // carry a `next` — so it only counts alongside a login-ish path segment.
+  if (/(^|\/)(login|signin|sign_in|signup|checkpoint)(\/|$)/.test(path)) return true;
+
+  return false;
+}
+
+/**
+ * The address a sign-in redirect was going to send you to.
+ *
+ * `/login/?next=https%3A%2F%2F…%2F1Nesh.D%2Fvideos%2F…` is Facebook naming the
+ * post it wants a session for, which is the one piece of the original address
+ * still recoverable once the redirect has happened. Used for the account
+ * handle only, and never as evidence the post was read.
+ */
+export function targetOfLoginRedirect(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  for (const key of ['next', 'redirect', 'redirect_uri', 'u', 'return_to']) {
+    const raw = parsed.searchParams.get(key);
+    if (!raw) continue;
+    let candidate = raw;
+    // Some of these arrive doubly encoded.
+    for (let i = 0; i < 2; i++) {
+      try {
+        const decoded = decodeURIComponent(candidate);
+        if (decoded === candidate) break;
+        candidate = decoded;
+      } catch {
+        break;
+      }
+    }
+    const absolute = /^https?:\/\//i.test(candidate)
+      ? candidate
+      : `${parsed.origin}${candidate.startsWith('/') ? '' : '/'}${candidate}`;
+    if (isFetchable(absolute) && !looksLikeLoginUrl(absolute)) return absolute;
+  }
+  return null;
+}
+
+/**
  * Whether what came back is a login wall rather than the post.
  *
  * Instagram and Facebook answer an unauthenticated request for a private,
@@ -219,7 +303,11 @@ export function parseMetaTags(html) {
  * that as a successful read is how a post ends up described as "Log in to
  * Facebook", so it is detected and reported as unreadable instead.
  */
-export function looksLikeLoginWall(tags, html) {
+export function looksLikeLoginWall(tags, html, url = null) {
+  // The address first: it is the one signal a content-free sign-in page
+  // cannot hide.
+  if (url !== null && looksLikeLoginUrl(url)) return true;
+
   const title = `${tags['og:title'] ?? ''} ${tags['<title>'] ?? ''}`.toLowerCase();
   if (
     /^\s*(log in|login|sign up|sign in)\b/.test(title) ||
@@ -646,7 +734,13 @@ async function readOpenGraph(url, fetchImpl) {
   // The HTML is kept, not just its meta tags: JSON-LD and the platforms' own
   // embedded state blobs are where the creator and the avatar actually live on
   // the two that publish no oEmbed.
-  return { tags, html, finalUrl, status: 200, wall: looksLikeLoginWall(tags, html) };
+  return {
+    tags,
+    html,
+    finalUrl,
+    status: 200,
+    wall: looksLikeLoginWall(tags, html, finalUrl),
+  };
 }
 
 /**
@@ -672,8 +766,14 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
     }
     const html = await readCapped(response);
     const tags = parseMetaTags(html);
-    if (looksLikeLoginWall(tags, html)) {
-      return { avatar: null, name: null, status: 'login wall' };
+    if (looksLikeLoginWall(tags, html, finalUrl)) {
+      return {
+        avatar: null,
+        name: null,
+        status: looksLikeLoginUrl(finalUrl)
+          ? 'login wall (redirected to a sign-in page)'
+          : 'login wall',
+      };
     }
 
     // Is this still the account that was asked for?
@@ -955,9 +1055,21 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   // private post came back titled "Log in or sign up to view", so everything
   // the wall served is dropped rather than merged.
   const wall = page.wall;
+  // Counted before the wall's content is dropped. The content must not be
+  // read, but how much of it there was is evidence about what answered — and
+  // zeroing it removed the very numbers that identified the page.
+  const served = { tags: Object.keys(page.tags).length, bytes: (page.html ?? '').length };
   if (wall) page = { ...page, tags: {}, html: '' };
 
-  const canonical = normaliseImageUrl(page.tags['og:url'], page.finalUrl) ?? page.finalUrl;
+  // A sign-in page is not the post's canonical address, and reporting it as
+  // one put `/login/?next=…` in `canonicalUrl` — a value that would be stored
+  // and shown as the post's own link. Where the redirect named the post it
+  // was going to ask for, that is used; otherwise the address as pasted.
+  const loginRedirect = looksLikeLoginUrl(page.finalUrl);
+  const recovered = loginRedirect ? targetOfLoginRedirect(page.finalUrl) : null;
+  const canonical = loginRedirect
+    ? (recovered ?? target)
+    : (normaliseImageUrl(page.tags['og:url'], page.finalUrl) ?? page.finalUrl);
   const oembed = (await readOEmbed(canonical, platform, fetchImpl)) ?? {};
 
   const str = (value) => {
@@ -1060,7 +1172,16 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   const handle =
     lookedUpHandle ??
     from('creatorHandle', 'canonical url', handleFromUrl(canonical)) ??
-    from('creatorHandle', 'url as pasted', handleFromUrl(target));
+    from('creatorHandle', 'url as pasted', handleFromUrl(target)) ??
+    // The post URL out of a sign-in redirect's `next=`. Facebook naming the
+    // post it wants a session for still names the account, so the handle and
+    // the profile URL survive a wall. It is not evidence the post was read:
+    // `fetched` stays false and the reason still says the post is not public.
+    from(
+      'creatorHandle',
+      'login redirect next=',
+      recovered ? handleFromUrl(recovered) : null,
+    );
 
   // The profile page is the avatar's only unauthenticated home on three of the
   // four, so a creator URL is worth deriving from a handle rather than giving
@@ -1145,24 +1266,29 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
     fallbacks,
     diagnostics: {
       pageStatus: page.status,
-      pageBytes: (page.html ?? '').length,
+      pageBytes: served.bytes,
       finalUrl: page.finalUrl,
       oembedAnswered: Object.keys(oembed).length > 0,
       jsonLdBlocks: jsonLd.length,
       loginWall: wall,
-      metaTagCount: Object.keys(page.tags).length,
+      loginRedirect,
+      metaTagCount: served.tags,
     },
     fetched: readAnything,
     reason: readAnything
       ? null
-      : wall
-        ? 'This post is not public — the platform served a sign-in page instead ' +
-          'of the post. Nook reads public posts only.'
-        : pageError
-          ? 'The post could not be read from its platform.'
-          : page.status === 404
-            ? 'That post no longer exists, or the link is wrong.'
-            : 'The platform returned nothing readable for this link.',
+      : loginRedirect
+        ? `This post is not public — ${NookPlatformLabel(platform)} redirected to ` +
+          'a sign-in page instead of serving it. Nook reads public posts only, ' +
+          'and does not sign in.'
+        : wall
+          ? 'This post is not public — the platform served a sign-in page instead ' +
+            'of the post. Nook reads public posts only.'
+          : pageError
+            ? 'The post could not be read from its platform.'
+            : page.status === 404
+              ? 'That post no longer exists, or the link is wrong.'
+              : 'The platform returned nothing readable for this link.',
   };
 }
 

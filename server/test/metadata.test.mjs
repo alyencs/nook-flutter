@@ -25,7 +25,9 @@ import {
   unescapeUrl,
   hashtagsFrom,
   isFetchable,
+  looksLikeLoginUrl,
   looksLikeLoginWall,
+  targetOfLoginRedirect,
   normaliseImageUrl,
   parseMetaTags,
   platformOf,
@@ -1617,4 +1619,218 @@ test('a bot shell is reported by its tag names, with no values', async () => {
   assert.match(result.caption, /El Nido/);
   assert.equal(result.thumbnailUrl, 'https://scontent.xx.fbcdn.net/post.jpg');
   assert.equal(result.fetched, true);
+});
+
+// --- a 200 served at a sign-in URL ---------------------------------------
+//
+// The deployed run returned `pageStatus: 200`, `pageBytes: 461035`,
+// `metaTagCount: 2`, `loginWall: false`, and `canonicalUrl` set to
+// `/login/?next=…`. Facebook had redirected the share link to its sign-in
+// page and answered 200.
+//
+// `looksLikeLoginWall(tags, html)` never saw a URL — its whole signature was
+// page content. A sign-in page redirected to at 200 carries two meta tags,
+// often no `<title>`, and 450KB of script, so there was nothing in the content
+// to recognise. The address says it outright.
+
+test('a login path is recognised, per platform, and a post path is not', () => {
+  for (const url of [
+    'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2F1Nesh.D%2Fvideos%2F1%2F',
+    'https://www.facebook.com/login.php?next=x',
+    'https://www.facebook.com/r.php',
+    'https://www.facebook.com/checkpoint/1234',
+    'https://www.facebook.com/recover/initiate',
+    'https://www.instagram.com/accounts/login/?next=/reel/abc/',
+    'https://www.instagram.com/accounts/emailsignup/',
+    'https://www.tiktok.com/login',
+  ]) {
+    assert.equal(looksLikeLoginUrl(url), true, url);
+  }
+
+  // Real posts, and the share link itself, are not sign-in pages.
+  for (const url of [
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    'https://www.facebook.com/share/r/14twxTeWCtK/',
+    'https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/',
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    'https://www.tiktok.com/@mika.eats/video/1',
+    'not a url',
+  ]) {
+    assert.equal(looksLikeLoginUrl(url), false, url);
+  }
+});
+
+test('the post a sign-in redirect was going to ask for is recovered', () => {
+  assert.equal(
+    targetOfLoginRedirect(
+      'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2F1Nesh.D%2Fvideos%2F691651166719048%2F',
+    ),
+    'https://www.facebook.com/1Nesh.D/videos/691651166719048/',
+  );
+  // A relative `next`, and Instagram's wording.
+  assert.equal(
+    targetOfLoginRedirect('https://www.instagram.com/accounts/login/?next=/forbestravelguide/reel/abc/'),
+    'https://www.instagram.com/forbestravelguide/reel/abc/',
+  );
+  // Nothing usable, or a target that is itself a wall, or off-platform.
+  for (const url of [
+    'https://www.facebook.com/login/',
+    'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2Flogin%2F',
+    'https://www.facebook.com/login/?next=https%3A%2F%2Fevil.test%2Fx',
+    'not a url',
+  ]) {
+    assert.equal(targetOfLoginRedirect(url), null, url);
+  }
+});
+
+test('looksLikeLoginWall uses the final URL when it is given one', () => {
+  // The two-argument form is unchanged, so existing callers behave as before.
+  const shellTags = parseMetaTags(
+    '<title>Facebook</title><meta name="viewport" content="width=device-width">',
+  );
+  assert.equal(looksLikeLoginWall(shellTags, '', null), false);
+  // With the address, the same page is recognised.
+  assert.equal(
+    looksLikeLoginWall(shellTags, '', 'https://www.facebook.com/login/?next=%2F1Nesh.D%2F'),
+    true,
+  );
+});
+
+test('a 200 at a sign-in URL is a wall, with an accurate reason', async () => {
+  // The reported run, reproduced: 302 to /login/?next=…, then 200 with two
+  // meta tags, no og:title, and a large script body.
+  const LOGIN_PAGE =
+    '<!doctype html><html><head><title>Facebook</title>' +
+    '<meta name="viewport" content="width=device-width">' +
+    '<meta name="referrer" content="origin-when-crossorigin">' +
+    `</head><body>${'x'.repeat(4000)}</body></html>`;
+
+  const fetchImpl = async (url) =>
+    url.includes('/share/r/')
+      ? new Response(null, {
+          status: 302,
+          headers: {
+            location:
+              'https://www.facebook.com/login/?next=https%3A%2F%2Fwww.facebook.com%2F1Nesh.D%2Fvideos%2F691651166719048%2F',
+          },
+        })
+      : new Response(LOGIN_PAGE, { status: 200 });
+
+  const result = await readMetadata(
+    'https://www.facebook.com/share/r/14twxTeWCtK/?mibextid=wwXIfr',
+    { fetchImpl },
+  );
+
+  // 1. The wall is detected, from the address.
+  assert.equal(result.diagnostics.loginWall, true);
+  assert.equal(result.diagnostics.loginRedirect, true);
+
+  // 2. The reason names the platform and what it did, and says Nook does not
+  //    sign in — rather than "returned nothing readable".
+  assert.match(result.reason, /not public/);
+  assert.match(result.reason, /Facebook redirected to a sign-in page/);
+  assert.match(result.reason, /does not sign in/);
+  assert.equal(result.fetched, false, 'nothing was read, and nothing claims it was');
+
+  // 3. `canonicalUrl` is the post, not the sign-in page. Reporting the login
+  //    URL there put it where the post's own link is stored and shown.
+  assert.equal(result.canonicalUrl, 'https://www.facebook.com/1Nesh.D/videos/691651166719048/');
+  assert.ok(!result.canonicalUrl.includes('/login'));
+
+  // 4. The account is still recoverable from the redirect's own target.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+
+  // 5. Nothing is invented for the fields the wall withheld.
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.equal(result.caption, null);
+  assert.equal(result.title, null);
+
+  // 6. The wall's own content is not read, but its size still reports, because
+  //    that is the evidence of what answered.
+  assert.equal(result.diagnostics.pageStatus, 200);
+  assert.ok(result.diagnostics.metaTagCount >= 2, 'the count survives the content being dropped');
+  assert.ok(result.diagnostics.pageBytes > 0);
+});
+
+test('a sign-in redirect with no recoverable next= still reports honestly', async () => {
+  const fetchImpl = async (url) =>
+    url.includes('/share/r/')
+      ? new Response(null, {
+          status: 302,
+          headers: { location: 'https://www.facebook.com/login/' },
+        })
+      : new Response('<title>Facebook</title>', { status: 200 });
+
+  const result = await readMetadata('https://www.facebook.com/share/r/14twxTeWCtK/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.diagnostics.loginWall, true);
+  assert.match(result.reason, /sign-in page/);
+  assert.equal(result.fetched, false);
+  // No next= to read, so no account — and the canonical falls back to the
+  // address as pasted rather than to the sign-in page.
+  assert.equal(result.creatorHandle, null);
+  assert.ok(!(result.canonicalUrl ?? '').includes('/login'));
+});
+
+test('an Instagram sign-in redirect is handled the same way', async () => {
+  const fetchImpl = async (url) =>
+    url.includes('/reel/')
+      ? new Response(null, {
+          status: 302,
+          headers: {
+            location: 'https://www.instagram.com/accounts/login/?next=%2Fforbestravelguide%2Freel%2FDMpu7-9ue06%2F',
+          },
+        })
+      : new Response('<title>Instagram</title>', { status: 200 });
+
+  const result = await readMetadata(
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    { fetchImpl },
+  );
+
+  assert.equal(result.diagnostics.loginWall, true);
+  assert.match(result.reason, /Instagram redirected to a sign-in page/);
+  assert.equal(result.creatorHandle, '@forbestravelguide');
+  assert.equal(result.caption, null);
+  assert.equal(result.creator, null);
+});
+
+test('a profile fetch that lands on a sign-in page says so', async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan. Tour A is 1400 pesos.">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://www.facebook.com/login/?next=%2F1Nesh.D' },
+      });
+    }
+    return new Response('<title>Facebook</title>', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('login wall (redirected to a sign-in page)')),
+    result.fallbacks.join(' | '),
+  );
+  // The post itself read fine, and keeps everything it had.
+  assert.equal(result.fetched, true);
+  assert.match(result.caption, /El Nido/);
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.ok(result.thumbnailUrl);
 });
