@@ -1,0 +1,22 @@
+{
+  "$comment": "The one API contract Nook's app, Worker and local stub all have to agree on. Read by test/backend_routing_test.dart on the Flutter side and server/test/contract.test.mjs on the service side, so the two cannot drift apart without a test failing. This file is documentation that fails the build when it stops being true.",
+  "method": "POST",
+  "messagesPath": "/v1/messages",
+  "metadataPath": "/v1/metadata",
+  "healthPath": "/health",
+  "requestShape": "An Anthropic Messages API request body, unchanged. The service attaches the credential; the client sends none.",
+  "metadataRequestShape": "{\"url\": \"<a public post URL>\", \"avatar\": true}. Reads a post's public Open Graph tags and keyless oEmbed server-side, because a static site cannot: it has an origin and this does not. Needs no key and spends nothing. Answers {platform, url, canonicalUrl, title, caption, hashtags, creator, creatorHandle, creatorUrl, creatorAvatarUrl, thumbnailUrl, mediaType, fetched, reason}. fetched:false with a reason is a real answer — a private, deleted or login-gated post — not an error.",
+  "tools": ["record_extraction", "record_itinerary"],
+  "toolsAreBodyFields": "These are tool names inside the request body, not routes. The service refuses a body that does not name one of them, which is what stops it being usable as a general chat endpoint.",
+  "toolsOrder": "Extraction first, planning second. server/test/app_contract.test.mjs indexes this array; test/backend_routing_test.dart asserts ClaudeExtractor.toolName and ClaudeItineraryGenerator.toolName are both in it.",
+  "errorShape": {
+    "type": "error",
+    "error": { "type": "<anthropic error type>", "message": "<human readable>" }
+  },
+  "corsPreflight": {
+    "method": "OPTIONS",
+    "status": 204,
+    "allowHeaders": "content-type",
+    "allowMethods": "POST, OPTIONS"
+  }
+}

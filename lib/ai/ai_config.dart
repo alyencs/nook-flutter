@@ -84,9 +84,11 @@ abstract final class NookAi {
         // Optional. Without it a YouTube post reaches the model as a title;
         // with it, the description comes too, which is where the detail lives.
         youTubeApiKey: _define(_youTubeDefine),
-        // Optional, and the only way Instagram and Facebook post text can be
-        // read at all: their public oEmbed was withdrawn in 2020. Format is
-        // `APP_ID|CLIENT_TOKEN` from a Meta app with oEmbed Read.
+        // Optional now rather than the only route. Meta withdrew public
+        // oEmbed in 2020, and this token was the app's one way in — which no
+        // deployed build ever had, because the workflow passes no credentials.
+        // The service reads the post's public Open Graph tags server-side
+        // instead, so a token only adds Meta's own richer oEmbed on top.
         facebookToken: _define(_facebookDefine),
       );
     }

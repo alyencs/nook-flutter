@@ -51,9 +51,30 @@ class ClaudeApiException implements Exception {
     return const {500, 502, 503, 504, 529}.contains(status);
   }
 
+  /// Whether the address Nook is pointed at does not serve this route at all.
+  ///
+  /// A 404 is ambiguous and the two readings need opposite responses. The API
+  /// answers one for a model id it does not have, and says so: the message is
+  /// `model: claude-...`. A service answers one for a path it does not serve,
+  /// and names the path instead. The first is worth trying another id for; the
+  /// second fails identically for every id, because the request never reached
+  /// a model at all.
+  ///
+  /// Read the wrong way round this is quiet and expensive. A routing 404
+  /// retired every candidate in turn, ran the list out, and reported "check
+  /// CLAUDE_MODEL" — sending the search to the one setting that was not the
+  /// problem while the actual fault was a `/v1` in the wrong half of the URL.
+  bool get isEndpointMissing {
+    if (status != 404 && type != 'not_found_error') return false;
+    return !message.toLowerCase().contains('model');
+  }
+
   /// Whether this model id is gone or unavailable to this key, so the next
   /// candidate is worth trying instead of retrying this one.
   bool get isModelUnavailable {
+    // A path that does not exist is not a model that does not exist, however
+    // similar the status code looks.
+    if (isEndpointMissing) return false;
     if (status == 404 || type == 'not_found_error') return true;
     if (status != 400) return false;
     final lower = message.toLowerCase();
@@ -150,11 +171,27 @@ class ClaudeClient {
          'Give it a key to call the API directly, or a backend to call instead.',
        ),
        _apiKey = apiKey,
-       _base = _trimSlash(baseUrl ?? anthropicBase),
+       _base = _normaliseBase(baseUrl ?? anthropicBase),
        _http = httpClient ?? http.Client(),
        _random = random ?? Random();
 
-  static const anthropicBase = 'https://api.anthropic.com/v1';
+  /// The origin only. The `/v1` belongs to [messagesPath], not to the base.
+  ///
+  /// It used to live here, and that was the bug: pointing the client at a
+  /// backend replaced the whole base, so a service at
+  /// `https://nook-ai.example.workers.dev` was asked for `/messages` while it
+  /// serves `/v1/messages`, and every call came back
+  /// `404 not_found_error: Unknown endpoint.`
+  static const anthropicBase = 'https://api.anthropic.com';
+
+  /// The one route Nook speaks, wherever it is pointed.
+  ///
+  /// Anthropic serves `POST /v1/messages`, and Nook's own service deliberately
+  /// mirrors that path so the two are interchangeable. Keeping it in one place
+  /// is what stops the client and the service drifting apart again; the same
+  /// value is pinned in `server/api-contract.json` and asserted from both
+  /// sides.
+  static const messagesPath = 'v1/messages';
 
   /// Pinned, so a server-side change cannot alter the response shape under a
   /// build that is already out.
@@ -167,8 +204,22 @@ class ClaudeClient {
   /// Whether the key is being sent from here, which only happens off the web.
   bool get sendsKeyDirectly => _apiKey != null;
 
-  static String _trimSlash(String value) =>
-      value.endsWith('/') ? value.substring(0, value.length - 1) : value;
+  /// Trims a configured address down to its origin.
+  ///
+  /// Accepts a backend written either way. `NOOK_AI_BACKEND` is set by hand in
+  /// a repository variable, and whether someone includes the `/v1` is a coin
+  /// toss — so both land on the same request instead of one of them 404ing or
+  /// producing `/v1/v1/messages`.
+  static String _normaliseBase(String value) {
+    var base = value.trim();
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    if (base.endsWith('/v1')) {
+      base = base.substring(0, base.length - '/v1'.length);
+    }
+    return base;
+  }
   final RetryPolicy retry;
   final Random _random;
 
@@ -177,7 +228,7 @@ class ClaudeClient {
     required Map<String, Object?> body,
     RetryNotice? onRetry,
   }) {
-    return _send('messages', body: body, onRetry: onRetry);
+    return _send(messagesPath, body: body, onRetry: onRetry);
   }
 
   void close() => _http.close();

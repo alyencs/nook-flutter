@@ -75,18 +75,29 @@ class ConnectedPlatformsScreen extends StatelessWidget {
 /// What Nook can actually read from a pasted link on this platform.
 ///
 /// Stated per platform rather than left implied, because the four are genuinely
-/// not equivalent: two serve public oEmbed and two withdrew theirs in 2020.
+/// not equivalent — though less unequal than they were. Nook's service reads
+/// each post's public page from a server, which is something the app itself
+/// cannot do: a page served from github.io asking instagram.com for a post is
+/// a cross-origin request and is refused. That is what used to leave Instagram
+/// and Facebook on the link alone, and the reason was never that the posts
+/// were unreadable.
+///
+/// What remains uneven is the creator's profile picture and the richer fields:
+/// a public profile page publishes an avatar, and a private one does not.
 String _extractionNote(String platform) => switch (platform) {
   NookPlatform.youtube =>
-    'Title, channel and cover read from the link. Add a YouTube API key for '
-        'the description too.',
-  NookPlatform.tiktok => 'Caption, author and cover read from the link.',
+    'Title, description, channel and cover. Add a YouTube API key for the full '
+        'description and the channel picture.',
+  NookPlatform.tiktok =>
+    'Caption, author, cover, and the profile picture when the account is '
+        'public.',
   NookPlatform.instagram =>
-    'Caption and author need a Meta app token — public access ended in 2020. '
-        'Without one, the link alone.',
+    'Caption, account and cover from the post\'s public page. Private and '
+        'login-only posts cannot be read, and Nook says so rather than '
+        'guessing.',
   NookPlatform.facebook =>
-    'Post text and author need a Meta app token — public access ended in 2020. '
-        'Without one, the link alone.',
+    'Post text, page and cover from the post\'s public page. Private posts and '
+        'those behind a sign-in cannot be read.',
   _ => 'Read from the link.',
 };
 

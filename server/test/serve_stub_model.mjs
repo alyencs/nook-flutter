@@ -57,8 +57,85 @@ const answers = {
   },
 };
 
+/**
+ * Canned post pages, so the metadata route works with no network at all.
+ *
+ * The point of this server is the whole chain offline. Reading a post spends
+ * nothing, so letting it reach the real platforms would be defensible — but
+ * then the chain only runs where those hosts are reachable, and the captions
+ * change under the test. Set `STUB_REAL_FETCH=1` to use the network instead.
+ */
+const pages = {
+  tiktok:
+    '<meta property="og:type" content="video.other">' +
+    '<meta property="og:title" content="Mika on TikTok">' +
+    '<meta property="og:description" content="2.1M likes, 4300 comments. &quot;₱150 lang ang unlimited wings sa Good Taste Baguio! Open 24 hours, 2nd floor pa #baguio #baguiofood #fyp&quot;">' +
+    '<meta property="og:image" content="https://placehold.co/600x800?text=TikTok+post">',
+  instagram:
+    '<meta property="og:type" content="video">' +
+    '<meta property="og:title" content="nina.reyes on Instagram">' +
+    '<meta property="og:description" content="1,284 likes, 56 comments - nina.reyes on March 2, 2024: &quot;Three days in Kyoto and the best meal was a ¥900 set lunch at Kissa Master in Gion. Go before 11am. #kyoto #japantravel&quot;">' +
+    '<meta property="og:image" content="https://placehold.co/600x800?text=Reel">' +
+    '<meta property="og:see_also" content="https://www.instagram.com/nina.reyes/">',
+  facebook:
+    '<meta property="og:type" content="video.other">' +
+    '<meta property="og:title" content="Alex Cruz">' +
+    '<meta property="og:description" content="Sagada in two days: ₱800 for the cave tour, ₱2,500 a night at a homestay near the centre. The sunrise at Kiltepan is worth the 4am start.">' +
+    '<meta property="og:image" content="https://placehold.co/600x800?text=Facebook+reel">' +
+    '<meta property="og:see_also" content="https://www.facebook.com/alex.cruz.travels">',
+  youtube:
+    '<meta property="og:type" content="video.other">' +
+    '<meta property="og:title" content="5 Hidden Cafes in Kyoto">' +
+    '<meta property="og:description" content="Five small coffee bars in Kyoto, all within a short walk of each other. Addresses and prices in order.">' +
+    '<meta property="og:image" content="https://placehold.co/600x400?text=YouTube">',
+  profile: '<meta property="og:image" content="https://placehold.co/200x200?text=Avatar">',
+};
+
+/** oEmbed, for the two providers that publish it. */
+const oembeds = {
+  tiktok: {
+    type: 'video',
+    title:
+      '₱150 lang ang unlimited wings sa Good Taste Baguio! Open 24 hours, 2nd floor pa #baguio #baguiofood #fyp',
+    author_name: 'Mika Eats',
+    author_unique_id: 'mika.eats',
+    author_url: 'https://www.tiktok.com/@mika.eats',
+    thumbnail_url: 'https://placehold.co/600x800?text=TikTok+post',
+  },
+  youtube: {
+    type: 'video',
+    title: '5 Hidden Cafes in Kyoto',
+    author_name: 'Wander With Mia',
+    author_url: 'https://www.youtube.com/@wanderwithmia',
+    thumbnail_url: 'https://placehold.co/600x400?text=YouTube',
+  },
+};
+
+const stubFetch = async (url) => {
+  const text = (body) => new Response(body, { status: 200 });
+  const json = (body) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  if (url.includes('/oembed')) {
+    if (url.includes('tiktok')) return json(oembeds.tiktok);
+    if (url.includes('youtube')) return json(oembeds.youtube);
+    return new Response('no oembed', { status: 404 });
+  }
+  // A profile page: one path segment, or an @handle with nothing after it.
+  if (/^https:\/\/[^/]+\/(@?[\w.]+)\/?$/.test(url)) return text(pages.profile);
+  if (url.includes('tiktok')) return text(pages.tiktok);
+  if (url.includes('instagram')) return text(pages.instagram);
+  if (url.includes('facebook') || url.includes('fb.watch')) return text(pages.facebook);
+  if (url.includes('youtu')) return text(pages.youtube);
+  return new Response('not found', { status: 404 });
+};
+
 const env = {
   ANTHROPIC_API_KEY: 'stub-no-key-needed',
+  __fetch: process.env.STUB_REAL_FETCH === '1' ? fetch : stubFetch,
   ALLOWED_TOOLS: 'record_extraction,record_itinerary',
   ALLOWED_MODELS: 'claude-haiku-4-5-20251001',
   RATE_LIMIT: process.env.RATE_LIMIT ?? '200',

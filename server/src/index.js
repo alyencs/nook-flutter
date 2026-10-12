@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+import { MetadataError, readMetadata } from './metadata.js';
 import { SlidingWindow } from './rate_limit.js';
 import { LIMITS, ValidationError, parseList, validateMessageRequest } from './validate.js';
 
@@ -30,6 +31,19 @@ const DEFAULTS = {
   rateWindowSeconds: 60,
   upstreamTimeoutMs: 30000,
 };
+
+/**
+ * The routes this service serves, and the only ones.
+ *
+ * `/v1/messages` mirrors Anthropic's own path on purpose: the app points at
+ * either this service or the API itself and the request is identical, so
+ * nothing above the HTTP client knows or cares which is in use. The same two
+ * values are pinned in `server/api-contract.json` and asserted against the
+ * Flutter client, so a change on one side fails a test on the other.
+ */
+const MESSAGES_PATH = '/v1/messages';
+const METADATA_PATH = '/v1/metadata';
+const HEALTH_PATH = '/health';
 
 /** One per instance, so the counts survive between requests. */
 let limiter = null;
@@ -115,15 +129,105 @@ export default {
 
     // Somewhere to point a browser at to see that the service is up, without
     // spending anything. It never reports whether a key is configured.
-    if (url.pathname === '/health') {
+    if (url.pathname === HEALTH_PATH) {
       return json({ status: 'ok', service: 'nook-ai' }, { origin });
     }
 
-    if (url.pathname !== '/v1/messages') {
-      return json(errorBody('not_found_error', 'Unknown endpoint.'), {
-        status: 404,
-        origin,
-      });
+    // Reading a post's public metadata. Separate from the model call because
+    // it costs nothing and needs no key: it is a plain GET of a public page,
+    // done here rather than in the browser because a static site has an origin
+    // and this does not. See src/metadata.js for what it will and will not do.
+    if (url.pathname === METADATA_PATH) {
+      if (request.method !== 'POST') {
+        return json(errorBody('invalid_request_error', 'Use POST.'), {
+          status: 405,
+          origin,
+          headers: { allow: 'POST, OPTIONS' },
+        });
+      }
+      if (origin === null) {
+        return json(
+          errorBody('permission_error', 'This origin is not allowed to use this service.'),
+          { status: 403 },
+        );
+      }
+
+      // Rate limited on the same budget as the model call. It spends no tokens,
+      // but it does make this service fetch a URL on a stranger's behalf, which
+      // is worth bounding for its own sake.
+      const metaCaller = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+      const metaQuota = limiterFor(env).take(metaCaller);
+      if (!metaQuota.allowed) {
+        return json(errorBody('rate_limit_error', 'Too many requests. Try again shortly.'), {
+          status: 429,
+          origin,
+          headers: { 'retry-after': String(metaQuota.retryAfterSeconds) },
+        });
+      }
+
+      let asked;
+      try {
+        const text = await request.text();
+        if (text.length > LIMITS.maxBodyBytes) {
+          return json(errorBody('invalid_request_error', 'The request body is too large.'), {
+            status: 413,
+            origin,
+          });
+        }
+        asked = JSON.parse(text);
+      } catch {
+        return json(errorBody('invalid_request_error', 'The request body is not valid JSON.'), {
+          status: 400,
+          origin,
+        });
+      }
+
+      if (asked === null || typeof asked !== 'object' || Array.isArray(asked)) {
+        return json(errorBody('invalid_request_error', 'Send {"url": "..."}.'), {
+          status: 400,
+          origin,
+        });
+      }
+
+      try {
+        const metadata = await readMetadata(asked.url, {
+          fetchImpl: env.__fetch ?? fetch,
+          // One extra request per save. Off by default for a caller that does
+          // not want it, on for the app, which does.
+          withAvatar: asked.avatar !== false,
+        });
+        return json(metadata, { origin });
+      } catch (error) {
+        if (error instanceof MetadataError) {
+          return json(errorBody('invalid_request_error', error.message), {
+            status: error.status,
+            origin,
+          });
+        }
+        // A platform that times out or answers nonsense is not the caller's
+        // fault and is not fatal: the app continues on the URL alone.
+        return json(
+          errorBody('api_error', 'The post could not be read from its platform.'),
+          { status: 502, origin },
+        );
+      }
+    }
+
+    if (url.pathname !== MESSAGES_PATH) {
+      // Names both paths. "Unknown endpoint." on its own sent someone looking
+      // at their model configuration when the client was simply asking for
+      // `/messages` — the `/v1` had been left in the client's base URL instead
+      // of its request path, so the two never met. An error that says what was
+      // asked for and what exists would have ended that in one request.
+      return json(
+        errorBody(
+          'not_found_error',
+          `Unknown endpoint: ${request.method} ${url.pathname}. ` +
+            `This service serves POST ${MESSAGES_PATH}, POST ${METADATA_PATH} ` +
+            `and GET ${HEALTH_PATH}.`,
+        ),
+        { status: 404, origin },
+      );
     }
     if (request.method !== 'POST') {
       return json(errorBody('invalid_request_error', 'Use POST.'), {

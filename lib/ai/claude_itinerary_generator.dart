@@ -363,6 +363,12 @@ prose, and do not call it more than once.
       return "Nook has hit today's limit for planning trips. It resets on its "
           'own — try again in a little while.';
     }
+    if (e.isEndpointMissing) {
+      return 'Nook\'s AI service did not recognise the request. Check '
+          'AI_BACKEND_URL in nook.env (or the NOOK_AI_BACKEND repository '
+          'variable): it should be the service\'s address on its own, with no '
+          'path after it.';
+    }
     if (e.isModelUnavailable) {
       return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
           'your nook.env file, or leave it blank to use the default.';
