@@ -77,7 +77,7 @@ void main() {
       expect(block, contains('Osaka'));
       expect(block, contains('cafe'));
       expect(block, contains('Sweet Rain'));
-      expect(block, isNot(contains('no post text could be retrieved')));
+      expect(block, isNot(contains('could not be read')));
     });
 
     test('a video id is never mistaken for a title or a creator', () async {
@@ -86,8 +86,10 @@ void main() {
       expect(source.sourceId, 'Sf9ihvL0Usk');
       expect(source.title, isNull);
       expect(source.creator, isNull);
-      // And the model is told it is working blind.
-      expect(source.toPromptBlock(), contains('no post text could be'));
+      // And the model is told it is working blind. The wording moved when the
+      // note stopped naming a per-platform cause it could no longer vouch for.
+      expect(source.toPromptBlock(), contains('could not be read'));
+      expect(source.toPromptBlock().toLowerCase(), contains('do not guess'));
     });
 
     for (final url in [

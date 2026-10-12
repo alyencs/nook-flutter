@@ -35,6 +35,7 @@ class ClaudeExtractor implements AiExtractor {
   }) : _candidates = ClaudeModels.candidates(model),
        _youTubeApiKey = _clean(youTubeApiKey),
        _facebookToken = _clean(facebookToken),
+       _backendUrl = _clean(backendUrl),
        _sourceClient = httpClient,
        _client = ClaudeClient(
          apiKey: apiKey,
@@ -53,6 +54,11 @@ class ClaudeExtractor implements AiExtractor {
   /// Instagram or Facebook post's text since public oEmbed was withdrawn.
   /// Without it those two extract from the URL alone, and the prompt says so.
   final String? _facebookToken;
+
+  /// Nook's own service, when there is one. It holds the model key, and it is
+  /// also the only place a post page can actually be read from: a static site
+  /// asking Instagram for a page is a cross-origin request and is refused.
+  final String? _backendUrl;
   final ClaudeClient _client;
 
   /// Shared with the API client so a test can script both the oEmbed lookup
@@ -73,9 +79,16 @@ class ClaudeExtractor implements AiExtractor {
   /// arguments, so there is no prose to find JSON inside of.
   ///
   /// It is also half of a contract with Nook's AI service, which refuses any
-  /// request that does not name one of the two tasks it offers. The names have
-  /// to match on both sides exactly, so this one is pinned by
-  /// `extraction_contract_test.dart` against the service's own allowlist.
+  /// request that does not name one of the two tasks it offers — the control
+  /// that stops the published address being usable as a general chat
+  /// endpoint. The names have to match on both sides exactly. This one read
+  /// `record_post_details` while every server-side copy said
+  /// `record_extraction`, so extraction was refused with
+  /// `400 The tool "record_post_details" is not offered by this service.`
+  ///
+  /// Pinned now from both directions: `extraction_contract_test.dart` against
+  /// the service's own allowlist, and `server/api-contract.json` against the
+  /// Node suite.
   static const toolName = 'record_extraction';
 
   /// A ceiling, so a reply cannot run until it times out — set high enough for
@@ -121,6 +134,7 @@ class ClaudeExtractor implements AiExtractor {
       client: _sourceClient,
       youTubeApiKey: _youTubeApiKey,
       facebookToken: _facebookToken,
+      backendUrl: _backendUrl,
     );
 
     // Started before the model call and awaited after it. The thumbnail lookup
@@ -228,14 +242,17 @@ class ClaudeExtractor implements AiExtractor {
       'title': {
         'type': 'string',
         'description':
-            'The post\'s real human title or caption, copied from '
-            'the source. Never an id, a URL or a filename.',
+            'A short name for this post, six to twelve words. Use the real '
+            'title when TITLE gives one. When TITLE is "(none)" — normal on '
+            'TikTok, Instagram and Facebook — write one from the CAPTION: '
+            '"Pancit Canton at a Baguio night market", not the caption itself '
+            'and not an empty string. Never an id, a URL or a filename.',
       },
       'caption': {
         'type': ['string', 'null'],
         'description':
-            'The post\'s own description or caption text, kept as '
-            'written. Null if the source carries none.',
+            'The post\'s own words, copied verbatim from CAPTION, not '
+            'summarised or translated. Null only when the source carries none.',
       },
       'creator': {
         'type': ['string', 'null'],
@@ -337,12 +354,24 @@ an address, a creator, a price, a date, or a pair of coordinates. If the source
 does not support a field, that field is null. You will not be penalised for
 nulls; you will be wrong if you guess.
 
-- title: the post's real title or caption, copied from TITLE. Never the
-  SOURCE_ID, never the URL. Only if there is genuinely no title anywhere may you
-  describe the post in a few words instead.
-- caption: the post's own description or caption text. On platforms where the
-  title *is* the caption, repeat it here only if it carries detail beyond the
-  title; otherwise null.
+A POST WITH NO TITLE IS NOT AN EMPTY POST. On TikTok, Instagram and Facebook
+most posts have no title at all — the CAPTION is the entire post, and it is
+where the restaurant, the city, the price and the recommendation live. When
+TITLE says "(none)", read the CAPTION exactly as closely as you would read a
+description and fill in every field it supports. An absent title is never a
+reason to return nulls.
+
+- title: a short name for the post, six to twelve words. Copy TITLE when there
+  is one. When there is not, write one from what the CAPTION says — a caption
+  about lunch in Baguio becomes "A noodle spot in Baguio City", not the whole
+  caption pasted back and not an empty string. Never the SOURCE_ID or the URL.
+- caption: the CAPTION block, copied as written. Do not summarise it, do not
+  translate it, do not trim it to a sentence. Null only when there is none.
+- HASHTAGS are evidence, not facts. "#baguio" or "#cafehopping" supports a
+  place or a category; "#fyp", "#viral", "#foryoupage" and a bare "#travel"
+  support nothing. A hashtag alone never establishes a venue — it can confirm
+  a city the caption already gestures at. Never read a username or a
+  promotional tag as a place.
 - creator / creator_handle: copy from CREATOR_NAME and CREATOR_HANDLE. Never use
   the SOURCE_ID or any part of the URL as a creator.
 - Location: go as specific as the source honestly supports, and no further. If
@@ -370,8 +399,9 @@ nulls; you will be wrong if you guess.
   a place the source did not name is the worst thing you can do here.
 - highlights: activities, recommendations and practical tips the source gives.
   One short line each, in the source's own terms. Empty when it gives none.
-- best_time and budget_note: only when the source actually mentions a season,
-  a date, a price or a cost.
+- best_time and budget_note: only when the source actually mentions a season, a
+  date, a duration, a price, an entrance fee or a cost. A caption saying "₱150
+  entrance, go early" fills both. Copy the figure as written, currency and all.
 - category: exactly one of the listed values. Use "Other" when unsure.
 
 LANGUAGE. The source may be in any language, and you should read it in whatever
@@ -471,18 +501,33 @@ call it more than once.
     // The source is trusted over the model for anything the source already
     // states outright. A title and a channel name that were read from the
     // platform are facts; the model's version of them is a paraphrase at best.
-    final title = source.title ?? string('title') ?? _titleFromUrl(url);
+    //
+    // Except when the "title" the platform gave is really the caption. On
+    // TikTok, Instagram and Facebook there is usually no title, and taking
+    // `source.title` first put a whole paragraph in the title field while the
+    // caption column went empty — so the post's own words were stored as its
+    // name and nothing held the caption. A real title is preferred; a caption
+    // masquerading as one is not, and the model's short title is used instead.
+    final sourceTitle = source.title?.trim();
+    final title = source.hasRealTitle
+        ? sourceTitle!
+        : string('title') ?? sourceTitle ?? _titleFromUrl(url);
     final creator = source.creator ?? string('creator');
 
     return ExtractionResult(
       title: title,
-      caption: string('caption') ?? source.description,
+      // The caption read from the platform wins: it is the post's own words,
+      // whole, and the model's is at best the same text paraphrased. A model
+      // caption only fills in when the platform published none.
+      caption: source.caption ?? string('caption'),
       creator: creator,
       creatorHandle: string('creator_handle') ?? source.creatorHandle,
       // Both taken from the source alone. The model is never asked for these:
       // it cannot know a URL, and asked for one it invents a convincing 404.
       creatorUrl: source.creatorUrl,
-      creatorAvatarUrl: source.creatorAvatarUrl,
+      creatorAvatarUrl: SourceMetadataFetcher.sanitiseImageUrl(
+        source.creatorAvatarUrl,
+      ),
       destination: _destinationFrom(
         placeName: placeName,
         neighbourhood: neighbourhood,
@@ -577,15 +622,15 @@ call it more than once.
       return "Nook has hit today's limit for analysing posts. It resets on its "
           'own — try again in a little while, or enter the details yourself.';
     }
-    if (e.isModelUnavailable) {
-      return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
-          'your nook.env file, or leave it blank to use the default.';
-    }
-    if (e.status == 404) {
+    if (e.status == 404 && !e.isModelUnavailable) {
       return "Nook's AI service answered, but it serves nothing at the address "
           'it was asked at. The address should be the service on its own, '
           'ending in /v1 and nothing after it — NOOK_AI_BACKEND on a deployed '
           'build, AI_BACKEND_URL when running locally.';
+    }
+    if (e.isModelUnavailable) {
+      return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
+          'your nook.env file, or leave it blank to use the default.';
     }
     if (e.isMisconfigured) {
       return "Nook's AI service address is not a usable web address, so "

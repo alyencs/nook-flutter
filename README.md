@@ -202,7 +202,7 @@ seeds a small fictional demo library so the app opens looking like the design.
 
 ```bash
 flutter analyze    # clean
-flutter test       # 386 tests, 383 passing — see known issues below
+flutter test       # 450 tests, 447 passing — see known issues below
 flutter build web --release
 dart run build_runner build --delete-conflicting-outputs   # after editing lib/data/tables.dart
 ```
@@ -226,6 +226,22 @@ So the key lives in a small service of its own, in `server/`:
 browser (github.io)  ──POST /v1/messages──▶  Nook's AI service  ──key──▶  api.anthropic.com
      carries no key                           holds the key
 ```
+
+The service does one other thing the browser cannot. Reading a post's own
+caption means fetching a page from tiktok.com or instagram.com, which from a
+page served off github.io is a cross-origin request — and Meta sends no CORS
+headers, so Instagram and Facebook posts used to reach the model as a bare URL
+however public they were. The service reads the page server-side instead, where
+there is no origin to be refused for:
+
+```
+browser  ──POST /v1/metadata──▶  Nook's AI service  ──public GET──▶  the post's page
+   {"url": "..."}                 no credentials                     Open Graph tags
+```
+
+No cookies, no tokens, one honest user agent, and a host allowlist so a public
+endpoint that takes a URL cannot be aimed anywhere else. A private or deleted
+post comes back saying so rather than as an empty post.
 
 The only AI-related thing the published bundle carries is that service's
 address, which is public by necessity. `server/README.md` has the deployment
@@ -333,7 +349,9 @@ sample extractor and sample planner.
 | Nook's AI service (`server/`) | Extraction and itinerary generation, with the key held server-side | Yes, on the server — `wrangler secret put` |
 | `api.anthropic.com` | The same, called directly, for local work only | `ANTHROPIC_API_KEY` as a `--dart-define` |
 | YouTube and TikTok oEmbed | A post's real title, creator and thumbnail | No |
-| YouTube Data API, Meta Graph API | A video's description; Instagram and Facebook captions | `YOUTUBE_API_KEY`, `FACEBOOK_TOKEN` |
+| A post's own public page, read by `server/` | The caption, creator, hashtags and profile picture, on all four platforms | No |
+| YouTube Data API | A video's full description and the channel's picture | `YOUTUBE_API_KEY` |
+| Meta Graph API | Instagram and Facebook oEmbed, richer than the public page | `FACEBOOK_TOKEN`, optional |
 | `tile.openstreetmap.org` | Map tiles on Travel Details | No |
 
 The two AI rows are the same feature reached two ways, and only one of them is
@@ -407,16 +425,24 @@ a post *out* of Nook is drawn but inert.
   platform, logging how often a usable destination comes back. It is the
   mitigation the proposal committed to for its biggest risk, and it needs a
   normal network and a key.
-- **Creator profile pictures are YouTube-only.** Of the four platforms, only
-  YouTube exposes an avatar through a route Nook can legitimately use, and only
-  with a `YOUTUBE_API_KEY`. Everywhere else the UI draws the creator's initial
-  rather than inventing a face.
-- **Instagram and Facebook need a token for anything beyond the URL.** Without
-  `FACEBOOK_TOKEN` those saves keep the drawn placeholder and extract from the
-  link alone.
-- **Extraction quality still depends on what the platform publishes.** An opaque
-  URL may come back without a destination, which is why every field is optional
-  and editable.
+- **Creator profile pictures need a public profile.** A public profile page
+  publishes the avatar as its `og:image`, which is the only route any of the
+  four offers without authentication; a private account publishes none, and
+  YouTube's comes from the Data API with a `YOUTUBE_API_KEY`. When there is
+  none the UI draws the creator's initial rather than inventing a face, and the
+  post's own thumbnail is never substituted for one.
+- **A private, deleted or login-gated post cannot be read, and says so.** Nook
+  reads public posts. It does not sign in, and it will not guess at a caption
+  it cannot see — those saves keep the placeholder and offer manual entry.
+- **Extraction without the service configured is back to what a browser can
+  fetch:** YouTube and TikTok. Instagram and Facebook then extract from the
+  link alone, as they did before `server/` existed.
+- **Transcripts and on-screen text are not read.** YouTube's caption track
+  needs OAuth rather than an API key, and the other three publish none, so a
+  post whose detail is only spoken aloud extracts from its caption alone.
+- **Extraction quality still depends on what the platform publishes.** An
+  opaque URL may come back without a destination, which is why every field is
+  optional and editable.
 
 ## Credits
 

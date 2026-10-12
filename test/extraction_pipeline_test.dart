@@ -147,11 +147,17 @@ void main() {
         pipeline,
       ).extract('https://www.instagram.com/p/C8xK2pAbCdE/');
 
-      // Instagram's public oEmbed ended in 2020, so with no Meta token there
-      // is nothing to read. The prompt has to say that, and say not to guess.
+      // Nothing answered for this post, so the prompt has to say so and say
+      // not to guess.
+      //
+      // This used to assert the note named 2020 — the year Meta withdrew
+      // public oEmbed, which was then the only reason an Instagram post could
+      // not be read. It is no longer the reason: the service reads the post's
+      // public Open Graph tags server-side, so a note blaming 2020 would be
+      // telling the model something false. What has to survive is that an
+      // unreadable post is declared unreadable, whatever the cause.
       final body = pipeline.generateRequest.body;
       expect(body, contains('could not be read'));
-      expect(body, contains('2020'));
       expect(body.toLowerCase(), contains('do not guess'));
     });
   });

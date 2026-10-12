@@ -77,7 +77,7 @@ void main() {
       expect(
         SourceMetadataFetcher.canReadPostText(NookPlatform.instagram),
         isFalse,
-        reason: 'no token configured',
+        reason: 'no service and no token: a browser cannot fetch the page',
       );
       expect(
         SourceMetadataFetcher.canReadPostText(
@@ -86,6 +86,28 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    test('with a service configured, all four can be read', () {
+      // The asymmetry was never about what the platforms publish. It was
+      // about who was asking: a static site has an origin and a server does
+      // not, so the same public page a browser is refused is an ordinary GET
+      // from Nook's own service.
+      for (final platform in [
+        NookPlatform.youtube,
+        NookPlatform.tiktok,
+        NookPlatform.instagram,
+        NookPlatform.facebook,
+      ]) {
+        expect(
+          SourceMetadataFetcher.canReadPostText(
+            platform,
+            backendUrl: 'https://nook-ai.example.workers.dev',
+          ),
+          isTrue,
+          reason: platform,
+        );
+      }
     });
   });
 
@@ -176,10 +198,29 @@ void main() {
     test('an unreadable Meta post says why, and forbids guessing', () {
       for (final platform in [NookPlatform.instagram, NookPlatform.facebook]) {
         final block = source(platform).toPromptBlock();
-        expect(block, contains('2020'), reason: 'names the real cause');
+        // The cause is carried from whatever actually failed rather than
+        // asserted here. It used to be fixed text naming 2020 and the missing
+        // Meta token, which stopped being true once the service began reading
+        // these posts: the live reasons are now "private", "deleted" or
+        // "nothing readable", and the note repeats the one that applies.
+        expect(block, contains('could not be read'));
         expect(block.toLowerCase(), contains('do not guess'));
         expect(block.toLowerCase(), contains('null'));
       }
+    });
+
+    test('the reason a post could not be read is passed through', () {
+      final block = SourceMetadata(
+        platform: NookPlatform.instagram,
+        url: 'https://example.com/x',
+        fetched: false,
+        unreadableReason: 'This post is not public — the platform served a '
+            'sign-in page instead of the post.',
+      ).toPromptBlock();
+
+      expect(block, contains('not public'));
+      expect(block, contains('sign-in page'));
+      expect(block.toLowerCase(), contains('do not guess'));
     });
 
     test(
@@ -216,9 +257,27 @@ void main() {
       },
     );
 
-    test('a title with no description says the rest should stay null', () {
+    test('a caption-only post is told the caption is the post', () {
+      // A TikTok with text but no description. This used to be described to
+      // the model as "only the title or caption was available … extract what
+      // it supports and leave the rest null", which reads as an apology for a
+      // thin source and is the opposite of what is wanted: on this platform a
+      // caption with no title is the whole post and should be read closely.
       final block = source(NookPlatform.tiktok, fetched: true).toPromptBlock();
-      expect(block, contains('no transcript'));
+
+      expect(block, contains('CAPTION:'));
+      expect(block, contains('NO TITLE'));
+      expect(block, contains('The CAPTION is the post'));
+    });
+
+    test('a post with nothing readable at all still says so', () {
+      final block = SourceMetadata(
+        platform: NookPlatform.tiktok,
+        url: 'https://example.com/x',
+        fetched: true,
+      ).toPromptBlock();
+
+      expect(block, contains('no title, no caption'));
       expect(block, contains('leave the rest null'));
     });
 

@@ -697,5 +697,49 @@ void main() {
       expect(gone.isTransient, isFalse);
       expect(gone.isModelUnavailable, isTrue);
     });
+
+    test('a 404 about the path is not a 404 about the model', () {
+      // Both arrive as `404 not_found_error` and need opposite handling. A
+      // model id that is gone is worth trying the next candidate for; a path
+      // that is not served fails the same way for every id, so retrying the
+      // list only hides the real fault behind "check CLAUDE_MODEL" — which is
+      // exactly what the deployed build did.
+      const route = ClaudeApiException(
+        message: 'Unknown endpoint: POST /messages. This service serves POST '
+            '/v1/messages and GET /health.',
+        status: 404,
+        type: 'not_found_error',
+      );
+
+      expect(
+        route.isModelUnavailable,
+        isFalse,
+        reason: 'retiring models over this is how the real cause stayed hidden',
+      );
+      expect(route.isTransient, isFalse, reason: 'trying again cannot fix it');
+    });
+
+    test('the terse 404 the service used to send is still read as the path', () {
+      // The message the deployed service actually returned, before it was
+      // changed to name the paths it serves. Older deployments are still out
+      // there, so this spelling has to classify correctly too.
+      const terse = ClaudeApiException(
+        message: 'Unknown endpoint.',
+        status: 404,
+        type: 'not_found_error',
+      );
+
+      expect(terse.isModelUnavailable, isFalse);
+    });
+
+    test('a model 404 is still a model 404', () {
+      const gone = ClaudeApiException(
+        message: 'model: claude-not-a-real-id',
+        status: 404,
+        type: 'not_found_error',
+      );
+
+      expect(gone.isModelUnavailable, isTrue);
+    });
   });
 }

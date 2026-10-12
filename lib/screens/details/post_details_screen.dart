@@ -115,7 +115,12 @@ class PostDetailsScreen extends StatelessWidget {
               ),
               const SizedBox(height: NookSpacing.block),
               Text(post.title, style: NookType.heading),
-              if (post.creator != null) ...[
+              // A handle alone is enough to show the creator. Gating this on
+              // the display name hid the creator on every Instagram and
+              // Facebook post, where the handle is often all any public source
+              // gives — the avatar below already expects a null name, so the
+              // row was built to cope with it and then never reached.
+              if (post.creator != null || post.creatorHandle != null) ...[
                 const SizedBox(height: NookSpacing.section),
                 Row(
                   children: [
@@ -128,13 +133,16 @@ class PostDetailsScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // The name when there is one, the handle promoted
+                          // into its place when there is not, so the row never
+                          // leads with a blank line.
                           Text(
-                            post.creator!,
+                            post.creator ?? post.creatorHandle!,
                             style: NookType.body,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          if (post.creatorHandle != null)
+                          if (post.creator != null && post.creatorHandle != null)
                             Text(
                               post.creatorHandle!,
                               style: NookType.caption.copyWith(

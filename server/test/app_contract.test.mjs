@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import worker from '../src/index.js';
+
+/** The shared contract, so the tool names are not hand-copied a second time. */
+const contract = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../api-contract.json', import.meta.url)), 'utf8'),
+);
 
 /**
  * The service against the requests Nook actually sends.
@@ -17,11 +24,22 @@ import worker from '../src/index.js';
  *
  *   ClaudeExtractor.maxOutputTokens          lib/ai/claude_extractor.dart
  *   ClaudeItineraryGenerator.maxOutputTokens lib/ai/claude_itinerary_generator.dart
+ *
+ * The numbers are still copied by hand and so can still be copied wrongly.
+ * The route and the tool names are not: they are read from
+ * `server/api-contract.json`, which `test/backend_routing_test.dart` asserts
+ * the Dart constants against, so those cannot drift without a test failing.
  */
 const APP = {
   model: 'claude-haiku-4-5-20251001',
-  extraction: { tool: 'record_extraction', maxTokens: 4096 },
-  itinerary: { tool: 'record_itinerary', maxTokens: 6144 },
+  // The tool names come out of the contract file rather than being typed here
+  // again. Typing them here is what went wrong: this file's own comment says
+  // the constants were copied from the Dart that sends them, and the
+  // extraction name was not — the app sent `record_post_details` and this said
+  // `record_extraction`, so the file written to catch a drift like that had
+  // the drift inside it and passed.
+  extraction: { tool: contract.tools[0], maxTokens: 4096 },
+  itinerary: { tool: contract.tools[1], maxTokens: 6144 },
   // The planner sets one; the extractor leaves it unset.
   temperature: 0.4,
 };
