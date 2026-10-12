@@ -74,7 +74,13 @@ void main() {
         r.sent,
       );
 
-      expect(request.url.toString(), 'https://nook-ai.example.workers.dev/messages');
+      // The host is what this test is about. The path is /v1/messages because
+      // that is the only path the service answers on, and a bare host in the
+      // setting is completed rather than sent somewhere that returns 404.
+      expect(
+        request.url.toString(),
+        'https://nook-ai.example.workers.dev/v1/messages',
+      );
       expect(request.url.host, isNot('api.anthropic.com'));
     });
 
@@ -261,6 +267,98 @@ void main() {
 
       expect(unknownEndpoint.isModelUnavailable, isFalse);
       expect(goneModel.isModelUnavailable, isTrue);
+    });
+  });
+
+  group('the address, however it was written into the setting', () {
+    /// Only one path on the service answers: `/v1/messages`. Everything else
+    /// is a 404, and a 404 reads to someone using the app as the AI being
+    /// broken rather than a setting being one segment out.
+    ///
+    /// Three ways people land on a wrong one, all of them reasonable. Pasting
+    /// the endpoint from the documentation, which names the full URL, into a
+    /// setting that wants the base. Pasting the host on its own. And being
+    /// told to make sure the address ends in /v1 when it already did.
+    Future<String> urlFor(String base) async {
+      var seen = '(never sent)';
+      final client = MockClient((request) async {
+        seen = request.url.toString();
+        return http.Response(
+          jsonEncode({'id': 'msg', 'type': 'message', 'content': <Object>[]}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final subject = ClaudeClient(
+        baseUrl: base,
+        httpClient: client,
+        retry: const RetryPolicy(maxAttempts: 1),
+      );
+      try {
+        await subject.createMessage(
+          body: {'model': 'm', 'max_tokens': 1, 'messages': const []},
+        );
+      } on ClaudeApiException catch (e) {
+        seen = e.isMisconfigured ? 'refused' : 'error ${e.status}';
+      }
+      subject.close();
+      return seen;
+    }
+
+    const host = 'https://nook-ai.example.workers.dev';
+    const endpoint = '$host/v1/messages';
+
+    test('every ordinary way of writing it reaches the one endpoint', () async {
+      for (final written in [
+        '$host/v1', // as documented
+        host, // the host on its own
+        '$host/v1/messages', // the full endpoint pasted into the base
+        '$host/v1/v1', // /v1 added to an address that had it
+        '$host/v1/v1/v1', // and added twice
+        '$host/messages', // the method without the version
+        '$host/v1/', // a trailing slash
+        '  $host/v1  ', // whitespace from a copy and paste
+        'nook-ai.example.workers.dev/v1', // no scheme
+        'nook-ai.example.workers.dev/v1/messages', // neither scheme nor base
+      ]) {
+        expect(await urlFor(written), endpoint, reason: 'from "$written"');
+      }
+    });
+
+    test('/v1 is present exactly once, never twice', () async {
+      for (final written in ['$host/v1/v1', '$host/v1', host]) {
+        final url = await urlFor(written);
+        expect('/v1'.allMatches(url).length, 1, reason: 'from "$written"');
+      }
+    });
+
+    test('messages is appended once, never doubled', () async {
+      final url = await urlFor('$host/v1/messages');
+      expect('messages'.allMatches(url).length, 1);
+    });
+
+    test('calling the API directly still resolves the same way', () async {
+      expect(
+        await urlFor('https://api.anthropic.com'),
+        'https://api.anthropic.com/v1/messages',
+      );
+      expect(
+        await urlFor('https://api.anthropic.com/v1'),
+        'https://api.anthropic.com/v1/messages',
+      );
+    });
+
+    test('a path that says something else is left as it was meant', () async {
+      // Only an empty path is filled in. Someone who put the service behind a
+      // prefix of their own meant it, and guessing over them would be worse
+      // than the 404 they would get for a genuine mistake.
+      expect(await urlFor('$host/api'), '$host/api/messages');
+    });
+
+    test('an address with nothing usable in it is still refused', () async {
+      for (final written in ['', '   ']) {
+        expect(await urlFor(written), 'refused');
+      }
     });
   });
 }

@@ -582,13 +582,15 @@ call it more than once.
           'your nook.env file, or leave it blank to use the default.';
     }
     if (e.status == 404) {
-      return "Nook's AI service answered, but not at the address it was asked "
-          'at. Check that AI_BACKEND_URL ends in /v1.';
+      return "Nook's AI service answered, but it serves nothing at the address "
+          'it was asked at. The address should be the service on its own, '
+          'ending in /v1 and nothing after it — NOOK_AI_BACKEND on a deployed '
+          'build, AI_BACKEND_URL when running locally.';
     }
     if (e.isMisconfigured) {
       return "Nook's AI service address is not a usable web address, so "
-          'nothing could be sent. Check AI_BACKEND_URL, or the '
-          'NOOK_AI_BACKEND repository variable on a deployed build.';
+          'nothing could be sent. Check NOOK_AI_BACKEND on a deployed '
+          'build, or AI_BACKEND_URL when running locally.';
     }
     if (e.isUnreachable) {
       return "Nook couldn't reach its AI service. Check your connection and "
