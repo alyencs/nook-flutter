@@ -25,8 +25,12 @@ moved behind this.
 
 ## What it will and will not do
 
-The key is billable, so the endpoint is written as an allowlist. Anything not
-explicitly permitted is refused before a request reaches the model:
+This section is about the model route, `POST /v1/messages`. The service also
+serves `POST /v1/metadata`, which spends nothing and has limits of its own —
+see [Reading a post](#reading-a-post).
+
+The key is billable, so the model endpoint is written as an allowlist. Anything
+not explicitly permitted is refused before a request reaches the model:
 
 | Control | Rule |
 |---|---|
@@ -166,7 +170,9 @@ was asking. A server has no origin, so the page a browser is refused is an
 ordinary GET from here, reading the same Open Graph tags every link unfurler in
 every chat app reads.
 
-### What it will not do
+### What reading a post will not do
+
+Its own limits, separate from the allowlist on the model route above.
 
 | | |
 | --- | --- |
