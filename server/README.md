@@ -281,7 +281,7 @@ and is never one of these.
 ## Working on it
 
 ```bash
-npm test          # 104 tests, no key needed, nothing spent
+npm test          # 116 tests, no key needed, nothing spent
 npm run dev       # wrangler dev, reads .dev.vars
 ```
 
@@ -369,7 +369,23 @@ curl -s -X POST https://your-service.workers.dev/v1/metadata \
 | No `sources` key for a field | Nothing published it. That is the honest answer, not a bug. |
 | `fallbacks` naming a profile page and `login wall` | The account's page is not public, so no avatar and no display name. The handle is still real. |
 | `read: name and avatar` / `read: name only` / `read: avatar only` | What the profile page actually yielded. A bare `read` is no longer reported: it used to mean only that a page came back, which read as success for a page that gave nothing. |
-| `read: no name, no avatar (N meta tags, og:title "…")` | The page answered and carried nothing usable. The quoted title is what it did send, which is what shows whether the parser or the page is short. |
+| `read: no name, no avatar (N meta tags: …, no og:title)` | The page answered and carried nothing usable. The tag **names** say what kind of page it was: a profile carries `og:title` and `og:image`, while `viewport, referrer` alone is a bot-mitigation shell. No tag values are reported. |
+| `[read https://www.facebook.com/people/<Name>/<id>/]` | Facebook canonicalised the vanity URL. That path is Facebook's own statement of the account's name, reached by following its redirect, and is used as the name of last resort. |
+| `redirected to a different account (asked X, landed Y)` | The profile URL went somewhere else. Nothing is taken from that page. |
+
+### What Facebook does not expose to an unauthenticated request
+
+A Facebook profile URL does not reliably answer with a profile. The same
+address can return a full page with `og:title` and `og:image` on one request
+and a two-tag shell — `viewport`, `referrer`, no `og:title` — on the next.
+When it returns the shell there is **no display name and no avatar available**,
+and Nook reports null rather than reaching for something else. Signing in to
+get them is not something this service does.
+
+What survives regardless, because none of it depends on the profile page: the
+caption, the thumbnail, the handle, and the profile URL. A post with
+`creator: null` and `creatorHandle: "@1Nesh.D"` is a correctly extracted post
+whose author Facebook declined to name.
 | `sources.creatorHandle: "canonical url"` | The share or short link was resolved and the account came from where it landed. |
 
 If the app shows "Nook couldn't read this post" and names `/v1/metadata`, the

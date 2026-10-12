@@ -17,7 +17,9 @@ import {
   creatorFromJsonLd,
   creatorFromOgTitle,
   decodeEntities,
+  handleFromUrl,
   isBoilerplate,
+  nameFromPeoplePath,
   parseJsonLd,
   profileUrlFor,
   unescapeUrl,
@@ -1420,4 +1422,199 @@ test('the source of the display name is always stated', async () => {
 
   assert.equal(result.creator, 'Nesh D');
   assert.equal(result.sources.creator, 'profile page og:title');
+});
+
+// --- Facebook's canonical /people/ profile form --------------------------
+//
+// The deployed run after the identity check returned
+// `read: no name, no avatar (2 meta tags, no og:title)` at HTTP 200. A real
+// profile page carries twenty-odd tags including `og:title` and `og:image`;
+// two tags and no `og:title` is a bot-mitigation shell, not a profile.
+//
+// Investigating that turned up a defect in the check itself. The previous
+// commit's message claimed `/people/<Name>/<id>` "has no handle in it and so
+// is still accepted". It does: `people` was missing from the route words, so
+// it came back as the landed handle, was compared against the vanity name, and
+// Facebook's own canonicalisation was refused as a different account.
+
+test('`people` is a route word, not an account', () => {
+  assert.equal(
+    handleFromUrl('https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/'),
+    null,
+  );
+  for (const route of ['pg', 'marketplace', 'events', 'hashtag', 'search', 'login']) {
+    assert.equal(handleFromUrl(`https://www.facebook.com/${route}/Something/123`), null, route);
+  }
+  // A real vanity path is untouched.
+  assert.equal(handleFromUrl('https://www.facebook.com/1Nesh.D'), '1Nesh.D');
+});
+
+test('the canonical /people/ path yields the name Facebook states', () => {
+  assert.equal(
+    nameFromPeoplePath('https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/'),
+    'Priyasad Wattegedara',
+  );
+  assert.equal(
+    nameFromPeoplePath('https://www.facebook.com/people/Mar%C3%ADa-Santos/100099988877766'),
+    'María Santos',
+  );
+
+  // Not a name, or not the canonical shape: nothing is produced.
+  for (const url of [
+    'https://www.facebook.com/people/Priyasad-Wattegedara', // no id
+    'https://www.facebook.com/people/Priyasad-Wattegedara/abc', // id not numeric
+    'https://www.facebook.com/people/123456/100012345678901', // name is an id
+    'https://www.facebook.com/1Nesh.D', // not the /people/ form
+    'https://www.instagram.com/people/Someone/100012345678901/', // not Facebook
+    'https://www.facebook.com/people/El-Nido-Palawan-Philippines-is-one-of-the-most-beautiful-places/100012345678901/',
+    'not a url',
+  ]) {
+    assert.equal(nameFromPeoplePath(url), null, url);
+  }
+});
+
+test('a vanity URL canonicalised to /people/ is read, and says where from', async () => {
+  // The legitimate redirect, which the identity check was refusing.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan. Tour A is 1400 pesos.">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/',
+        },
+      });
+    }
+    return new Response(
+      '<meta property="og:title" content="Priyasad Wattegedara">' +
+        '<meta property="og:image" content="https://scontent.xx.fbcdn.net/avatar.jpg">',
+      { status: 200 },
+    );
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, 'Priyasad Wattegedara');
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/avatar.jpg');
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  // The address actually read is named, so the name is auditable.
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('/people/Priyasad-Wattegedara/')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('the canonical path alone supplies a name when the page carries none', async () => {
+  // Redirected to /people/<Name>/<id>, but that page serves a shell. The path
+  // Facebook sent us to is still Facebook stating that account's name.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan.">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://www.facebook.com/people/Priyasad-Wattegedara/100012345678901/',
+        },
+      });
+    }
+    return new Response('<meta name="viewport" content="width=device-width">', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, 'Priyasad Wattegedara');
+  assert.equal(result.creatorAvatarUrl, null, 'no avatar was published');
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('canonical /people/ path')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a redirect to a different vanity account is still refused', async () => {
+  // The /people/ allowance must not become a hole in the identity check.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan.">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://www.facebook.com/SomeoneElse.Page' },
+      });
+    }
+    return new Response('<meta property="og:title" content="Someone Else">', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('redirected to a different account')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a bot shell is reported by its tag names, with no values', async () => {
+  // The run that prompted this. Reproduced exactly: HTTP 200, two tags, no
+  // og:title, no redirect. The names say what kind of page answered — a
+  // profile carries og:title and og:image; viewport and referrer alone do not.
+  const fetchImpl = async (url) =>
+    url.includes('/videos/')
+      ? new Response(
+          '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+            '<meta property="og:description" content="El Nido Palawan. Tour A is 1400 pesos.">' +
+            '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+          { status: 200 },
+        )
+      : new Response(
+          '<meta name="viewport" content="width=device-width">' +
+            '<meta name="referrer" content="origin-when-crossorigin">',
+          { status: 200 },
+        );
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  // Nothing invented.
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+
+  // The diagnostic names the tags, so the shell is identifiable.
+  const line = result.fallbacks.join(' | ');
+  assert.match(line, /2 meta tags: viewport, referrer/);
+  assert.match(line, /no og:title/);
+  // And no tag VALUES are reproduced.
+  assert.ok(!line.includes('width=device-width'), line);
+  assert.ok(!line.includes('origin-when-crossorigin'), line);
+
+  // Everything that does not depend on the profile page survives.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.equal(result.thumbnailUrl, 'https://scontent.xx.fbcdn.net/post.jpg');
+  assert.equal(result.fetched, true);
 });

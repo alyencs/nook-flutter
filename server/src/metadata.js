@@ -684,17 +684,20 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
     // therefore produced a confident display name belonging to somebody else —
     // reported with the same `read: name and avatar` as a correct read, so
     // nothing downstream or in the diagnostics could tell the two apart.
-    const landed = handleFromUrl(finalUrl);
+    // Facebook canonicalises a vanity path to `/people/<Name>/<id>` for the
+    // same account. That is not a different account and must not be refused —
+    // which it was, because `people` was missing from the route words and so
+    // came back as the landed "handle".
+    const canonicalName = nameFromPeoplePath(finalUrl);
+    const landed = canonicalName === null ? handleFromUrl(finalUrl) : null;
+
     const sameAccount =
       asked === null ||
       landed === null ||
       landed.toLowerCase().replace(/^@/, '') === asked.toLowerCase().replace(/^@/, '');
 
     if (!sameAccount) {
-      // Facebook does canonicalise a vanity path to `/people/<Name>/<id>` for
-      // the same account, which is why this is not simply fatal — but that
-      // form has no handle in it, so `landed` is null and it takes the branch
-      // above. A redirect to a DIFFERENT handle is a different account.
+      // A redirect to a different vanity handle is a different account.
       return {
         avatar: null,
         name: null,
@@ -713,6 +716,11 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
       creatorFromOgTitle(tags['og:title'], platform)?.name ??
       ldAuthor.name ??
       creatorFromOgTitle(tags['<title>'], platform)?.name ??
+      // Last: the name in the canonical path Facebook redirected to. Weakest
+      // of the four because hyphenation is lossy, but it is the account's own
+      // name as Facebook states it, and on a page that serves nothing else it
+      // is the only name there is.
+      canonicalName ??
       null;
 
     // The avatar. `og:image` first, then the page's own state blob, then
@@ -735,13 +743,27 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
     // own said "I fetched something" and was reported for a page that yielded
     // neither field — which is indistinguishable from success in a log, and is
     // exactly the diagnostic that sent this round looking in the wrong place.
-    const found = [name ? 'name' : null, avatar ? 'avatar' : null].filter(Boolean);
+    const nameVia =
+      name === null
+        ? null
+        : name === canonicalName &&
+            creatorFromOgTitle(tags['og:title'], platform)?.name == null &&
+            ldAuthor.name == null
+          ? 'name from the canonical /people/ path'
+          : 'name';
+    const found = [nameVia, avatar ? 'avatar' : null].filter(Boolean);
     const status =
       found.length === 2
         ? 'read: name and avatar'
         : found.length === 1
           ? `read: ${found[0]} only`
           : `read: no name, no avatar (${Object.keys(tags).length} meta tags` +
+            // Tag NAMES only. They say what kind of page answered — a profile
+            // carries `og:title`/`og:image`, while `viewport`+`referrer` alone
+            // is a bot-mitigation shell. Values are not included: a name or an
+            // image URL is the page's content, and the names alone settle the
+            // question without reproducing any of it.
+            `: ${Object.keys(tags).slice(0, 12).join(', ') || 'none'}` +
             `${tags['og:title'] ? `, og:title ${JSON.stringify(tags['og:title'].slice(0, 60))}` : ', no og:title'})`;
 
     // The address actually read, when it is not the one asked for. A name is
@@ -758,6 +780,11 @@ const RESERVED_SEGMENTS = new Set([
   'p', 'reel', 'reels', 'tv', 'stories', 'explore', 'watch', 'share', 'video',
   'videos', 'posts', 'groups', 'pages', 'shorts', 'embed', 'channel', 'c',
   'permalink.php', 'photo.php', 'profile.php', 'story.php', 'oembed',
+  // `people` was missing, so `/people/<Name>/<id>` — Facebook's canonical
+  // form for an account without a vanity URL — read as the handle `people`.
+  // The identity check then compared `1Nesh.D` against `people`, called it a
+  // different account, and threw away a legitimate canonicalisation.
+  'people', 'pg', 'marketplace', 'events', 'hashtag', 'search', 'login',
 ]);
 
 /** All digits, or a Facebook `pfbid` blob. An id, not a name. */
@@ -779,6 +806,53 @@ const SHORT_LINK_HOSTS = new Set([
   'instagr.am',
   'youtu.be',
 ]);
+
+/**
+ * The display name Facebook puts in a canonical profile path, or null.
+ *
+ * An account with no vanity URL canonicalises to
+ * `/people/Priyasad-Wattegedara/100012345678901/`. That middle segment is
+ * Facebook's own statement of the account's display name, and arriving at it
+ * by following a redirect FROM the vanity URL is what ties the two together —
+ * so this is read provenance, not a guess: Facebook was asked about `1Nesh.D`
+ * and answered with that path.
+ *
+ * Requires the trailing numeric id, so that an ordinary `/people` listing or a
+ * truncated path does not produce a name. Hyphens become spaces, which is how
+ * Facebook encodes them — a name with a real hyphen in it loses that hyphen,
+ * which is a fidelity cost accepted for a name that is otherwise unavailable.
+ */
+export function nameFromPeoplePath(url) {
+  let segments;
+  try {
+    const parsed = new URL(url);
+    if (!/(^|\.)facebook\.com$/.test(parsed.hostname.toLowerCase().replace(/^www\./, '')) &&
+        parsed.hostname.toLowerCase() !== 'facebook.com') {
+      return null;
+    }
+    segments = parsed.pathname.split('/').filter(Boolean);
+  } catch {
+    return null;
+  }
+
+  const at = segments.findIndex((segment) => segment.toLowerCase() === 'people');
+  if (at === -1 || segments.length < at + 3) return null;
+  if (!/^\d{5,}$/.test(segments[at + 2])) return null;
+
+  let name;
+  try {
+    name = decodeURIComponent(segments[at + 1]);
+  } catch {
+    name = segments[at + 1];
+  }
+  name = name.replace(/[-_+]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Must still read as a name rather than as an id or a sentence.
+  if (name === '' || /^\d+$/.test(name) || looksLikeProse(name) || isBoilerplate(name)) {
+    return null;
+  }
+  return name;
+}
 
 /**
  * The account named in a post URL, as `@handle` or a bare vanity name.
