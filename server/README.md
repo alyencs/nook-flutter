@@ -281,7 +281,7 @@ and is never one of these.
 ## Working on it
 
 ```bash
-npm test          # 95 tests, no key needed, nothing spent
+npm test          # 104 tests, no key needed, nothing spent
 npm run dev       # wrangler dev, reads .dev.vars
 ```
 
@@ -368,6 +368,8 @@ curl -s -X POST https://your-service.workers.dev/v1/metadata \
 | `sources.creatorAvatarUrl: "rejected: same image as the post thumbnail"` | The avatar source returned the post's cover, so it was dropped rather than shown as a face. |
 | No `sources` key for a field | Nothing published it. That is the honest answer, not a bug. |
 | `fallbacks` naming a profile page and `login wall` | The account's page is not public, so no avatar and no display name. The handle is still real. |
+| `read: name and avatar` / `read: name only` / `read: avatar only` | What the profile page actually yielded. A bare `read` is no longer reported: it used to mean only that a page came back, which read as success for a page that gave nothing. |
+| `read: no name, no avatar (N meta tags, og:title "…")` | The page answered and carried nothing usable. The quoted title is what it did send, which is what shows whether the parser or the page is short. |
 | `sources.creatorHandle: "canonical url"` | The share or short link was resolved and the account came from where it landed. |
 
 If the app shows "Nook couldn't read this post" and names `/v1/metadata`, the

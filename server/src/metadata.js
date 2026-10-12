@@ -324,7 +324,21 @@ export function captionFromOgDescription(description, platform) {
  */
 const BOILERPLATE = [
   /^see posts, photos and more on facebook/i,
-  /^log in(to| to)? facebook/i,
+  /^log ?in(to| to)? facebook/i,
+  // The wall's own wording. Without this it passes the prose test — six
+  // ordinary words, no punctuation — and becomes the creator's name.
+  /^log ?in or sign ?up/i,
+  // Anchored to the wall's actual wording. A looser pattern ate real names:
+  // a page called "Login Travel Co" is not a sign-in page.
+  /^(log ?in|sign ?up|sign ?in)( or (sign ?up|log ?in))?( (to|for) (view|see|continue|facebook|instagram))?[.!]?$/i,
+  /^you must log in to continue/i,
+  // The platform's own name, which is what `og:title` falls back to on a page
+  // that will not show its contents. Read as a creator it produced
+  // `creator: "Facebook"` — a fabricated name that looks entirely plausible.
+  /^(facebook|instagram|tiktok|youtube|meta)$/i,
+  /^(facebook|instagram|tiktok|youtube)\s*[|\-–—]\s*(log ?in|sign ?up|home)?$/i,
+  /^watch\s*[|\-–—]\s*facebook$/i,
+  /^this content is(n.t| not) available/i,
   /^join facebook to connect/i,
   /^facebook is a social (utility|network)/i,
   /^create an account or log in/i,
@@ -507,16 +521,44 @@ export function creatorFromOgTitle(ogTitle, platform) {
   }
 
   if (platform === 'facebook') {
-    // Nothing to strip. A trailing `| Facebook` is the only decoration, and a
-    // title that is clearly the post body rather than a name is not a name:
-    // a person's name does not run to a sentence or carry a hashtag.
-    const name = text.replace(/\s*[|\-–—]\s*facebook\s*$/i, '').trim();
-    const looksLikeProse =
-      name.length > 60 || /[.!?#]/.test(name) || name.split(/\s+/).length > 6;
-    if (name !== '' && !looksLikeProse) return { name };
+    const name = text
+      // `| Facebook`, and the section name Facebook appends to a profile.
+      .replace(/\s*[|\-–—]\s*facebook\s*$/i, '')
+      .replace(/\s*[-–—]\s*(home|about|photos|videos|reels|posts|live)\s*$/i, '')
+      .trim();
+
+    if (name !== '' && !looksLikeProse(name)) return { name };
   }
 
   return null;
+}
+
+/**
+ * Whether a string is post text rather than somebody's name.
+ *
+ * Facebook puts the post's own words in a video page's `og:title`, so this has
+ * to tell the two apart — and the first version of it rejected anything
+ * containing a full stop, which threw away every name that has one. A period
+ * inside a short name is ordinary: initials, abbreviations, and account-style
+ * names. The page this was reported against is called `1Nesh.D`, so its own
+ * name was the first thing the test discarded.
+ *
+ * Length and word count do the work instead. A sentence-ending stop only
+ * counts against a string long enough to be a sentence, which keeps
+ * "Nesh D." and "St. Nesh Travels" while still refusing
+ * "El Nido Palawan Philippines."
+ */
+function looksLikeProse(text) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (text.length > 60) return true;
+  if (words.length > 8) return true;
+  // A hashtag or a link is never part of a name.
+  if (/[#]/.test(text) || /https?:\/\//i.test(text)) return true;
+  // A terminal stop, but only where there is a clause in front of it.
+  if (/[.!?]$/.test(text) && words.length > 3) return true;
+  // More than one sentence-ending stop is prose however short it is.
+  if ((text.match(/[.!?](\s|$)/g) ?? []).length > 1) return true;
+  return false;
 }
 
 /** A profile URL for a handle, so an avatar can still be looked up. */
@@ -629,17 +671,42 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
       return { avatar: null, name: null, status: 'login wall' };
     }
 
-    // A profile page's `og:title` is the account's own name — which is the
-    // only place Facebook publishes one for a video post, because the post's
-    // own `og:title` holds the post text instead.
-    const fromTitle = creatorFromOgTitle(tags['og:title'], platformOf(finalUrl));
-    return {
-      avatar:
-        normaliseImageUrl(unescapeUrl(tags['og:image']), finalUrl) ??
-        normaliseImageUrl(avatarFromEmbeddedJson(html), finalUrl),
-      name: fromTitle?.name ?? null,
-      status: 'read',
-    };
+    const platform = platformOf(finalUrl);
+    const jsonLd = parseJsonLd(html);
+    const ldAuthor = creatorFromJsonLd(jsonLd) ?? {};
+
+    // The name, from each place a profile page may state it. `og:title` is the
+    // usual one; a profile's JSON-LD and `<title>` are the fallbacks, and
+    // `og:site_name` never is — it says "Facebook".
+    const name =
+      creatorFromOgTitle(tags['og:title'], platform)?.name ??
+      ldAuthor.name ??
+      creatorFromOgTitle(tags['<title>'], platform)?.name ??
+      null;
+
+    // The avatar. `og:image` first, then the page's own state blob, then
+    // JSON-LD's author image, then `twitter:image`, which some profile pages
+    // carry when `og:image` is absent.
+    const avatar =
+      normaliseImageUrl(unescapeUrl(tags['og:image']), finalUrl) ??
+      normaliseImageUrl(avatarFromEmbeddedJson(html), finalUrl) ??
+      normaliseImageUrl(unescapeUrl(ldAuthor.image), finalUrl) ??
+      normaliseImageUrl(unescapeUrl(tags['twitter:image']), finalUrl);
+
+    // What was actually found, not merely that a page came back. `read` on its
+    // own said "I fetched something" and was reported for a page that yielded
+    // neither field — which is indistinguishable from success in a log, and is
+    // exactly the diagnostic that sent this round looking in the wrong place.
+    const found = [name ? 'name' : null, avatar ? 'avatar' : null].filter(Boolean);
+    const status =
+      found.length === 2
+        ? 'read: name and avatar'
+        : found.length === 1
+          ? `read: ${found[0]} only`
+          : `read: no name, no avatar (${Object.keys(tags).length} meta tags` +
+            `${tags['og:title'] ? `, og:title ${JSON.stringify(tags['og:title'].slice(0, 60))}` : ', no og:title'})`;
+
+    return { avatar, name, status };
   } catch {
     return { avatar: null, name: null, status: 'unreachable' };
   }

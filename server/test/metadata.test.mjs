@@ -999,3 +999,242 @@ test('a malformed URL produces no profile information at all', async () => {
     assert.equal(result.creatorAvatarUrl, null, url);
   }
 });
+
+// --- the Facebook display name and avatar --------------------------------
+//
+// After the handle fix the live service returned `@1Nesh.D` and the profile
+// URL, with `creator` and `creatorAvatarUrl` still null and a fallback line
+// reading `profile page (...): read`.
+//
+// Two things were wrong, and the diagnostic hid the second:
+//
+// 1. `read` was returned for any 200 that was not a detected login wall,
+//    whether or not anything had been extracted. It meant "a page came back",
+//    which in a log is indistinguishable from success.
+// 2. `looksLikeProse` rejected any string containing a full stop, so every
+//    name with one in it was discarded — including this page's own, `1Nesh.D`.
+
+test('a name with a full stop in it is a name', () => {
+  // The page this was reported against is called `1Nesh.D`. Its own name was
+  // the first thing the prose test threw away.
+  for (const [title, expected] of Object.entries({
+    '1Nesh.D': '1Nesh.D',
+    '1Nesh.D | Facebook': '1Nesh.D',
+    'Nesh D.': 'Nesh D.',
+    'St. Nesh Travels': 'St. Nesh Travels',
+    'Nesh D - Home | Facebook': 'Nesh D',
+    'Nesh D - Videos | Facebook': 'Nesh D',
+    'Nesh Dumlao Travel & Food': 'Nesh Dumlao Travel & Food',
+    'Nesh D (@1Nesh.D) | Facebook': 'Nesh D',
+  })) {
+    assert.equal(creatorFromOgTitle(title, 'facebook')?.name, expected, title);
+  }
+});
+
+test('post prose is still refused as a name', () => {
+  for (const title of [
+    'El Nido Palawan Philippines. El Nido on the island of Palawan in the Philippines is one of the most beautiful places.',
+    'El Nido Palawan Philippines.',
+    'Check out my trip #sagada',
+    'Sagada in two days: 800 pesos for the cave tour, and go early in the morning!',
+    'https://example.com/post',
+  ]) {
+    assert.equal(creatorFromOgTitle(title, 'facebook'), null, title);
+  }
+});
+
+test('the wall wording is never read as a creator', () => {
+  // Six ordinary words with no punctuation: it passes every prose test, so it
+  // has to be refused by name.
+  for (const title of [
+    'Log in or sign up to view',
+    'Log In or Sign Up',
+    'Log into Facebook',
+    'Sign up for Facebook',
+    'Sign in to continue',
+    'You must log in to continue',
+  ]) {
+    assert.equal(creatorFromOgTitle(title, 'facebook'), null, title);
+    assert.equal(isBoilerplate(title), true, title);
+  }
+  // And a business whose name merely starts with one of those words is fine.
+  for (const title of ['Login Travel Co', 'Signature Travels', 'Sign Co Manila']) {
+    assert.ok(creatorFromOgTitle(title, 'facebook')?.name, title);
+  }
+});
+
+test('Facebook: the display name and avatar come off the profile page', async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes('/share/r/')) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: 'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+        },
+      });
+    }
+    if (/facebook\.com\/1Nesh\.D\/?$/.test(url)) {
+      // A page whose og:title is the vanity name, full stop included.
+      return new Response(
+        '<meta property="og:title" content="1Nesh.D | Facebook">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg?a=1&amp;b=2">',
+        { status: 200 },
+      );
+    }
+    return FB_VIDEO_PAGE();
+  };
+
+  const result = await readMetadata(
+    'https://www.facebook.com/share/r/14twxTeWCtK/?mibextid=wwXIfr',
+    { fetchImpl },
+  );
+
+  assert.equal(result.creator, '1Nesh.D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+  assert.equal(
+    result.creatorAvatarUrl,
+    'https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg?a=1&b=2',
+  );
+  assert.equal(result.sources.creatorAvatarUrl, 'profile page og:image');
+  // The status says what it found, not merely that a page came back.
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('read: name and avatar')),
+    result.fallbacks.join(' | '),
+  );
+
+  // And the fields that were already working are untouched.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(result.thumbnailUrl);
+});
+
+test('a profile page with only an avatar reports exactly that', async () => {
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () =>
+          new Response(
+            '<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/a.jpg">',
+            { status: 200 },
+          ),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null, 'no name published, so none reported');
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/v/a.jpg');
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('read: avatar only')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a profile page that yields nothing says so, with what it did carry', async () => {
+  // THE case the old `read` status hid. A 200 that is not a login wall and
+  // carries nothing usable: the status now names the shortfall and quotes the
+  // og:title it did find, which is what makes the next step obvious.
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () =>
+          new Response(
+            '<meta property="og:site_name" content="Facebook">' +
+              '<meta property="og:title" content="Facebook">',
+            { status: 200 },
+          ),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  // Not reported as read.
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('read: no name, no avatar')),
+    result.fallbacks.join(' | '),
+  );
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('og:title')),
+    'the title it did carry is quoted, so the shortfall can be seen',
+  );
+  // Nothing fabricated, and nothing that worked is lost.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(result.thumbnailUrl);
+});
+
+test('a walled profile page is reported as walled, not as empty', async () => {
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () =>
+          new Response(
+            '<meta property="og:title" content="Log in or sign up to view">',
+            { status: 200 },
+          ),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null, 'the wall text is never a name');
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('login wall')),
+    result.fallbacks.join(' | '),
+  );
+});
+
+test('a profile page that refuses the request says which way it refused', async () => {
+  for (const [status, expected] of [
+    [403, 'HTTP 403'],
+    [404, 'HTTP 404'],
+    [429, 'HTTP 429'],
+  ]) {
+    const result = await readMetadata(
+      'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+      {
+        fetchImpl: stubFetch({
+          '/videos/': FB_VIDEO_PAGE,
+          '': () => new Response('no', { status }),
+        }),
+      },
+    );
+    assert.equal(result.creator, null);
+    assert.ok(
+      result.fallbacks.some((line) => line.includes(expected)),
+      `${status}: ${result.fallbacks.join(' | ')}`,
+    );
+  }
+});
+
+test('the profile page is read for a name even when an avatar was already found', async () => {
+  // The post page carried an avatar in its JSON-LD but no name. The profile
+  // fetch still has to run, or the name is lost for the sake of one request.
+  const post = () =>
+    new Response(
+      '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+        '<meta property="og:title" content="El Nido Palawan Philippines. One of the most beautiful places on earth.">' +
+        '<meta property="og:description" content="Tour A is 1400 pesos.">' +
+        '<script type="application/ld+json">{"author":{"image":"https://cdn.test/ld-avatar.jpg"}}</script>',
+      { status: 200 },
+    );
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl: stubFetch({
+      '/videos/': post,
+      '': () => new Response('<meta property="og:title" content="Nesh D">', { status: 200 }),
+    }),
+  });
+
+  assert.equal(result.creatorAvatarUrl, 'https://cdn.test/ld-avatar.jpg');
+  assert.equal(result.sources.creatorAvatarUrl, 'ld+json');
+  assert.equal(result.creator, 'Nesh D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+});
