@@ -44,6 +44,24 @@ class ClaudeApiException implements Exception {
     return const {408, 409, 429, 500, 502, 503, 504, 529}.contains(status);
   }
 
+  /// Whether the address this build was given is not a usable URL.
+  ///
+  /// Separate from [isUnreachable] because the two send someone to different
+  /// places. An unreachable service is a network to check; a misconfigured one
+  /// is a setting to correct, and no amount of retrying or moving to better
+  /// signal will touch it.
+  bool get isMisconfigured => type == ClaudeClient.configurationErrorType;
+
+  /// Whether the request never reached a server at all.
+  ///
+  /// Worth separating from [isTransient] even though both retry the same way:
+  /// they are retried alike but they are not the same thing to be told. A 529
+  /// means the service answered and asked for a moment; a null status means
+  /// nothing answered, which on a phone is usually the connection and not the
+  /// service. Reporting the second as "the service is busy" sends someone to
+  /// wait on a service that was never the problem.
+  bool get isUnreachable => status == null;
+
   /// Whether the service is busy, rather than the request, the key or the
   /// network being wrong. 529 is the API's own "overloaded" status.
   bool get isOverloaded {
@@ -51,31 +69,16 @@ class ClaudeApiException implements Exception {
     return const {500, 502, 503, 504, 529}.contains(status);
   }
 
-  /// Whether the address Nook is pointed at does not serve this route at all.
-  ///
-  /// A 404 is ambiguous and the two readings need opposite responses. The API
-  /// answers one for a model id it does not have, and says so: the message is
-  /// `model: claude-...`. A service answers one for a path it does not serve,
-  /// and names the path instead. The first is worth trying another id for; the
-  /// second fails identically for every id, because the request never reached
-  /// a model at all.
-  ///
-  /// Read the wrong way round this is quiet and expensive. A routing 404
-  /// retired every candidate in turn, ran the list out, and reported "check
-  /// CLAUDE_MODEL" — sending the search to the one setting that was not the
-  /// problem while the actual fault was a `/v1` in the wrong half of the URL.
-  bool get isEndpointMissing {
-    if (status != 404 && type != 'not_found_error') return false;
-    return !message.toLowerCase().contains('model');
-  }
-
   /// Whether this model id is gone or unavailable to this key, so the next
   /// candidate is worth trying instead of retrying this one.
   bool get isModelUnavailable {
-    // A path that does not exist is not a model that does not exist, however
-    // similar the status code looks.
-    if (isEndpointMissing) return false;
-    if (status == 404 || type == 'not_found_error') return true;
+    // A 404 from Nook's own service means the path was wrong, not that the
+    // model is gone — and telling someone to check CLAUDE_MODEL when the
+    // address is missing its `/v1` sends them to the wrong file entirely.
+    // Anthropic's own "no such model" 404 names the model; this one does not.
+    if (status == 404 || type == 'not_found_error') {
+      return message.toLowerCase().contains('model');
+    }
     if (status != 400) return false;
     final lower = message.toLowerCase();
     return lower.contains('model') &&
@@ -175,23 +178,7 @@ class ClaudeClient {
        _http = httpClient ?? http.Client(),
        _random = random ?? Random();
 
-  /// The origin only. The `/v1` belongs to [messagesPath], not to the base.
-  ///
-  /// It used to live here, and that was the bug: pointing the client at a
-  /// backend replaced the whole base, so a service at
-  /// `https://nook-ai.example.workers.dev` was asked for `/messages` while it
-  /// serves `/v1/messages`, and every call came back
-  /// `404 not_found_error: Unknown endpoint.`
-  static const anthropicBase = 'https://api.anthropic.com';
-
-  /// The one route Nook speaks, wherever it is pointed.
-  ///
-  /// Anthropic serves `POST /v1/messages`, and Nook's own service deliberately
-  /// mirrors that path so the two are interchangeable. Keeping it in one place
-  /// is what stops the client and the service drifting apart again; the same
-  /// value is pinned in `server/api-contract.json` and asserted from both
-  /// sides.
-  static const messagesPath = 'v1/messages';
+  static const anthropicBase = 'https://api.anthropic.com/v1';
 
   /// Pinned, so a server-side change cannot alter the response shape under a
   /// build that is already out.
@@ -204,21 +191,82 @@ class ClaudeClient {
   /// Whether the key is being sent from here, which only happens off the web.
   bool get sendsKeyDirectly => _apiKey != null;
 
-  /// Trims a configured address down to its origin.
+  /// `error.type` on a failure raised before anything is sent.
+  static const configurationErrorType = 'configuration_error';
+
+  /// The configured address, made usable.
   ///
-  /// Accepts a backend written either way. `NOOK_AI_BACKEND` is set by hand in
-  /// a repository variable, and whether someone includes the `/v1` is a coin
-  /// toss — so both land on the same request instead of one of them 404ing or
-  /// producing `/v1/v1/messages`.
+  /// This value is typed by hand into a repository variable or an env file,
+  /// and two things go wrong when it is. A stray space, which is invisible.
+  /// And a missing scheme: `https://nook-ai.example.workers.dev/v1` and
+  /// `nook-ai.example.workers.dev/v1` look equally correct written down, but
+  /// `Uri` reads the second as a path with no host at all. The request then
+  /// fails before it leaves the browser, with nothing to report but a failure
+  /// to connect — which sends someone to check a network that was never the
+  /// problem.
+  ///
+  /// So the scheme is supplied when it is missing, exactly as a browser's
+  /// address bar would. Nothing else is guessed: a wrong host or a missing
+  /// `/v1` is still wrong, and says so in its own words.
   static String _normaliseBase(String value) {
     var base = value.trim();
     while (base.endsWith('/')) {
       base = base.substring(0, base.length - 1);
     }
-    if (base.endsWith('/v1')) {
-      base = base.substring(0, base.length - '/v1'.length);
+    if (base.isEmpty) return base;
+
+    var parsed = Uri.tryParse(base);
+    if (parsed == null || !parsed.hasScheme) {
+      base = 'https://$base';
+      parsed = Uri.tryParse(base);
     }
-    return base;
+    // Nothing host-shaped to work with. Left as it is so that _endpoint can
+    // refuse it by name rather than this quietly inventing an address.
+    if (parsed == null || parsed.host.isEmpty) return base;
+
+    final segments = [
+      ...parsed.pathSegments.where((segment) => segment.isNotEmpty),
+    ];
+
+    // The method is appended by the caller, so a base that already carries it
+    // would ask for /v1/messages/messages. This is the shape someone lands on
+    // by pasting the endpoint from the documentation, which names the full
+    // URL, into a setting that wants the base.
+    while (segments.isNotEmpty && segments.last == 'messages') {
+      segments.removeLast();
+    }
+
+    // And this is the shape someone lands on by being told to make sure the
+    // address ends in /v1 when it already did.
+    while (segments.length >= 2 &&
+        segments.last == 'v1' &&
+        segments[segments.length - 2] == 'v1') {
+      segments.removeLast();
+    }
+
+    // A bare host is the commonest setting of all, and the version is not
+    // optional: this client speaks one API, and both the service and
+    // api.anthropic.com serve it under /v1. A path that says something else is
+    // left alone, because it was meant.
+    if (segments.isEmpty) segments.add('v1');
+
+    return '${parsed.scheme}://${parsed.authority}/${segments.join('/')}';
+  }
+
+  /// The URL for [path], or a failure that names the setting to fix.
+  ///
+  /// Raised as a [ClaudeApiException] rather than a `FormatException` so it
+  /// travels the same path as every other failure and reaches the screen as a
+  /// sentence, instead of escaping as an uncaught error.
+  Uri _endpoint(String path) {
+    final uri = Uri.tryParse('$_base/$path');
+    if (uri == null || uri.host.isEmpty || !uri.hasScheme) {
+      throw ClaudeApiException(
+        type: configurationErrorType,
+        message: 'The AI service address is not a usable web address: "$_base".',
+      );
+    }
+    return uri;
   }
   final RetryPolicy retry;
   final Random _random;
@@ -228,7 +276,7 @@ class ClaudeClient {
     required Map<String, Object?> body,
     RetryNotice? onRetry,
   }) {
-    return _send(messagesPath, body: body, onRetry: onRetry);
+    return _send('messages', body: body, onRetry: onRetry);
   }
 
   void close() => _http.close();
@@ -240,7 +288,7 @@ class ClaudeClient {
     RetryNotice? onRetry,
   }) async {
     final started = DateTime.now();
-    final uri = Uri.parse('$_base/$path');
+    final uri = _endpoint(path);
     ClaudeApiException? last;
 
     for (var attempt = 1; attempt <= retry.maxAttempts; attempt++) {

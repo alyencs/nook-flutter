@@ -18,12 +18,12 @@ because they happened. For what Nook is now, read the
 
 | Week | Dates | Headline | Commits |
 | --- | --- | --- | --- |
-| [1](#week-1) | 24–30 Aug 2026 | Repository from the course template | 1 |
-| [2](#week-2) | 31 Aug – 6 Sep 2026 | Planning reconciled, then the whole app built | 2 |
-| [3](#week-3) | 7–13 Sep 2026 | Review pass, and the extraction pipeline rebuilt twice | 9 |
-| [4](#week-4) | 14–20 Sep 2026 | No commits | 0 |
-| [5](#week-5) | 21–27 Sep 2026 | Editorial redesign, Recently Deleted, animations, documentation | 9 |
-| [6](#week-6) | 28 Sep – 4 Oct 2026 | The real logo, slower motion, a deterministic extractor | — |
+| [1](#week-1--the-repository-exists) | 24–30 Aug 2026 | Repository from the course template | 1 |
+| [2](#week-2--planning-turned-into-a-running-app) | 31 Aug – 6 Sep 2026 | Planning reconciled, then the whole app built | 2 |
+| [3](#week-3--the-review-pass-and-the-extraction-pipeline-rebuilt-twice) | 7–13 Sep 2026 | Review pass, and the extraction pipeline rebuilt twice | 9 |
+| [4](#week-4--no-commits) | 14–20 Sep 2026 | No commits | 0 |
+| [5](#week-5--the-editorial-redesign-recently-deleted-and-the-animations) | 21–27 Sep 2026 | Editorial redesign, Recently Deleted, animations, documentation | 9 |
+| [6](#week-6--the-real-logo-slower-motion-and-an-extractor-that-answers-the-same-way-twice) | 28 Sep – 4 Oct 2026 | The real logo, slower motion, a deterministic extractor | — |
 
 ---
 

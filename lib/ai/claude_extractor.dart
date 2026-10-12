@@ -78,16 +78,17 @@ class ClaudeExtractor implements AiExtractor {
   /// The name the model calls to hand its answer back. The reply is the tool's
   /// arguments, so there is no prose to find JSON inside of.
   ///
-  /// It is also one of the two operations Nook's service offers, and the only
-  /// two it offers: a request naming anything else is refused, which is what
-  /// stops the published address being usable as a general chat endpoint. So
-  /// the name has to match the service's allowlist exactly. It read
-  /// `record_post_details` while every server-side copy — `wrangler.toml`,
-  /// the README, the defaults, even the test file written to catch exactly
-  /// this — said `record_extraction`, so extraction was refused with
+  /// It is also half of a contract with Nook's AI service, which refuses any
+  /// request that does not name one of the two tasks it offers — the control
+  /// that stops the published address being usable as a general chat
+  /// endpoint. The names have to match on both sides exactly. This one read
+  /// `record_post_details` while every server-side copy said
+  /// `record_extraction`, so extraction was refused with
   /// `400 The tool "record_post_details" is not offered by this service.`
-  /// It is pinned in `server/api-contract.json` now and asserted from both
-  /// sides.
+  ///
+  /// Pinned now from both directions: `extraction_contract_test.dart` against
+  /// the service's own allowlist, and `server/api-contract.json` against the
+  /// Node suite.
   static const toolName = 'record_extraction';
 
   /// A ceiling, so a reply cannot run until it times out — set high enough for
@@ -621,15 +622,30 @@ call it more than once.
       return "Nook has hit today's limit for analysing posts. It resets on its "
           'own — try again in a little while, or enter the details yourself.';
     }
-    if (e.isEndpointMissing) {
-      return 'Nook\'s AI service did not recognise the request. Check '
-          'AI_BACKEND_URL in nook.env (or the NOOK_AI_BACKEND repository '
-          'variable): it should be the service\'s address on its own, with no '
-          'path after it.';
+    if (e.status == 404 && !e.isModelUnavailable) {
+      return "Nook's AI service answered, but it serves nothing at the address "
+          'it was asked at. The address should be the service on its own, '
+          'ending in /v1 and nothing after it — NOOK_AI_BACKEND on a deployed '
+          'build, AI_BACKEND_URL when running locally.';
     }
     if (e.isModelUnavailable) {
       return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
           'your nook.env file, or leave it blank to use the default.';
+    }
+    if (e.status == 404) {
+      return "Nook's AI service answered, but it serves nothing at the address "
+          'it was asked at. The address should be the service on its own, '
+          'ending in /v1 and nothing after it — NOOK_AI_BACKEND on a deployed '
+          'build, AI_BACKEND_URL when running locally.';
+    }
+    if (e.isMisconfigured) {
+      return "Nook's AI service address is not a usable web address, so "
+          'nothing could be sent. Check NOOK_AI_BACKEND on a deployed '
+          'build, or AI_BACKEND_URL when running locally.';
+    }
+    if (e.isUnreachable) {
+      return "Nook couldn't reach its AI service. Check your connection and "
+          'try again, or enter the details yourself.';
     }
     if (e.isTransient) {
       return "We couldn't analyse this post right now. Nook tried a few times "

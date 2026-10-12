@@ -103,11 +103,25 @@ a real request instead of asking whether the service is awake.
 
 ### 5. Point the app at it
 
+> **Include the `/v1` on the end.** This is the one step that is easy to get
+> wrong, and getting it wrong fails in a way that does not look like a URL
+> problem — see [If extraction or the itinerary does nothing](#if-extraction-or-the-itinerary-does-nothing).
+>
+> The value is the address from step 4 **plus `/v1`**:
+> `https://nook-ai.your-subdomain.workers.dev/v1`
+
+Why: the app configures a *base*, and appends the method to it. `ClaudeClient`
+sends to `<base>/messages` (`lib/ai/claude_api.dart`), exactly as it would to
+Anthropic's own base of `https://api.anthropic.com/v1`. This service answers on
+`/v1/messages` so that the two are interchangeable. So the base has to carry
+the `/v1`, or the request lands on `/messages`, which the service does not
+serve.
+
 Two places, because local and deployed builds are configured separately.
 
 **Deployed:** in the repository, *Settings → Secrets and variables → Actions →
-Variables → New repository variable*. Name `NOOK_AI_BACKEND`, value the
-address from step 4. Push, and the build picks it up.
+Variables → New repository variable*. Name `NOOK_AI_BACKEND`, value the address
+from step 4 with `/v1` appended. Push, and the build picks it up.
 
 It is a *variable*, not a secret, and that is correct: the address is public
 by necessity — the browser has to know where to knock — and marking it secret
@@ -116,8 +130,11 @@ would only hide it from the build log while still publishing it in the bundle.
 **Locally:** put it in `nook.env` at the project root:
 
 ```
-AI_BACKEND_URL=https://nook-ai.your-subdomain.workers.dev
+AI_BACKEND_URL=https://nook-ai.your-subdomain.workers.dev/v1
 ```
+
+Note that the commented example inside `.env.example` omits the `/v1`. Add it
+when you copy the line across.
 
 ### 6. Lock the origin down
 
@@ -183,6 +200,37 @@ source actually carries it.
 Three of those four have no title field at all, which is the point: a post with
 a caption and no title is a complete post, and the caption is where the venue,
 the city and the price live.
+
+## Troubleshooting
+
+### If extraction or the itinerary does nothing
+
+Both features fall back to a plain "could not do this right now" message rather
+than showing a status code, so the browser's Network tab is where the answer
+is. Open it, trigger the feature, and look at the request to your service.
+
+| What you see | What it means | Fix |
+| --- | --- | --- |
+| **404**, path ends `/messages` | The configured base is missing its `/v1`. This is the common one. | Re-read step 5. The base ends `/v1`. |
+| **403**, and the response has no `access-control-allow-origin` | `ALLOWED_ORIGINS` is set and does not list the origin the page is served from. | Add that exact origin, scheme and all, then redeploy. |
+| **400**, message naming a field | The request carried something the allowlist refuses. | The message names the field. If it names `max_tokens`, see the note below. |
+| **429** with a `retry-after` | The per-IP rate limit. | Wait, or raise `RATE_LIMIT`. |
+| **503**, "no API key configured" | `wrangler secret put` was never run, or ran against a different Worker. | Re-run step 3. |
+| No request at all | The build has no service configured, so the sample extractor is running. The screens say so. | Set `NOOK_AI_BACKEND` (deployed) or `AI_BACKEND_URL` (local) and rebuild. |
+| **404** on `/v1/metadata` | The service is an older build, from before it could read posts. The app carries on without the caption. | Redeploy: `npx wrangler deploy`. |
+| A post saves with no caption or creator | The post is private, deleted or login-gated, or the platform served a sign-in page. The answer carries a `reason` saying which. | Nothing to fix. Nook reads public posts; use manual entry. |
+
+### The `max_tokens` ceiling
+
+`MAX_OUTPUT_TOKENS` must be at least as large as the biggest answer the app
+asks for, which is **6144** (an itinerary; extraction asks 4096). A lower
+ceiling refuses the app's own traffic: Explore Itinerary comes back with
+"We couldn't build an itinerary right now" while every unit test still passes,
+because the refusal only happens on the live path.
+
+This was a real defect — the ceiling shipped at 4096 before it was found by
+driving the app in a browser. `test/app_contract.test.mjs` now pins the app's
+real request sizes so the two cannot drift apart silently again.
 
 ## Settings
 

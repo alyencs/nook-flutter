@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 /// Holds a text field's focus when it is tapped while already focused.
@@ -18,6 +19,16 @@ import 'package:flutter/widgets.dart';
 /// and has lost it a moment later, with nothing else having taken it. In that
 /// one case the focus is handed straight back. A tap that legitimately moves
 /// focus elsewhere gives it to another node, so it is left alone.
+///
+/// **Pointer input only.** The repair is a mouse-pointer fix for a transform
+/// that only a mouse pointer meets, and running it on a finger breaks the
+/// things a finger is for. Dropping focus on a touch device closes the soft
+/// keyboard, and taking it back a frame later reopens it, so a tap reads as a
+/// keyboard that flickers and goes away. Worse, the native selection toolbar —
+/// the one holding Paste — is dismissed the moment the field loses focus, so a
+/// long press could never reach it. Touch is therefore left entirely alone:
+/// the platform's own handling of tap, long press, selection and paste is
+/// already correct, and this widget's job is to not be in its way.
 class TapKeepsFocus extends StatefulWidget {
   const TapKeepsFocus({
     super.key,
@@ -48,7 +59,15 @@ class _TapKeepsFocusState extends State<TapKeepsFocus> {
     super.dispose();
   }
 
-  void _onPointerDown(PointerDownEvent _) {
+  void _onPointerDown(PointerDownEvent event) {
+    // A finger is handled by the platform, correctly, and must not be
+    // interrupted: see the note on the class.
+    if (event.kind == PointerDeviceKind.touch ||
+        event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus) {
+      return;
+    }
+
     // Only a tap that lands on an already-focused field can hit this; a tap
     // meant for another field lands on that field's own listener instead, so
     // there is no case here where focus is being moved away on purpose.

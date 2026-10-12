@@ -711,7 +711,6 @@ void main() {
         type: 'not_found_error',
       );
 
-      expect(route.isEndpointMissing, isTrue);
       expect(
         route.isModelUnavailable,
         isFalse,
@@ -730,7 +729,6 @@ void main() {
         type: 'not_found_error',
       );
 
-      expect(terse.isEndpointMissing, isTrue);
       expect(terse.isModelUnavailable, isFalse);
     });
 
@@ -741,7 +739,6 @@ void main() {
         type: 'not_found_error',
       );
 
-      expect(gone.isEndpointMissing, isFalse);
       expect(gone.isModelUnavailable, isTrue);
     });
   });

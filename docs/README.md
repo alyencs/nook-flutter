@@ -19,6 +19,12 @@ listed — is [`SECURITY-CHECKLIST.md`](../SECURITY-CHECKLIST.md) at the root of
 the repository, next to the README, because that is where a reader looks for it.
 `06` explains the reasoning; the checklist is the evidence.
 
+Two further documents live outside this folder, next to what they describe:
+[`../server/README.md`](../server/README.md) for the AI service — what it does
+with the key, the limits it enforces, how to deploy it and what to check when a
+request fails — and [`../AI-USAGE.md`](../AI-USAGE.md) for the account of how
+AI was used in building the project.
+
 ## Reading these
 
 - **01, 02 and 03 are the planning documents**, kept as submitted. Where the
