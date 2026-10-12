@@ -754,3 +754,248 @@ test('an empty or malformed response is not a crash', async () => {
     assert.equal(typeof result.fetched, 'boolean', JSON.stringify(body));
   }
 });
+
+// --- the two posts that were tested against the live Worker ---------------
+//
+// Both failed the same way, and these fixtures are built from what the
+// deployed service actually returned for them rather than from what these
+// pages were assumed to look like. The caption and the thumbnail came back
+// fine in both cases; only the creator fields were empty, and in both cases
+// the account name was sitting in the URL the whole time.
+
+/** instagram.com/forbestravelguide/reel/DMpu7-9ue06/ — name but no handle. */
+const IG_REEL_WITH_USER_IN_PATH = html(`<!doctype html><html><head>
+<meta property="og:type" content="video">
+<meta property="og:title" content="Forbes Travel Guide on Instagram: &quot;Sunset over El Nido&quot;">
+<meta property="og:description" content="412 likes, 18 comments - forbestravelguide on July 28, 2025: &quot;Golden hour in El Nido, Palawan 🌅 Island hopping from Corong-Corong beach, ₱1,800 per person for Tour A. #elnido #palawan #philippines&quot;">
+<meta property="og:image" content="https://scontent.cdninstagram.com/v/reel-DMpu7.jpg">
+<script type="application/ld+json">
+{"@type":"VideoObject","author":{"@type":"Person","name":"Forbes Travel Guide",
+ "image":"https://scontent.cdninstagram.com/v/avatar-ftg.jpg"}}
+</script>
+</head><body></body></html>`);
+
+test('Instagram: the username in the path becomes the handle and the URL', async () => {
+  // What the live service returned: creator "Forbes Travel Guide", caption and
+  // avatar fine, and creatorHandle / creatorUrl / canonicalUrl all null —
+  // while `forbestravelguide` sat in the URL that was passed in. JSON-LD here
+  // carries the name and the avatar but no `alternateName` and no `url`, which
+  // is why nothing downstream had a handle to work from.
+  const asked = 'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/';
+  const result = await readMetadata(asked, {
+    fetchImpl: stubFetch({
+      '/forbestravelguide/reel/': IG_REEL_WITH_USER_IN_PATH,
+      '/forbestravelguide/': html(
+        '<meta property="og:image" content="https://scontent.cdninstagram.com/v/avatar-ftg.jpg">',
+      ),
+    }),
+  });
+
+  assert.equal(result.creatorHandle, '@forbestravelguide');
+  assert.equal(result.creatorUrl, 'https://www.instagram.com/forbestravelguide/');
+  // This page publishes no `og:url`, so the canonical IS the pasted URL and
+  // either label is the same string. The case where they differ is below.
+  assert.ok(
+    ['canonical url', 'url as pasted'].includes(result.sources.creatorHandle),
+    result.sources.creatorHandle,
+  );
+  assert.equal(result.sources.creatorUrl, 'derived from handle');
+
+  // The display name stays the published one. The handle must never be
+  // promoted into it.
+  assert.equal(result.creator, 'Forbes Travel Guide');
+  assert.notEqual(result.creator, 'forbestravelguide');
+
+  // And none of the fields that already worked are disturbed.
+  assert.match(result.caption, /El Nido, Palawan/);
+  assert.match(result.caption, /₱1,800/);
+  assert.match(result.caption, /🌅/);
+  assert.deepEqual(result.hashtags, ['elnido', 'palawan', 'philippines']);
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.cdninstagram.com/v/avatar-ftg.jpg');
+  assert.equal(result.thumbnailUrl, 'https://scontent.cdninstagram.com/v/reel-DMpu7.jpg');
+  assert.equal(result.title, null, 'a byline is not a title');
+});
+
+test('Instagram: an og:url that drops the username falls back to the pasted URL', async () => {
+  // Instagram's own canonical for a reel is `/reel/<code>/` — the account is
+  // not in it. Deriving the handle from the canonical alone therefore loses
+  // the username that the URL the person pasted was carrying all along, which
+  // is why both are tried.
+  const page = html(`<!doctype html><html><head>
+<meta property="og:url" content="https://www.instagram.com/reel/DMpu7-9ue06/">
+<meta property="og:title" content="Forbes Travel Guide on Instagram">
+<meta property="og:description" content="412 likes - forbestravelguide: &quot;Golden hour in El Nido&quot;">
+</head><body></body></html>`);
+
+  const result = await readMetadata(
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    { fetchImpl: stubFetch({ '': page }), withAvatar: false },
+  );
+
+  assert.equal(result.creatorHandle, '@forbestravelguide');
+  assert.equal(result.sources.creatorHandle, 'url as pasted');
+  assert.equal(result.creatorUrl, 'https://www.instagram.com/forbestravelguide/');
+});
+
+test('Instagram: a reel URL without a username still yields no handle', async () => {
+  // `/reel/<code>/` carries no account, and inventing one from the code would
+  // be a fabricated creator.
+  const result = await readMetadata('https://www.instagram.com/reel/DMpu7-9ue06/', {
+    fetchImpl: stubFetch({ '': IG_REEL_WITH_USER_IN_PATH }),
+    withAvatar: false,
+  });
+
+  assert.equal(result.creatorHandle, null);
+  assert.equal(result.creatorUrl, null);
+  // The name the page published is still there.
+  assert.equal(result.creator, 'Forbes Travel Guide');
+});
+
+/**
+ * facebook.com/share/r/14twxTeWCtK/ — the share link, which redirects to a
+ * canonical video URL carrying the page's vanity name.
+ *
+ * The post's own `og:title` is the video's text, not a name, which is why no
+ * display name can be read from the post page: `creatorFromOgTitle` refuses
+ * prose, correctly. The page's name is on the page's own profile.
+ */
+const FB_VIDEO_PAGE = html(`<!doctype html><html><head>
+<meta property="og:type" content="video.other">
+<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/el-nido-palawan-philippines-el-nido-on-the-island-of-palawan-in-the-philippines-/691651166719048/">
+<meta property="og:title" content="El Nido Palawan Philippines. El Nido on the island of Palawan in the Philippines is one of the most beautiful places on earth.">
+<meta property="og:description" content="El Nido Palawan Philippines 🏝️ El Nido on the island of Palawan in the Philippines is one of the most beautiful places on earth. Tour A is ₱1,400.">
+<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/t15/691651166719048.jpg?a=1&amp;b=2">
+</head><body></body></html>`);
+
+test('Facebook: the share link resolves and the page identifier is read', async () => {
+  // What the live service returned for this exact post: caption and thumbnail
+  // fine, canonicalUrl resolved to `/1Nesh.D/videos/...`, and creator,
+  // creatorHandle, creatorUrl and creatorAvatarUrl all null — with `1Nesh.D`
+  // sitting in that canonical URL.
+  const log = [];
+  const fetchImpl = async (url) => {
+    log.push(url);
+    if (url.includes('/share/r/')) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location:
+            'https://www.facebook.com/1Nesh.D/videos/el-nido-palawan-philippines-el-nido-on-the-island-of-palawan-in-the-philippines-/691651166719048/',
+        },
+      });
+    }
+    if (/facebook\.com\/1Nesh\.D\/?$/.test(url)) {
+      return html(
+        '<meta property="og:title" content="Nesh D">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg">',
+      )();
+    }
+    if (url.includes('/videos/')) return FB_VIDEO_PAGE();
+    return new Response('not found', { status: 404 });
+  };
+
+  const result = await readMetadata(
+    'https://www.facebook.com/share/r/14twxTeWCtK/?mibextid=wwXIfr',
+    { fetchImpl },
+  );
+
+  // The page identifier, from the canonical the share link redirected to.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.equal(result.sources.creatorHandle, 'canonical url');
+
+  // The display name comes from the page's own profile, which is the only
+  // place Facebook publishes one for a video post — the post's og:title is
+  // the video's text.
+  assert.equal(result.creator, 'Nesh D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+  assert.equal(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg');
+
+  // Caption and thumbnail were never dependent on any of that.
+  assert.match(result.caption, /El Nido/);
+  assert.match(result.caption, /Palawan/);
+  assert.match(result.caption, /₱1,400/);
+  assert.equal(
+    result.thumbnailUrl,
+    'https://scontent.xx.fbcdn.net/v/t15/691651166719048.jpg?a=1&b=2',
+  );
+  assert.equal(result.title, null, 'the post text is not a title');
+  assert.ok(result.canonicalUrl.includes('/1Nesh.D/videos/'));
+});
+
+test('Facebook: a prose og:title never becomes a display name', async () => {
+  // With no profile page to read, the name stays null rather than becoming the
+  // first sentence of the video.
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    {
+      fetchImpl: stubFetch({
+        '/videos/': FB_VIDEO_PAGE,
+        '': () => new Response('denied', { status: 403 }),
+      }),
+    },
+  );
+
+  assert.equal(result.creator, null, 'a sentence is not a name');
+  // But the identifier from the URL is real and is kept.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('profile page')),
+    'the attempt and its outcome are recorded',
+  );
+});
+
+test('Facebook: every link shape is handled', async () => {
+  const shapes = {
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/': '@1Nesh.D',
+    'https://www.facebook.com/1Nesh.D/posts/pfbid0abc123': '@1Nesh.D',
+    'https://m.facebook.com/1Nesh.D/videos/691651166719048/': '@1Nesh.D',
+    'https://www.facebook.com/reel/691651166719048': null,
+    'https://www.facebook.com/watch/?v=691651166719048': null,
+    'https://www.facebook.com/share/r/14twxTeWCtK/': null,
+    'https://fb.watch/aBcDeFgHiJ/': null,
+    'https://www.facebook.com/profile.php?id=100064': null,
+  };
+
+  for (const [url, expected] of Object.entries(shapes)) {
+    const result = await readMetadata(url, {
+      fetchImpl: stubFetch({ '': () => new Response('<html></html>', { status: 200 }) }),
+      withAvatar: false,
+    });
+    assert.equal(result.creatorHandle, expected, url);
+  }
+});
+
+test('a caption survives when every creator field fails', async () => {
+  // The guarantee: creator extraction failing must never cost the caption,
+  // which is where the destination is.
+  const result = await readMetadata('https://www.facebook.com/share/r/abc/', {
+    fetchImpl: stubFetch({
+      '': html(
+        '<meta property="og:description" content="El Nido Palawan Philippines 🏝️ Tour A is ₱1,400.">',
+      ),
+    }),
+  });
+
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorHandle, null);
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.match(result.caption, /El Nido Palawan Philippines/);
+  assert.equal(result.fetched, true, 'a caption alone is a readable post');
+});
+
+test('a malformed URL produces no profile information at all', async () => {
+  for (const url of [
+    'https://www.instagram.com//reel//',
+    'https://www.facebook.com/',
+    'https://www.instagram.com/%20/reel/abc/',
+  ]) {
+    const result = await readMetadata(url, {
+      fetchImpl: stubFetch({ '': () => new Response('<html></html>', { status: 200 }) }),
+      withAvatar: false,
+    });
+    assert.equal(result.creator, null, url);
+    assert.equal(result.creatorAvatarUrl, null, url);
+  }
+});

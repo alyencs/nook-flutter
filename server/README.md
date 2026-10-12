@@ -195,10 +195,10 @@ source actually carries it.
 | --- | --- | --- | --- | --- |
 | Title | yes, a real one | no title field | no title field | no title field |
 | Caption / description | yes | yes | yes | yes |
-| Creator name | oEmbed | oEmbed | JSON-LD, else `og:title` | **`og:title` only** |
-| Creator handle | oEmbed | oEmbed | JSON-LD or `og:title` | none published |
-| Creator profile URL | oEmbed | oEmbed | JSON-LD, else derived | derived from a vanity path, if the URL has one |
-| Creator avatar | API key, or the channel page | embedded state blob, else profile page | JSON-LD, else profile page | none for `/reel/` or `/watch/` |
+| Creator name | oEmbed | oEmbed | JSON-LD, else `og:title` | the page's own profile `og:title` |
+| Creator handle | oEmbed | oEmbed | the account in the URL path | the page in the canonical URL path |
+| Creator profile URL | oEmbed | oEmbed | derived from the handle | derived from the handle |
+| Creator avatar | API key, or the channel page | embedded state blob, else profile page | JSON-LD, else profile page | the page's own profile `og:image` |
 | Thumbnail | oEmbed | oEmbed | `og:image` | `og:image` |
 | Hashtags | from the caption | from the caption | from the caption | from the caption |
 | Short links resolved | `youtu.be` | `vt.`/`vm.tiktok.com` | `instagr.am` | `fb.watch`, `fb.me` |
@@ -209,6 +209,19 @@ and no handle in its markup; its only creator source is the display name in
 `og:title`, read on its own. TikTok has oEmbed and so needs none of that.
 Instagram has neither oEmbed nor a bare name — it has JSON-LD, and an
 `og:title` of the form `Name (@handle)`.
+
+**The account is usually in the URL, and that is a first-class source.**
+`instagram.com/forbestravelguide/reel/<code>/` and
+`facebook.com/1Nesh.D/videos/<slug>/<id>/` both name the account in their first
+path segment; a Facebook share link names it only in the canonical it redirects
+to, and Instagram's own `og:url` drops it. So the handle is taken from the
+canonical and from the URL as pasted, whichever has one, and the profile URL is
+derived from the handle — which is what then makes the avatar reachable.
+
+A first segment that is one of the platform's own route words (`reel`, `p`,
+`share`, `watch`, `videos`) is not an account, and neither is the path of a
+short-link host (`fb.watch`, `vt.tiktok.com`): reading one as a handle invents
+a creator that never existed.
 
 Nothing is read from `og:see_also`. An earlier version read the creator out of
 it on all three; no platform serves that tag on a post page, and because the
@@ -268,7 +281,7 @@ and is never one of these.
 ## Working on it
 
 ```bash
-npm test          # 87 tests, no key needed, nothing spent
+npm test          # 95 tests, no key needed, nothing spent
 npm run dev       # wrangler dev, reads .dev.vars
 ```
 
@@ -354,6 +367,8 @@ curl -s -X POST https://your-service.workers.dev/v1/metadata \
 | `oembedAnswered: false` on TikTok | TikTok rate-limited the lookup; the caption still comes from `og:description`. |
 | `sources.creatorAvatarUrl: "rejected: same image as the post thumbnail"` | The avatar source returned the post's cover, so it was dropped rather than shown as a face. |
 | No `sources` key for a field | Nothing published it. That is the honest answer, not a bug. |
+| `fallbacks` naming a profile page and `login wall` | The account's page is not public, so no avatar and no display name. The handle is still real. |
+| `sources.creatorHandle: "canonical url"` | The share or short link was resolved and the account came from where it landed. |
 
 If the app shows "Nook couldn't read this post" and names `/v1/metadata`, the
 service is running a build from before it could read posts — `npx wrangler

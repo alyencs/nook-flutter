@@ -202,7 +202,7 @@ seeds a small fictional demo library so the app opens looking like the design.
 
 ```bash
 flutter analyze    # clean
-flutter test       # 456 tests, 453 passing — see known issues below
+flutter test       # 459 tests, 456 passing — see known issues below
 flutter build web --release
 dart run build_runner build --delete-conflicting-outputs   # after editing lib/data/tables.dart
 ```
@@ -432,9 +432,12 @@ a post *out* of Nook is drawn but inert.
   URL** — there is no handle in the markup or the URL to find a profile from.
   When there is no avatar the UI draws the creator's initial rather than
   inventing a face, and the post's own thumbnail is never substituted for one.
-- **Facebook publishes no handle.** A `/reel/<id>` or `/watch/?v=<id>` post
-  gives a display name and nothing else. A `/<page>/posts/<id>` URL gives the
-  vanity name as well. Neither is a bug; nothing further is published.
+- **Facebook names the account in the URL, not in the markup.** A share link
+  resolves to `/<page>/videos/<slug>/<id>/`, and that `<page>` is the account —
+  which is where the handle, the profile URL and then the avatar come from. A
+  `/reel/<id>` or `/watch/?v=<id>` link carries no account anywhere, so those
+  posts keep their caption and thumbnail and have no named creator. That is
+  what Facebook publishes, not a bug.
 - **A private, deleted or login-gated post cannot be read, and says so.** Nook
   reads public posts. It does not sign in, and it will not guess at a caption
   it cannot see — those saves keep the placeholder and offer manual entry.

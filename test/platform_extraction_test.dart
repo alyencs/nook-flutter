@@ -522,6 +522,8 @@ void main() {
 
   group('when the service cannot read the post', serviceFailureTests);
 
+  group('the posts tested against the deployed service', reportedPostTests);
+
   group('short links', () {
     test('the resolved address is given to the model', () {
       final source = SourceMetadata(
@@ -841,5 +843,210 @@ void serviceFailureTests() {
 
     expect(result.sourceNote, isNull, reason: 'nothing to explain on a success');
     expect(result.caption, contains('Good Taste Baguio'));
+  });
+}
+
+/// The two posts tested against the deployed Worker, carried the whole way.
+///
+/// Both came back with a caption and a thumbnail and no creator at all. The
+/// account name was in the URL in both cases: `forbestravelguide` in the
+/// Instagram path, and `1Nesh.D` in the canonical a Facebook share link
+/// redirects to. These assert the fields the service now supplies survive the
+/// client, the draft and the row.
+void reportedPostTests() {
+  const backend = 'https://nook-ai.example.workers.dev';
+
+  ({ClaudeExtractor extractor, List<String> prompts}) wiredTo(
+    Map<String, Object?> metadata,
+    Map<String, Object?> toolInput,
+  ) {
+    final prompts = <String>[];
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/v1/metadata')) {
+        return http.Response(
+          jsonEncode(metadata),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      final body = jsonDecode(request.body) as Map<String, Object?>;
+      prompts.add(
+        '${body['system']}\n${((body['messages'] as List).first as Map)['content']}',
+      );
+      return http.Response(
+        jsonEncode({
+          'id': 'm',
+          'type': 'message',
+          'role': 'assistant',
+          'stop_reason': 'tool_use',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 't',
+              'name': ClaudeExtractor.toolName,
+              'input': {'title': 'A post', 'category': 'Other', ...toolInput},
+            },
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    return (
+      extractor: ClaudeExtractor(backendUrl: backend, httpClient: client),
+      prompts: prompts,
+    );
+  }
+
+  test('the Facebook share link: creator, handle, URL and avatar all arrive', () async {
+    const url = 'https://www.facebook.com/share/r/14twxTeWCtK/?mibextid=wwXIfr';
+    final w = wiredTo(
+      const {
+        'platform': 'facebook',
+        'url': url,
+        'canonicalUrl':
+            'https://www.facebook.com/1Nesh.D/videos/el-nido-palawan-philippines/691651166719048/',
+        'title': null,
+        'caption':
+            'El Nido Palawan Philippines 🏝️ El Nido on the island of Palawan '
+            'in the Philippines is one of the most beautiful places on earth. '
+            'Tour A is ₱1,400 per person.',
+        'hashtags': <String>[],
+        'creator': 'Nesh D',
+        'creatorHandle': '@1Nesh.D',
+        'creatorUrl': 'https://www.facebook.com/1Nesh.D',
+        'creatorAvatarUrl': 'https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg',
+        'thumbnailUrl': 'https://scontent.xx.fbcdn.net/v/t15/691651166719048.jpg',
+        'mediaType': 'video',
+        'fetched': true,
+        'reason': null,
+      },
+      const {
+        'title': 'El Nido, Palawan',
+        'place_name': 'El Nido',
+        'city': 'El Nido',
+        'region': 'Palawan',
+        'country': 'Philippines',
+        'budget_note': '₱1,400 per person for Tour A',
+        'latitude': 11.1949,
+        'longitude': 119.4159,
+      },
+    );
+
+    final result = await w.extractor.extract(url);
+
+    // Every field that came back null from the live service.
+    expect(result.creator, 'Nesh D');
+    expect(result.creatorHandle, '@1Nesh.D');
+    expect(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+    expect(result.creatorAvatarUrl, 'https://scontent.xx.fbcdn.net/v/avatar-nesh.jpg');
+    // Distinct from the post's cover.
+    expect(result.creatorAvatarUrl, isNot(result.thumbnailUrl));
+
+    // The destination out of the caption, with no title anywhere.
+    expect(result.title, 'El Nido, Palawan');
+    expect(result.caption, contains('El Nido Palawan Philippines'));
+    expect(result.city, 'El Nido');
+    expect(result.region, 'Palawan');
+    expect(result.country, 'Philippines');
+    expect(result.budgetNote, contains('₱1,400'));
+    expect(result.destination, contains('El Nido'));
+    expect(result.sourceNote, isNull);
+
+    // And the caption reached the model as a caption, under "no title".
+    expect(w.prompts.single, contains('CAPTION:'));
+    expect(w.prompts.single, contains('El Nido'));
+    expect(w.prompts.single, contains('TITLE: (none'));
+
+    // Through the draft, which is what the review screen reads.
+    final draft = PostDraft.fromLink(url: url, result: result);
+    expect(draft.creator, 'Nesh D');
+    expect(draft.creatorHandle, '@1Nesh.D');
+    expect(draft.creatorAvatarUrl, isNotNull);
+    expect(draft.city, 'El Nido');
+  });
+
+  test('the Instagram reel: the handle and profile URL arrive, the name is kept', () async {
+    const url = 'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/';
+    final w = wiredTo(
+      const {
+        'platform': 'instagram',
+        'url': url,
+        'canonicalUrl': null,
+        'title': null,
+        'caption':
+            'Golden hour in El Nido, Palawan 🌅 Island hopping from '
+            'Corong-Corong beach, ₱1,800 per person for Tour A. '
+            '#elnido #palawan #philippines',
+        'hashtags': ['elnido', 'palawan', 'philippines'],
+        'creator': 'Forbes Travel Guide',
+        'creatorHandle': '@forbestravelguide',
+        'creatorUrl': 'https://www.instagram.com/forbestravelguide/',
+        'creatorAvatarUrl': 'https://scontent.cdninstagram.com/v/avatar-ftg.jpg',
+        'thumbnailUrl': 'https://scontent.cdninstagram.com/v/reel-DMpu7.jpg',
+        'mediaType': 'video',
+        'fetched': true,
+        'reason': null,
+      },
+      const {
+        'title': 'Golden hour in El Nido',
+        'place_name': 'Corong-Corong Beach',
+        'city': 'El Nido',
+        'region': 'Palawan',
+        'country': 'Philippines',
+        'budget_note': '₱1,800 per person for Tour A',
+      },
+    );
+
+    final result = await w.extractor.extract(url);
+
+    expect(result.creatorHandle, '@forbestravelguide');
+    expect(result.creatorUrl, 'https://www.instagram.com/forbestravelguide/');
+    // The display name must not be overwritten by the username.
+    expect(result.creator, 'Forbes Travel Guide');
+    expect(result.creator, isNot('forbestravelguide'));
+    expect(result.creatorAvatarUrl, 'https://scontent.cdninstagram.com/v/avatar-ftg.jpg');
+    expect(result.creatorAvatarUrl, isNot(result.thumbnailUrl));
+
+    expect(result.city, 'El Nido');
+    expect(result.placeName, 'Corong-Corong Beach');
+    expect(result.caption, contains('🌅'));
+    expect(result.caption, contains('₱1,800'));
+    expect(w.prompts.single, contains('HASHTAGS: #elnido #palawan #philippines'));
+  });
+
+  test('a caption with no creator at all is still saved whole', () async {
+    const url = 'https://www.facebook.com/share/r/unknown/';
+    final w = wiredTo(
+      const {
+        'platform': 'facebook',
+        'url': url,
+        'canonicalUrl': null,
+        'title': null,
+        'caption': 'El Nido Palawan Philippines 🏝️ Tour A is ₱1,400.',
+        'hashtags': <String>[],
+        'creator': null,
+        'creatorHandle': null,
+        'creatorUrl': null,
+        'creatorAvatarUrl': null,
+        'thumbnailUrl': 'https://scontent.xx.fbcdn.net/v/t15/x.jpg',
+        'mediaType': 'video',
+        'fetched': true,
+        'reason': null,
+      },
+      const {'title': 'El Nido, Palawan', 'city': 'El Nido', 'country': 'Philippines'},
+    );
+
+    final result = await w.extractor.extract(url);
+
+    // Creator extraction failing must never cost the caption or the thumbnail.
+    expect(result.creator, isNull);
+    expect(result.creatorHandle, isNull);
+    expect(result.creatorAvatarUrl, isNull);
+    expect(result.caption, contains('El Nido Palawan Philippines'));
+    expect(result.thumbnailUrl, isNotNull);
+    expect(result.city, 'El Nido');
+    // And no notice: the post WAS read, it just has no named creator.
+    expect(result.sourceNote, isNull);
   });
 }

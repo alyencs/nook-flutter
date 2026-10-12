@@ -614,17 +614,34 @@ async function readOpenGraph(url, fetchImpl) {
  * This is the only route any of the four offers without authentication, and it
  * does not always work. It is never substituted with the post's thumbnail.
  */
-async function readCreatorAvatar(creatorUrl, fetchImpl) {
-  if (!creatorUrl || !isFetchable(creatorUrl)) return null;
+async function readCreatorProfile(creatorUrl, fetchImpl) {
+  if (!creatorUrl || !isFetchable(creatorUrl)) {
+    return { avatar: null, name: null, status: 'not fetchable' };
+  }
   try {
     const { response, finalUrl } = await get(creatorUrl, { fetchImpl });
-    if (response.status !== 200) return null;
+    if (response.status !== 200) {
+      return { avatar: null, name: null, status: `HTTP ${response.status}` };
+    }
     const html = await readCapped(response);
     const tags = parseMetaTags(html);
-    if (looksLikeLoginWall(tags, html)) return null;
-    return normaliseImageUrl(tags['og:image'], finalUrl);
+    if (looksLikeLoginWall(tags, html)) {
+      return { avatar: null, name: null, status: 'login wall' };
+    }
+
+    // A profile page's `og:title` is the account's own name — which is the
+    // only place Facebook publishes one for a video post, because the post's
+    // own `og:title` holds the post text instead.
+    const fromTitle = creatorFromOgTitle(tags['og:title'], platformOf(finalUrl));
+    return {
+      avatar:
+        normaliseImageUrl(unescapeUrl(tags['og:image']), finalUrl) ??
+        normaliseImageUrl(avatarFromEmbeddedJson(html), finalUrl),
+      name: fromTitle?.name ?? null,
+      status: 'read',
+    };
   } catch {
-    return null;
+    return { avatar: null, name: null, status: 'unreachable' };
   }
 }
 
@@ -639,29 +656,66 @@ const RESERVED_SEGMENTS = new Set([
 const looksLikeId = (segment) => /^\d+$/.test(segment) || segment.startsWith('pfbid');
 
 /**
- * `@handle` from a profile URL.
+ * Hosts whose whole path is an opaque redirect code.
  *
- * TikTok and YouTube put an `@` in the path. Instagram and Facebook do not —
- * a profile is `instagram.com/nina.reyes`, so looking only for an `@` found
- * nothing and the creator came back anonymous on exactly the two platforms
- * this was supposed to fix.
+ * `fb.watch/aBcDeFgHiJ` has the shape of a profile path and is not one. Read
+ * as an account it produces a creator handle that never existed — worse than
+ * the blank it replaces, because it looks like a fact. Resolve the redirect
+ * and read the address it lands on instead.
  */
-function handleFromUrl(url) {
+const SHORT_LINK_HOSTS = new Set([
+  'fb.watch',
+  'fb.me',
+  'vt.tiktok.com',
+  'vm.tiktok.com',
+  'instagr.am',
+  'youtu.be',
+]);
+
+/**
+ * The account named in a post URL, as `@handle` or a bare vanity name.
+ *
+ * TikTok and YouTube mark it with an `@`. Instagram and Facebook put it in the
+ * first path segment instead, and that is where it usually is — which is the
+ * whole point of this function: for both of those platforms the URL is a more
+ * reliable source of the account than anything in the markup.
+ */
+export function handleFromUrl(url) {
   let segments;
+  let host;
   try {
-    segments = new URL(url).pathname.split('/').filter(Boolean);
+    const parsed = new URL(url);
+    host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    segments = parsed.pathname.split('/').filter(Boolean);
   } catch {
     return null;
   }
+  if (SHORT_LINK_HOSTS.has(host)) return null;
+
+  // TikTok and YouTube mark the account with an `@`, wherever it sits.
   for (const segment of segments) {
     if (segment.startsWith('@') && segment.length > 1) return segment;
   }
-  // A bare vanity path, but only when it is the whole path: the first segment
-  // of a POST url is a username, while the first segment of `/reel/<id>` is
-  // not, and `/<user>/video/<id>` is handled by the `@` case above.
+
+  // Instagram and Facebook do not. There the account is the FIRST path
+  // segment, whatever follows it:
+  //
+  //   instagram.com/forbestravelguide/reel/DMpu7-9ue06/   → forbestravelguide
+  //   facebook.com/1Nesh.D/videos/el-nido-.../6916511.../ → 1Nesh.D
+  //
+  // and it is absent when that first segment is one of the platform's own
+  // route words instead:
+  //
+  //   instagram.com/reel/DMpu7-9ue06/   → none
+  //   facebook.com/share/r/14twxTeWCtK/ → none (resolve the share link first)
+  //
+  // This used to require the path be a single segment, which is the rare case
+  // — a bare profile link. Every real post URL has the account followed by
+  // `/reel/`, `/p/`, `/videos/` or `/posts/`, so the guard rejected exactly
+  // the URLs it was meant to read, and both Instagram and Facebook came back
+  // with no handle and, because the profile URL is derived from it, no avatar.
   const [first] = segments;
   if (
-    segments.length === 1 &&
     first &&
     first.length > 1 &&
     !RESERVED_SEGMENTS.has(first.toLowerCase()) &&
@@ -740,6 +794,10 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   // it, from the page being walled, and from a parser bug — and the three need
   // completely different fixes.
   const sources = {};
+  // What was tried when a field did not come from its first source. A field
+  // can be missing because the platform does not publish it or because a
+  // fallback was never reached, and those need different fixes.
+  const fallbacks = [];
   const from = (field, source, value) => {
     if (value !== null && value !== undefined && value !== '') {
       sources[field] = source;
@@ -812,8 +870,15 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
     ) ??
     from('creatorHandle', 'ld+json.url', str(ldCreator.url) ? handleFromUrl(ldCreator.url) : null);
 
+  // Both URLs are tried, because either can be the one carrying the account.
+  // Instagram's `og:url` is `/reel/<code>/` with the username dropped, while
+  // the URL as pasted is `/forbestravelguide/reel/<code>/` — so the canonical
+  // alone loses it. A Facebook share link is the other way round: `/share/r/
+  // <code>/` says nothing and the canonical it redirects to carries the page.
   const handle =
-    lookedUpHandle ?? from('creatorHandle', 'post url', handleFromUrl(canonical));
+    lookedUpHandle ??
+    from('creatorHandle', 'canonical url', handleFromUrl(canonical)) ??
+    from('creatorHandle', 'url as pasted', handleFromUrl(target));
 
   // The profile page is the avatar's only unauthenticated home on three of the
   // four, so a creator URL is worth deriving from a handle rather than giving
@@ -852,12 +917,19 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
       normaliseImageUrl(avatarFromEmbeddedJson(page.html ?? ''), page.finalUrl),
     );
 
-  if (avatar === null && withAvatar && creatorUrl) {
-    avatar = from(
-      'creatorAvatarUrl',
-      'profile page og:image',
-      await readCreatorAvatar(creatorUrl, fetchImpl),
-    );
+  let creatorName = creator;
+  if (withAvatar && creatorUrl && (avatar === null || creatorName === null)) {
+    const profile = await readCreatorProfile(creatorUrl, fetchImpl);
+    fallbacks.push(`profile page (${creatorUrl}): ${profile.status}`);
+
+    if (avatar === null) {
+      avatar = from('creatorAvatarUrl', 'profile page og:image', profile.avatar);
+    }
+    // Only ever a name the profile page stated. Never the handle dressed up as
+    // a display name, and never derived from the URL.
+    if (creatorName === null) {
+      creatorName = from('creator', 'profile page og:title', profile.name);
+    }
   }
 
   // Never the post's own cover image. If the two ever come out equal, the
@@ -876,7 +948,7 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
     title,
     caption,
     hashtags: hashtagsFrom(caption ?? ''),
-    creator,
+    creator: creatorName,
     creatorHandle: handle ? (handle.startsWith('@') ? handle : `@${handle}`) : null,
     creatorUrl,
     // Never the post thumbnail. A face that is not the creator's is worse than
@@ -888,6 +960,7 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
     // difference between "the platform does not publish it" and "the parser
     // missed it", which is otherwise indistinguishable from a null.
     sources,
+    fallbacks,
     diagnostics: {
       pageStatus: page.status,
       pageBytes: (page.html ?? '').length,
