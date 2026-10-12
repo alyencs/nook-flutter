@@ -44,6 +44,24 @@ class ClaudeApiException implements Exception {
     return const {408, 409, 429, 500, 502, 503, 504, 529}.contains(status);
   }
 
+  /// Whether the address this build was given is not a usable URL.
+  ///
+  /// Separate from [isUnreachable] because the two send someone to different
+  /// places. An unreachable service is a network to check; a misconfigured one
+  /// is a setting to correct, and no amount of retrying or moving to better
+  /// signal will touch it.
+  bool get isMisconfigured => type == ClaudeClient.configurationErrorType;
+
+  /// Whether the request never reached a server at all.
+  ///
+  /// Worth separating from [isTransient] even though both retry the same way:
+  /// they are retried alike but they are not the same thing to be told. A 529
+  /// means the service answered and asked for a moment; a null status means
+  /// nothing answered, which on a phone is usually the connection and not the
+  /// service. Reporting the second as "the service is busy" sends someone to
+  /// wait on a service that was never the problem.
+  bool get isUnreachable => status == null;
+
   /// Whether the service is busy, rather than the request, the key or the
   /// network being wrong. 529 is the API's own "overloaded" status.
   bool get isOverloaded {
@@ -54,7 +72,13 @@ class ClaudeApiException implements Exception {
   /// Whether this model id is gone or unavailable to this key, so the next
   /// candidate is worth trying instead of retrying this one.
   bool get isModelUnavailable {
-    if (status == 404 || type == 'not_found_error') return true;
+    // A 404 from Nook's own service means the path was wrong, not that the
+    // model is gone — and telling someone to check CLAUDE_MODEL when the
+    // address is missing its `/v1` sends them to the wrong file entirely.
+    // Anthropic's own "no such model" 404 names the model; this one does not.
+    if (status == 404 || type == 'not_found_error') {
+      return message.toLowerCase().contains('model');
+    }
     if (status != 400) return false;
     final lower = message.toLowerCase();
     return lower.contains('model') &&
@@ -150,7 +174,7 @@ class ClaudeClient {
          'Give it a key to call the API directly, or a backend to call instead.',
        ),
        _apiKey = apiKey,
-       _base = _trimSlash(baseUrl ?? anthropicBase),
+       _base = _normaliseBase(baseUrl ?? anthropicBase),
        _http = httpClient ?? http.Client(),
        _random = random ?? Random();
 
@@ -167,8 +191,50 @@ class ClaudeClient {
   /// Whether the key is being sent from here, which only happens off the web.
   bool get sendsKeyDirectly => _apiKey != null;
 
-  static String _trimSlash(String value) =>
-      value.endsWith('/') ? value.substring(0, value.length - 1) : value;
+  /// `error.type` on a failure raised before anything is sent.
+  static const configurationErrorType = 'configuration_error';
+
+  /// The configured address, made usable.
+  ///
+  /// This value is typed by hand into a repository variable or an env file,
+  /// and two things go wrong when it is. A stray space, which is invisible.
+  /// And a missing scheme: `https://nook-ai.example.workers.dev/v1` and
+  /// `nook-ai.example.workers.dev/v1` look equally correct written down, but
+  /// `Uri` reads the second as a path with no host at all. The request then
+  /// fails before it leaves the browser, with nothing to report but a failure
+  /// to connect — which sends someone to check a network that was never the
+  /// problem.
+  ///
+  /// So the scheme is supplied when it is missing, exactly as a browser's
+  /// address bar would. Nothing else is guessed: a wrong host or a missing
+  /// `/v1` is still wrong, and says so in its own words.
+  static String _normaliseBase(String value) {
+    var base = value.trim();
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    if (base.isEmpty) return base;
+
+    final parsed = Uri.tryParse(base);
+    if (parsed == null || !parsed.hasScheme) return 'https://$base';
+    return base;
+  }
+
+  /// The URL for [path], or a failure that names the setting to fix.
+  ///
+  /// Raised as a [ClaudeApiException] rather than a `FormatException` so it
+  /// travels the same path as every other failure and reaches the screen as a
+  /// sentence, instead of escaping as an uncaught error.
+  Uri _endpoint(String path) {
+    final uri = Uri.tryParse('$_base/$path');
+    if (uri == null || uri.host.isEmpty || !uri.hasScheme) {
+      throw ClaudeApiException(
+        type: configurationErrorType,
+        message: 'The AI service address is not a usable web address: "$_base".',
+      );
+    }
+    return uri;
+  }
   final RetryPolicy retry;
   final Random _random;
 
@@ -189,9 +255,7 @@ class ClaudeClient {
     RetryNotice? onRetry,
   }) async {
     final started = DateTime.now();
-    final uri = Uri.parse(
-      _base.endsWith('/v1') ? '$_base/$path' : '$_base/v1/$path',
-    );
+    final uri = _endpoint(path);
     ClaudeApiException? last;
 
     for (var attempt = 1; attempt <= retry.maxAttempts; attempt++) {
@@ -236,7 +300,10 @@ class ClaudeClient {
   }
 
   /// A single HTTP round trip, with every failure shaped into one exception.
-  Future<Map<String, dynamic>> _once(Uri uri, Map<String, Object?> body) async {
+  Future<Map<String, dynamic>> _once(
+    Uri uri,
+    Map<String, Object?> body,
+  ) async {
     final key = _apiKey;
     final headers = {
       'content-type': 'application/json',
@@ -267,7 +334,9 @@ class ClaudeClient {
       );
     } catch (e) {
       // No status: the request never reached a server. Retryable by definition.
-      throw ClaudeApiException(message: 'Could not reach the AI service: $e');
+      throw ClaudeApiException(
+        message: 'Could not reach the AI service: $e',
+      );
     }
 
     if (response.statusCode == 200) {
@@ -368,7 +437,11 @@ Map<String, Object?> claudeToolRequest({
     {'role': 'user', 'content': prompt},
   ],
   'tools': [
-    {'name': toolName, 'description': toolDescription, 'input_schema': schema},
+    {
+      'name': toolName,
+      'description': toolDescription,
+      'input_schema': schema,
+    },
   ],
   // Forced, not offered: there is no path where it answers in prose instead.
   'tool_choice': {'type': 'tool', 'name': toolName},

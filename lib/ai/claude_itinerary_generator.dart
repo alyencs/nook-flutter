@@ -363,9 +363,22 @@ prose, and do not call it more than once.
       return "Nook has hit today's limit for planning trips. It resets on its "
           'own — try again in a little while.';
     }
+    if (e.status == 404 && !e.isModelUnavailable) {
+      return "Nook's AI service answered, but not at the address it was asked "
+          'at. Check that AI_BACKEND_URL ends in /v1.';
+    }
     if (e.isModelUnavailable) {
       return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
           'your nook.env file, or leave it blank to use the default.';
+    }
+    if (e.isMisconfigured) {
+      return "Nook's AI service address is not a usable web address, so "
+          'nothing could be sent. Check AI_BACKEND_URL, or the '
+          'NOOK_AI_BACKEND repository variable on a deployed build.';
+    }
+    if (e.isUnreachable) {
+      return "Nook couldn't reach its AI service. Check your connection and "
+          'try again.';
     }
     if (e.isTransient) {
       return "We couldn't build an itinerary right now. Nook tried a few times "

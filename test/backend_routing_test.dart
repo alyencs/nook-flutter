@@ -159,4 +159,108 @@ void main() {
       expect(planner, isNotNull);
     });
   });
+
+  group('the address as a deployment actually types it', () {
+    /// This value is written by hand into a repository variable or an env
+    /// file, and it is written wrong in predictable ways. A missing scheme is
+    /// the expensive one: `nook-ai.example.workers.dev/v1` reads to `Uri` as a
+    /// path with no host, so the request fails before it is sent and the only
+    /// thing the screen can say is that the service could not be reached —
+    /// which sends someone to check a network that was never the problem.
+    Future<String> urlFor(String base) async {
+      var seen = '(never sent)';
+      final client = MockClient((request) async {
+        seen = request.url.toString();
+        return http.Response(
+          jsonEncode({'id': 'msg', 'type': 'message', 'content': <Object>[]}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final subject = ClaudeClient(
+        baseUrl: base,
+        httpClient: client,
+        retry: const RetryPolicy(maxAttempts: 1),
+      );
+      try {
+        await subject.createMessage(
+          body: {'model': 'm', 'max_tokens': 1, 'messages': const []},
+        );
+      } on ClaudeApiException catch (e) {
+        seen = e.isMisconfigured ? 'refused' : 'error ${e.status}';
+      }
+      subject.close();
+      return seen;
+    }
+
+    const endpoint = 'https://nook-ai.example.workers.dev/v1/messages';
+
+    test('a correctly written address reaches /v1/messages', () async {
+      expect(await urlFor('https://nook-ai.example.workers.dev/v1'), endpoint);
+    });
+
+    test('an address with no scheme is still used, not abandoned', () async {
+      expect(await urlFor('nook-ai.example.workers.dev/v1'), endpoint);
+    });
+
+    test('whitespace around the address is ignored', () async {
+      expect(
+        await urlFor('  https://nook-ai.example.workers.dev/v1  '),
+        endpoint,
+      );
+    });
+
+    test('a trailing slash does not double the one before messages', () async {
+      expect(await urlFor('https://nook-ai.example.workers.dev/v1/'), endpoint);
+    });
+
+    test('/v1 appears exactly once, never twice', () async {
+      final url = await urlFor('https://nook-ai.example.workers.dev/v1');
+      expect('/v1'.allMatches(url).length, 1);
+    });
+
+    test('an address with nothing in it is refused, not sent', () async {
+      for (final blank in ['', '   ']) {
+        expect(
+          await urlFor(blank),
+          'refused',
+          reason: 'nothing can be requested, and the message must say so',
+        );
+      }
+    });
+
+    test('a misconfigured address is not reported as a dead network', () {
+      const misconfigured = ClaudeApiException(
+        type: ClaudeClient.configurationErrorType,
+        message: 'The AI service address is not a usable web address: "".',
+      );
+
+      expect(misconfigured.isMisconfigured, isTrue);
+      expect(
+        misconfigured.isUnreachable,
+        isTrue,
+        reason: 'it never reached a server either — but the cause is a setting',
+      );
+    });
+
+    test("the service's own 404 is not read as a missing model", () {
+      // Nook's service answers an unknown path this way. Anthropic's "no such
+      // model" 404 names the model; this one does not, and telling someone to
+      // check CLAUDE_MODEL when the address is missing its /v1 sends them to
+      // the wrong file.
+      const unknownEndpoint = ClaudeApiException(
+        status: 404,
+        type: 'not_found_error',
+        message: 'Unknown endpoint.',
+      );
+      const goneModel = ClaudeApiException(
+        status: 404,
+        type: 'not_found_error',
+        message: 'model: claude-x not found',
+      );
+
+      expect(unknownEndpoint.isModelUnavailable, isFalse);
+      expect(goneModel.isModelUnavailable, isTrue);
+    });
+  });
 }

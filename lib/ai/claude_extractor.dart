@@ -71,6 +71,11 @@ class ClaudeExtractor implements AiExtractor {
 
   /// The name the model calls to hand its answer back. The reply is the tool's
   /// arguments, so there is no prose to find JSON inside of.
+  ///
+  /// It is also half of a contract with Nook's AI service, which refuses any
+  /// request that does not name one of the two tasks it offers. The names have
+  /// to match on both sides exactly, so this one is pinned by
+  /// `extraction_contract_test.dart` against the service's own allowlist.
   static const toolName = 'record_extraction';
 
   /// A ceiling, so a reply cannot run until it times out — set high enough for
@@ -196,7 +201,8 @@ class ClaudeExtractor implements AiExtractor {
       claudeToolRequest(
         model: model,
         system: _instructions,
-        prompt: '--- SOURCE ---\n${source.toPromptBlock()}--- END SOURCE ---',
+        prompt:
+            '--- SOURCE ---\n${source.toPromptBlock()}--- END SOURCE ---',
         toolName: toolName,
         toolDescription:
             'Record what the SOURCE block says about this post. Call this '
@@ -245,23 +251,17 @@ class ClaudeExtractor implements AiExtractor {
             'The specific cafe, restaurant, shop, hotel or landmark '
             'the post is about, if it names one.',
       },
-      'address': {
-        'type': ['string', 'null'],
-      },
+      'address': {'type': ['string', 'null']},
       'neighbourhood': {
         'type': ['string', 'null'],
         'description': 'District or neighbourhood, e.g. "Nakazakicho".',
       },
-      'city': {
-        'type': ['string', 'null'],
-      },
+      'city': {'type': ['string', 'null']},
       'region': {
         'type': ['string', 'null'],
         'description': 'Prefecture, state or province.',
       },
-      'country': {
-        'type': ['string', 'null'],
-      },
+      'country': {'type': ['string', 'null']},
       'category': {'type': 'string', 'enum': NookCategories.all},
       'summary': {
         'type': ['string', 'null'],
@@ -287,9 +287,7 @@ class ClaudeExtractor implements AiExtractor {
             'region or country, its own centre. Null only when the post names '
             'nowhere at all.',
       },
-      'longitude': {
-        'type': ['number', 'null'],
-      },
+      'longitude': {'type': ['number', 'null']},
       'places': {
         'type': 'array',
         'description':
@@ -329,8 +327,7 @@ class ClaudeExtractor implements AiExtractor {
     'required': ['title', 'category'],
   };
 
-  static const _instructions =
-      '''
+  static const _instructions = '''
 You extract travel metadata from a saved social media post for a trip-planning
 app called Nook. Everything you need is in the SOURCE block below.
 
@@ -583,6 +580,19 @@ call it more than once.
     if (e.isModelUnavailable) {
       return 'Nook could not reach a working AI model. Check CLAUDE_MODEL in '
           'your nook.env file, or leave it blank to use the default.';
+    }
+    if (e.status == 404) {
+      return "Nook's AI service answered, but not at the address it was asked "
+          'at. Check that AI_BACKEND_URL ends in /v1.';
+    }
+    if (e.isMisconfigured) {
+      return "Nook's AI service address is not a usable web address, so "
+          'nothing could be sent. Check AI_BACKEND_URL, or the '
+          'NOOK_AI_BACKEND repository variable on a deployed build.';
+    }
+    if (e.isUnreachable) {
+      return "Nook couldn't reach its AI service. Check your connection and "
+          'try again, or enter the details yourself.';
     }
     if (e.isTransient) {
       return "We couldn't analyse this post right now. Nook tried a few times "
