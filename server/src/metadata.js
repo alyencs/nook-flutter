@@ -441,7 +441,11 @@ function firstString(...values) {
  */
 export function creatorFromJsonLd(nodes) {
   for (const node of nodes) {
-    const author = node.author ?? node.creator ?? node.publisher;
+    // `author` and `creator` name who made the thing. `publisher` names who
+    // distributed it, which on a reshared video is a different entity
+    // entirely — and reading it as the creator attributed a name that had
+    // nothing to do with the account whose page it was.
+    const author = node.author ?? node.creator;
     if (author === null || author === undefined) continue;
 
     const candidates = Array.isArray(author) ? author : [author];
@@ -660,6 +664,7 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
   if (!creatorUrl || !isFetchable(creatorUrl)) {
     return { avatar: null, name: null, status: 'not fetchable' };
   }
+  const asked = handleFromUrl(creatorUrl);
   try {
     const { response, finalUrl } = await get(creatorUrl, { fetchImpl });
     if (response.status !== 200) {
@@ -669,6 +674,32 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
     const tags = parseMetaTags(html);
     if (looksLikeLoginWall(tags, html)) {
       return { avatar: null, name: null, status: 'login wall' };
+    }
+
+    // Is this still the account that was asked for?
+    //
+    // `get` follows redirects, and the name and the avatar were being read off
+    // whatever page it landed on with no check that the page was still the
+    // right account. A vanity URL that redirects to a different account
+    // therefore produced a confident display name belonging to somebody else —
+    // reported with the same `read: name and avatar` as a correct read, so
+    // nothing downstream or in the diagnostics could tell the two apart.
+    const landed = handleFromUrl(finalUrl);
+    const sameAccount =
+      asked === null ||
+      landed === null ||
+      landed.toLowerCase().replace(/^@/, '') === asked.toLowerCase().replace(/^@/, '');
+
+    if (!sameAccount) {
+      // Facebook does canonicalise a vanity path to `/people/<Name>/<id>` for
+      // the same account, which is why this is not simply fatal — but that
+      // form has no handle in it, so `landed` is null and it takes the branch
+      // above. A redirect to a DIFFERENT handle is a different account.
+      return {
+        avatar: null,
+        name: null,
+        status: `redirected to a different account (asked ${asked}, landed ${landed})`,
+      };
     }
 
     const platform = platformOf(finalUrl);
@@ -687,9 +718,16 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
     // The avatar. `og:image` first, then the page's own state blob, then
     // JSON-LD's author image, then `twitter:image`, which some profile pages
     // carry when `og:image` is absent.
+    // `og:image`, JSON-LD's author image, then `twitter:image`. All three are
+    // statements the page makes about its own subject.
+    //
+    // `avatarFromEmbeddedJson` is deliberately NOT used here. It scans the
+    // whole document for the first `profile_pic_url`-shaped key, and a profile
+    // page embeds other people — commenters, suggestions — so the first match
+    // need not be the subject at all. On a post page that scan is the author's
+    // own state and is kept; on a profile page it is a coin toss.
     const avatar =
       normaliseImageUrl(unescapeUrl(tags['og:image']), finalUrl) ??
-      normaliseImageUrl(avatarFromEmbeddedJson(html), finalUrl) ??
       normaliseImageUrl(unescapeUrl(ldAuthor.image), finalUrl) ??
       normaliseImageUrl(unescapeUrl(tags['twitter:image']), finalUrl);
 
@@ -706,7 +744,10 @@ async function readCreatorProfile(creatorUrl, fetchImpl) {
           : `read: no name, no avatar (${Object.keys(tags).length} meta tags` +
             `${tags['og:title'] ? `, og:title ${JSON.stringify(tags['og:title'].slice(0, 60))}` : ', no og:title'})`;
 
-    return { avatar, name, status };
+    // The address actually read, when it is not the one asked for. A name is
+    // only as trustworthy as the page it came off.
+    const landedNote = finalUrl === creatorUrl ? '' : ` [read ${finalUrl}]`;
+    return { avatar, name, status: `${status}${landedNote}` };
   } catch {
     return { avatar: null, name: null, status: 'unreachable' };
   }

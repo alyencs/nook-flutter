@@ -1238,3 +1238,186 @@ test('the profile page is read for a name even when an avatar was already found'
   assert.equal(result.creator, 'Nesh D');
   assert.equal(result.sources.creator, 'profile page og:title');
 });
+
+// --- the name has to belong to the account -------------------------------
+//
+// The deployed service returned `creator: "Priyasad Wattegedara"` for the
+// `@1Nesh.D` post, with `read: name and avatar`. The name may well be right —
+// a vanity URL legitimately bears no resemblance to a person's name, so
+// "it looks unrelated" is not evidence of anything. What was wrong is that
+// nothing established the association, and three paths could attribute a name
+// that did not belong to the account. All three reported the same
+// `read: name and avatar` as a correct read, so the diagnostic could not tell
+// them apart either.
+
+test('a profile URL that redirects to a different account yields nothing', async () => {
+  // The name and the avatar were read off whatever page the redirect landed
+  // on, with no check that it was still the right account.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido Palawan Philippines. Tour A is 1400 pesos.">' +
+          '<meta property="og:image" content="https://scontent.xx.fbcdn.net/post.jpg">',
+        { status: 200 },
+      );
+    }
+    if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://www.facebook.com/SomeoneElse.Page' },
+      });
+    }
+    return new Response(
+      '<meta property="og:title" content="Priyasad Wattegedara">' +
+        '<meta property="og:image" content="https://cdn.test/other-avatar.jpg">',
+      { status: 200 },
+    );
+  };
+
+  const result = await readMetadata(
+    'https://www.facebook.com/1Nesh.D/videos/x/1/',
+    { fetchImpl },
+  );
+
+  assert.equal(result.creator, null, 'a name off another account is not this one');
+  assert.equal(result.creatorAvatarUrl, null);
+  assert.ok(
+    result.fallbacks.some((line) => line.includes('redirected to a different account')),
+    result.fallbacks.join(' | '),
+  );
+  // And the status names both accounts, so the mismatch is auditable.
+  assert.ok(result.fallbacks.some((line) => line.includes('1Nesh.D')));
+  assert.ok(result.fallbacks.some((line) => line.includes('SomeoneElse.Page')));
+
+  // Everything that did not depend on the profile page survives.
+  assert.equal(result.creatorHandle, '@1Nesh.D');
+  assert.equal(result.creatorUrl, 'https://www.facebook.com/1Nesh.D');
+  assert.match(result.caption, /El Nido/);
+  assert.ok(result.thumbnailUrl);
+});
+
+test('a redirect to the same account is still read', async () => {
+  // A trailing slash, http to https, or a `?locale=` are all the same account
+  // and must not be refused.
+  for (const landing of [
+    'https://www.facebook.com/1Nesh.D/',
+    'https://www.facebook.com/1Nesh.D?locale=en_GB',
+  ]) {
+    const fetchImpl = async (url) => {
+      if (url.includes('/videos/')) {
+        return new Response(
+          '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+            '<meta property="og:description" content="El Nido.">',
+          { status: 200 },
+        );
+      }
+      if (/facebook\.com\/1Nesh\.D$/.test(url)) {
+        return new Response(null, { status: 302, headers: { location: landing } });
+      }
+      return new Response('<meta property="og:title" content="Nesh D">', { status: 200 });
+    };
+
+    const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+      fetchImpl,
+    });
+    assert.equal(result.creator, 'Nesh D', landing);
+  }
+});
+
+test('a JSON-LD publisher is not read as the creator', () => {
+  // `publisher` names who distributed the content. On a reshared video that is
+  // a different entity from the account whose page it is, and reading it as
+  // the creator attributed an unrelated name.
+  const nodes = parseJsonLd(`
+    <script type="application/ld+json">
+    {"@type":"VideoObject","name":"El Nido",
+     "publisher":{"@type":"Organization","name":"Some Other Page",
+                  "logo":"https://cdn.test/publisher-logo.jpg"}}
+    </script>`);
+
+  assert.equal(creatorFromJsonLd(nodes), null);
+
+  // `author` and `creator` still are read — they name who made the thing.
+  for (const key of ['author', 'creator']) {
+    const withAuthor = parseJsonLd(
+      `<script type="application/ld+json">{"${key}":{"name":"Nesh D"}}</script>`,
+    );
+    assert.equal(creatorFromJsonLd(withAuthor).name, 'Nesh D', key);
+  }
+});
+
+test('a bystander avatar in a profile page is not taken as the creator', async () => {
+  // The page-state scan takes the first `profile_pic_url`-shaped key in the
+  // whole document, and a profile page embeds commenters and suggestions. On a
+  // profile page `og:image` is the subject; a key scan is not.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido.">',
+        { status: 200 },
+      );
+    }
+    return new Response(
+      '<meta property="og:title" content="1Nesh.D">' +
+        '<script>{"comments":[{"author":{"name":"Someone Else",' +
+        '"profile_pic_url":"https://cdn.test/bystander.jpg"}}]}</script>',
+      { status: 200 },
+    );
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, '1Nesh.D', 'the page states its own name');
+  assert.equal(
+    result.creatorAvatarUrl,
+    null,
+    'no avatar is better than a stranger-s face',
+  );
+});
+
+test('a post page state blob is still a valid avatar source', async () => {
+  // The narrowing above is for profile pages only. TikTok publishes the video
+  // author-s avatar in the post page-s own state, and that must keep working.
+  const result = await readMetadata('https://www.tiktok.com/@mika.eats/video/1', {
+    fetchImpl: stubFetch({
+      '/oembed': () => new Response('no', { status: 404 }),
+      '': () =>
+        new Response(
+          '<meta property="og:title" content="Mika Eats (@mika.eats) | TikTok">' +
+            '<meta property="og:description" content="wings in Baguio">' +
+            '<script>{"user":{"avatarLarger":"https://p16.test/mika.jpg"}}</script>',
+          { status: 200 },
+        ),
+    }),
+    withAvatar: false,
+  });
+
+  assert.equal(result.creatorAvatarUrl, 'https://p16.test/mika.jpg');
+  assert.equal(result.sources.creatorAvatarUrl, 'embedded json');
+});
+
+test('the source of the display name is always stated', async () => {
+  // The question "where did this name come from" has to be answerable from the
+  // response alone, which is what `sources.creator` is for.
+  const fetchImpl = async (url) => {
+    if (url.includes('/videos/')) {
+      return new Response(
+        '<meta property="og:url" content="https://www.facebook.com/1Nesh.D/videos/x/1/">' +
+          '<meta property="og:description" content="El Nido.">',
+        { status: 200 },
+      );
+    }
+    return new Response('<meta property="og:title" content="Nesh D">', { status: 200 });
+  };
+
+  const result = await readMetadata('https://www.facebook.com/1Nesh.D/videos/x/1/', {
+    fetchImpl,
+  });
+
+  assert.equal(result.creator, 'Nesh D');
+  assert.equal(result.sources.creator, 'profile page og:title');
+});
