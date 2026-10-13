@@ -19,6 +19,8 @@ import {
   decodeEntities,
   handleFromUrl,
   isBoilerplate,
+  isPostUrl,
+  looksLikeLandingPage,
   nameFromPeoplePath,
   parseJsonLd,
   profileUrlFor,
@@ -1833,4 +1835,248 @@ test('a profile fetch that lands on a sign-in page says so', async () => {
   assert.match(result.caption, /El Nido/);
   assert.equal(result.creatorHandle, '@1Nesh.D');
   assert.ok(result.thumbnailUrl);
+});
+
+// --- a short link that does not resolve to a post ------------------------
+//
+// `https://vt.tiktok.com/ZSbwpJaDQ/` ended at `https://www.tiktok.com/hk/about`
+// — a regional marketing page — answered 200. The response reported that page
+// as the post's `canonicalUrl`, and `@hk` as the creator with
+// `tiktok.com/@hk` as their profile.
+//
+// `hk` was read as an account because the first-path-segment rule, written for
+// Instagram and Facebook, was being applied to TikTok as well. TikTok has no
+// bare-vanity profile route at all: an account is always `@name`. And nothing
+// checked whether the address the redirect landed on was a post.
+
+test('TikTok accounts are only ever @-prefixed', () => {
+  // The reported failure: a region code read as an account.
+  assert.equal(handleFromUrl('https://www.tiktok.com/hk/about'), null);
+
+  for (const path of [
+    '/about', '/en/about', '/zh-Hant/about', '/discover/travel', '/explore',
+    '/foryou', '/music/some-song-123', '/tag/baguio', '/business', '/legal/terms',
+  ]) {
+    assert.equal(handleFromUrl(`https://www.tiktok.com${path}`), null, path);
+  }
+
+  // A real account still reads, wherever it sits in the path.
+  assert.equal(handleFromUrl('https://www.tiktok.com/@mika.eats'), '@mika.eats');
+  assert.equal(handleFromUrl('https://www.tiktok.com/@mika.eats/video/123'), '@mika.eats');
+
+  // And YouTube is the same: `@` or nothing.
+  assert.equal(handleFromUrl('https://www.youtube.com/about'), null);
+  assert.equal(handleFromUrl('https://www.youtube.com/@wanderwithmia'), '@wanderwithmia');
+
+  // Instagram and Facebook keep the first-segment rule, which they need.
+  assert.equal(
+    handleFromUrl('https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/'),
+    'forbestravelguide',
+  );
+  assert.equal(
+    handleFromUrl('https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/'),
+    '1Nesh.D',
+  );
+});
+
+test('a post address is told apart from anything else, per platform', () => {
+  for (const url of [
+    'https://www.tiktok.com/@mika.eats/video/7311223344556677889',
+    'https://www.tiktok.com/@a/photo/123',
+    'https://www.tiktok.com/v/123456',
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    'https://www.instagram.com/reel/DMpu7-9ue06/',
+    'https://www.instagram.com/p/ABC123/',
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+    'https://www.facebook.com/share/r/14twxTeWCtK/',
+    'https://www.facebook.com/watch/?v=691651166719048',
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'https://www.youtube.com/shorts/abc123XYZ',
+  ]) {
+    assert.equal(isPostUrl(url), true, url);
+  }
+
+  for (const url of [
+    'https://www.tiktok.com/hk/about',
+    'https://www.tiktok.com/about',
+    'https://www.tiktok.com/explore',
+    'https://www.tiktok.com/discover/travel',
+    'https://www.tiktok.com/@mika.eats', // a profile is not a post
+    'https://www.instagram.com/forbestravelguide/', // nor here
+    'https://www.facebook.com/1Nesh.D',
+    'not a url',
+  ]) {
+    assert.equal(isPostUrl(url), false, url);
+  }
+});
+
+test('a regional landing page is recognised as one', () => {
+  for (const path of [
+    '/hk/about', '/en/about', '/zh-Hant/about', '/about', '/hk', '/en',
+    '/foryou', '/explore', '/following', '/discover/travel', '/tag/baguio',
+    '/music/song-123', '/legal/terms', '/business', '/upload', '',
+  ]) {
+    assert.equal(
+      looksLikeLandingPage(`https://www.tiktok.com${path}`),
+      true,
+      path || '(root)',
+    );
+  }
+
+  for (const url of [
+    'https://www.tiktok.com/@mika.eats/video/7311223344556677889',
+    'https://www.tiktok.com/@mika.eats',
+    'https://www.instagram.com/forbestravelguide/reel/DMpu7-9ue06/',
+    'https://www.facebook.com/1Nesh.D/videos/el-nido/691651166719048/',
+  ]) {
+    assert.equal(looksLikeLandingPage(url), false, url);
+  }
+});
+
+test('the reported short link fabricates nothing and says what happened', async () => {
+  // The exact production case, reproduced: 301 to /hk/about, 200, five meta
+  // tags, 76KB.
+  const ABOUT =
+    '<!doctype html><html><head><title>TikTok - About</title>' +
+    '<meta name="viewport" content="width=device-width">' +
+    '<meta property="og:site_name" content="TikTok">' +
+    '<meta property="og:type" content="website">' +
+    '<meta property="og:title" content="About TikTok">' +
+    `</head><body>${'x'.repeat(2000)}</body></html>`;
+
+  const result = await readMetadata('https://vt.tiktok.com/ZSbwpJaDQ/', {
+    fetchImpl: stubFetch({
+      'vt.tiktok.com': () =>
+        new Response(null, {
+          status: 301,
+          headers: { location: 'https://www.tiktok.com/hk/about' },
+        }),
+      '/oembed': () => new Response('no', { status: 404 }),
+      '': () => new Response(ABOUT, { status: 200 }),
+    }),
+  });
+
+  // No creator invented from `hk`.
+  assert.equal(result.creatorHandle, null, '`hk` is a region, not an account');
+  assert.equal(result.creatorUrl, null);
+  assert.equal(result.creator, null);
+  assert.equal(result.creatorAvatarUrl, null);
+
+  // The landing page is not the post's address.
+  assert.equal(result.canonicalUrl, null);
+  assert.ok(
+    !JSON.stringify(result).includes('/hk/about') ||
+      result.diagnostics.finalUrl.includes('/hk/about'),
+    'the landing page appears only in the diagnostics',
+  );
+
+  // Nothing read, and the reason says why rather than "nothing readable".
+  assert.equal(result.fetched, false);
+  assert.match(result.reason, /did not resolve to a post/);
+  assert.match(result.reason, /landing page/);
+  assert.match(result.reason, /may have expired/);
+  assert.equal(result.caption, null);
+  assert.equal(result.thumbnailUrl, null);
+  assert.equal(result.mediaType, 'unknown');
+
+  // And the chain is recorded, so the cause is traceable rather than guessed.
+  assert.equal(result.diagnostics.landedElsewhere, true);
+  assert.deepEqual(result.diagnostics.redirectChain, [
+    '301 https://vt.tiktok.com/ZSbwpJaDQ/ -> https://www.tiktok.com/hk/about',
+  ]);
+});
+
+test('a short link that does resolve to a video still works', async () => {
+  // The case that must not be broken by the guard above.
+  const result = await readMetadata('https://vt.tiktok.com/ZSAbCdEf/', {
+    fetchImpl: stubFetch({
+      'vt.tiktok.com': () =>
+        new Response(null, {
+          status: 301,
+          headers: {
+            location: 'https://www.tiktok.com/@mika.eats/video/7311223344556677889',
+          },
+        }),
+      '/oembed': jsonOk({
+        type: 'video',
+        title: '₱150 unlimited wings sa Good Taste Baguio 🍗 #baguio',
+        author_name: 'Mika Eats',
+        author_unique_id: 'mika.eats',
+        author_url: 'https://www.tiktok.com/@mika.eats',
+        thumbnail_url: 'https://p16.tiktokcdn.com/obj/thumb.jpeg',
+      }),
+      '/@mika.eats/video/': html(
+        '<meta property="og:type" content="video.other">' +
+          '<meta property="og:url" content="https://www.tiktok.com/@mika.eats/video/7311223344556677889">' +
+          '<meta property="og:description" content="2.1M likes. &quot;₱150 unlimited wings sa Good Taste Baguio 🍗 #baguio&quot;">' +
+          '<meta property="og:image" content="https://p16.tiktokcdn.com/thumb.jpeg">',
+      ),
+      '/@mika.eats': html(
+        '<meta property="og:image" content="https://p16.tiktokcdn.com/avatar.jpeg">',
+      ),
+    }),
+  });
+
+  assert.equal(result.fetched, true);
+  assert.equal(result.diagnostics.landedElsewhere, false);
+  assert.equal(
+    result.canonicalUrl,
+    'https://www.tiktok.com/@mika.eats/video/7311223344556677889',
+  );
+  assert.equal(result.creator, 'Mika Eats');
+  assert.equal(result.creatorHandle, '@mika.eats');
+  assert.equal(result.creatorUrl, 'https://www.tiktok.com/@mika.eats');
+  assert.equal(result.creatorAvatarUrl, 'https://p16.tiktokcdn.com/avatar.jpeg');
+  assert.match(result.caption, /Good Taste Baguio/);
+  assert.deepEqual(result.hashtags, ['baguio']);
+  assert.equal(result.thumbnailUrl, 'https://p16.tiktokcdn.com/obj/thumb.jpeg');
+  assert.equal(result.mediaType, 'video');
+});
+
+test('a post URL that merely carries no metadata is not a landing page', async () => {
+  // The two cases must stay distinct: "the link went somewhere else" and "the
+  // post is there but published nothing" need different reasons.
+  const result = await readMetadata('https://www.tiktok.com/@mika.eats/video/1', {
+    fetchImpl: stubFetch({
+      '/oembed': () => new Response('no', { status: 404 }),
+      '': html('<meta name="viewport" content="width=device-width">'),
+    }),
+    withAvatar: false,
+  });
+
+  assert.equal(result.diagnostics.landedElsewhere, false);
+  assert.equal(result.fetched, false);
+  assert.ok(!/did not resolve to a post/.test(result.reason), result.reason);
+  // The account was in the address that was asked for, so it is still known.
+  assert.equal(result.creatorHandle, '@mika.eats');
+});
+
+test('an Instagram or Facebook redirect to a landing page is caught too', async () => {
+  for (const [url, landing] of [
+    ['https://www.instagram.com/reel/Gone123/', 'https://www.instagram.com/explore/'],
+    ['https://www.facebook.com/share/r/Gone123/', 'https://www.facebook.com/'],
+  ]) {
+    const result = await readMetadata(url, {
+      fetchImpl: stubFetch({
+        'Gone123': () => new Response(null, { status: 302, headers: { location: landing } }),
+        '': html('<meta property="og:site_name" content="Meta">'),
+      }),
+    });
+
+    assert.equal(result.diagnostics.landedElsewhere, true, url);
+    assert.equal(result.creatorHandle, null, url);
+    assert.equal(result.creator, null, url);
+    assert.equal(result.fetched, false, url);
+    assert.match(result.reason, /did not resolve to a post/, url);
+  }
+});
+
+test('/foryou is a landing page, not a sign-in page', () => {
+  // It was put in the sign-in list by mistake, which would have reported a
+  // discovery feed as "this post is not public".
+  assert.equal(looksLikeLoginUrl('https://www.tiktok.com/foryou'), false);
+  assert.equal(looksLikeLandingPage('https://www.tiktok.com/foryou'), true);
+  // The real sign-in paths are unaffected.
+  assert.equal(looksLikeLoginUrl('https://www.tiktok.com/login'), true);
+  assert.equal(looksLikeLoginUrl('https://www.instagram.com/accounts/login/'), true);
 });
