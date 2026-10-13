@@ -133,6 +133,9 @@ export function isFetchable(url) {
 /** One GET, with a timeout, a byte cap, and the redirect chain re-checked. */
 async function get(url, { fetchImpl = fetch, accept = 'text/html' } = {}) {
   let current = url;
+  // Every hop, so a short link that ends somewhere unexpected can be traced
+  // rather than guessed at. Addresses only — no headers, no cookies.
+  const chain = [];
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (!isFetchable(current)) {
@@ -159,11 +162,13 @@ async function get(url, { fetchImpl = fetch, accept = 'text/html' } = {}) {
 
     const location = response.headers?.get?.('location');
     if (response.status >= 300 && response.status < 400 && location) {
-      current = new URL(location, current).toString();
+      const next = new URL(location, current).toString();
+      chain.push(`${response.status} ${current} -> ${next}`);
+      current = next;
       continue;
     }
 
-    return { response, finalUrl: current };
+    return { response, finalUrl: current, chain };
   }
 
   throw new MetadataError('Too many redirects.', 400);
@@ -246,7 +251,7 @@ export function looksLikeLoginUrl(url) {
     // Instagram
     '/accounts/login', '/accounts/signup', '/accounts/emailsignup',
     // TikTok
-    '/signup/phone-or-email', '/foryou',
+    '/signup/phone-or-email',
   ];
   if (loginPaths.some((p) => path === p || path.startsWith(`${p}/`))) return true;
 
@@ -725,9 +730,9 @@ async function readOEmbed(url, platform, fetchImpl) {
 
 /** The post page's Open Graph tags. */
 async function readOpenGraph(url, fetchImpl) {
-  const { response, finalUrl } = await get(url, { fetchImpl });
+  const { response, finalUrl, chain } = await get(url, { fetchImpl });
   if (response.status !== 200) {
-    return { tags: {}, html: '', finalUrl, status: response.status, wall: false };
+    return { tags: {}, html: '', finalUrl, chain, status: response.status, wall: false };
   }
   const html = await readCapped(response);
   const tags = parseMetaTags(html);
@@ -738,6 +743,7 @@ async function readOpenGraph(url, fetchImpl) {
     tags,
     html,
     finalUrl,
+    chain,
     status: 200,
     wall: looksLikeLoginWall(tags, html, finalUrl),
   };
@@ -908,6 +914,106 @@ const SHORT_LINK_HOSTS = new Set([
 ]);
 
 /**
+ * Whether an address is a post, for the platform it belongs to.
+ *
+ * Needed because a redirect can land anywhere. A short link is supposed to
+ * resolve to a video; when it does not — an expired code, a region bounce, a
+ * platform declining the request — it lands on a marketing or discovery page
+ * that has nothing to do with any post. Reading that page as though it were
+ * the post is how `/hk/about` became a post's canonical URL and `@hk` its
+ * creator.
+ *
+ * Each platform's post routes are listed rather than inferred, because the
+ * four do not share a shape.
+ */
+export function isPostUrl(url, platform = null) {
+  let path;
+  let query;
+  try {
+    const parsed = new URL(url);
+    path = parsed.pathname.replace(/\/+$/, '');
+    query = parsed.searchParams;
+    platform ??= platformOf(url);
+  } catch {
+    return false;
+  }
+
+  switch (platform) {
+    case 'tiktok':
+      return (
+        // The canonical video and photo routes.
+        /^\/@[\w.-]+\/(video|photo)\/\d+$/.test(path) ||
+        // Short and embed forms, which resolve to one.
+        /^\/(v|t|embed)\/[\w.-]+$/.test(path) ||
+        /^\/embed\/v2\/\d+$/.test(path)
+      );
+    case 'instagram':
+      return /^(\/[\w.]+)?\/(p|reel|reels|tv)\/[\w-]+$/.test(path);
+    case 'facebook':
+      return (
+        /\/(videos|posts|reel|reels|photos|photo|watch)(\/|$)/.test(path) ||
+        /^\/share\/[a-z]\/[\w-]+$/i.test(path) ||
+        /\/permalink\.php$/.test(path) ||
+        /\/photo\.php$/.test(path) ||
+        query.has('v') ||
+        query.has('story_fbid')
+      );
+    case 'youtube':
+      return (
+        /^\/watch$/.test(path) ||
+        /^\/(shorts|embed|live)\/[\w-]+$/.test(path) ||
+        /^\/[\w-]{11}$/.test(path) // youtu.be
+      );
+    default:
+      return false;
+  }
+}
+
+/**
+ * A page the platform serves instead of a post: marketing, discovery, a
+ * region picker. Not an error and not a wall — simply not what was asked for.
+ *
+ * `/hk/about` is the one this was written for. A two-letter region prefix in
+ * front of a static page is TikTok's own shape, and a short link that ends
+ * there did not resolve to a video.
+ */
+export function looksLikeLandingPage(url) {
+  let path;
+  try {
+    path = new URL(url).pathname.toLowerCase().replace(/\/+$/, '');
+  } catch {
+    return false;
+  }
+  // An optional two-letter region or locale prefix: /hk/about, /en/about,
+  // /zh-hant/about.
+  const withoutRegion = path.replace(/^\/[a-z]{2}(-[a-z]{2,4})?(?=\/)/, '');
+
+  const landings = [
+    '', '/', '/about', '/foryou', '/following', '/friends', '/explore',
+    '/discover', '/upload', '/download', '/business', '/creators',
+    '/legal', '/privacy', '/terms', '/safety', '/community-guidelines',
+    '/help', '/support', '/setting', '/settings', '/activity',
+    '/notifications', '/messages', '/coin', '/live', '/trending',
+  ];
+  if (landings.includes(withoutRegion)) return true;
+
+  // The static families have sub-pages: `/legal/terms`, `/help/article/123`.
+  // Matching only the exact path missed every one of them.
+  const families = [
+    '/legal', '/help', '/support', '/business', '/creators', '/safety',
+    '/privacy', '/terms', '/about', '/setting', '/settings', '/community-guidelines',
+  ];
+  if (families.some((family) => withoutRegion.startsWith(`${family}/`))) return true;
+  // A region prefix and nothing else: `/hk`.
+  if (/^\/[a-z]{2}(-[a-z]{2,4})?$/.test(path)) return true;
+  // Discovery and tag listings carry a term, not a post.
+  if (/^(\/[a-z]{2}(-[a-z]{2,4})?)?\/(discover|tag|music|search|explore)\//.test(path)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * The display name Facebook puts in a canonical profile path, or null.
  *
  * An account with no vanity URL canonicalises to
@@ -965,10 +1071,12 @@ export function nameFromPeoplePath(url) {
 export function handleFromUrl(url) {
   let segments;
   let host;
+  let platform;
   try {
     const parsed = new URL(url);
     host = parsed.hostname.toLowerCase().replace(/^www\./, '');
     segments = parsed.pathname.split('/').filter(Boolean);
+    platform = platformOf(url);
   } catch {
     return null;
   }
@@ -978,6 +1086,14 @@ export function handleFromUrl(url) {
   for (const segment of segments) {
     if (segment.startsWith('@') && segment.length > 1) return segment;
   }
+
+  // On TikTok and YouTube that `@` is the only form an account takes — there
+  // is no bare-vanity profile route on either. So the rule below, which reads
+  // the first path segment as an account, must not reach them: applied to
+  // TikTok it turned `/hk/about` — a regional marketing page — into the
+  // account `@hk`, with a profile URL of `tiktok.com/@hk` to match. A
+  // fabricated creator, for a page that is not a profile and not a post.
+  if (platform === 'tiktok' || platform === 'youtube') return null;
 
   // Instagram and Facebook do not. There the account is the FIRST path
   // segment, whatever follows it:
@@ -1039,7 +1155,7 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   // Open Graph first, because it resolves the short link and gives the
   // canonical URL that oEmbed then needs: TikTok's oEmbed does not answer a
   // vt.tiktok.com address, which is exactly what the mobile share sheet copies.
-  let page = { tags: {}, html: '', finalUrl: target, status: 0, wall: false };
+  let page = { tags: {}, html: '', finalUrl: target, chain: [], status: 0, wall: false };
   let pageError = null;
   try {
     page = await readOpenGraph(target, fetchImpl);
@@ -1067,9 +1183,32 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   // was going to ask for, that is used; otherwise the address as pasted.
   const loginRedirect = looksLikeLoginUrl(page.finalUrl);
   const recovered = loginRedirect ? targetOfLoginRedirect(page.finalUrl) : null;
+
+  // Did the redirect chain land on a post at all?
+  //
+  // A short link is supposed to resolve to a video. When it does not — an
+  // expired code, a region bounce, the platform declining the request — it
+  // lands on a marketing or discovery page, answered 200, that has nothing to
+  // do with any post. Nothing checked, so `/hk/about` became the post's
+  // canonical URL and `hk` its creator.
+  //
+  // Only counted when the address actually moved: a post URL that simply
+  // carries no metadata is a different case, handled by `fetched` below.
+  const landedElsewhere =
+    page.finalUrl !== target &&
+    !loginRedirect &&
+    looksLikeLandingPage(page.finalUrl) &&
+    !isPostUrl(page.finalUrl, platform);
+
+  if (landedElsewhere) page = { ...page, tags: {}, html: '' };
+
   const canonical = loginRedirect
     ? (recovered ?? target)
-    : (normaliseImageUrl(page.tags['og:url'], page.finalUrl) ?? page.finalUrl);
+    : landedElsewhere
+      // A landing page is not the post's address. Fall back to the link as
+      // pasted, which at least still names what was asked for.
+      ? target
+      : (normaliseImageUrl(page.tags['og:url'], page.finalUrl) ?? page.finalUrl);
   const oembed = (await readOEmbed(canonical, platform, fetchImpl)) ?? {};
 
   const str = (value) => {
@@ -1171,7 +1310,13 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
   // <code>/` says nothing and the canonical it redirects to carries the page.
   const handle =
     lookedUpHandle ??
-    from('creatorHandle', 'canonical url', handleFromUrl(canonical)) ??
+    // Not from a landing page. `canonical` already falls back to the pasted
+    // link when the redirect went astray, so this reads the right address —
+    // but the guard is explicit because the cost of getting it wrong is a
+    // creator who does not exist.
+    (landedElsewhere
+      ? null
+      : from('creatorHandle', 'canonical url', handleFromUrl(canonical))) ??
     from('creatorHandle', 'url as pasted', handleFromUrl(target)) ??
     // The post URL out of a sign-in redirect's `next=`. Facebook naming the
     // post it wants a session for still names the account, so the handle and
@@ -1272,12 +1417,22 @@ export async function readMetadata(url, { fetchImpl = fetch, withAvatar = true }
       jsonLdBlocks: jsonLd.length,
       loginWall: wall,
       loginRedirect,
+      landedElsewhere,
+      // Addresses only. This is what makes a short link that ends somewhere
+      // odd traceable instead of a matter of opinion.
+      redirectChain: page.chain ?? [],
       metaTagCount: served.tags,
     },
     fetched: readAnything,
     reason: readAnything
       ? null
-      : loginRedirect
+      : landedElsewhere
+        ? `That link did not resolve to a post — ${NookPlatformLabel(platform)} ` +
+          `redirected it to ${page.finalUrl}, which is one of its own landing ` +
+          'pages rather than a video. The link may have expired, or the ' +
+          'platform may have declined to serve it. Opening it in a browser ' +
+          'will show which.'
+        : loginRedirect
         ? `This post is not public — ${NookPlatformLabel(platform)} redirected to ` +
           'a sign-in page instead of serving it. Nook reads public posts only, ' +
           'and does not sign in.'

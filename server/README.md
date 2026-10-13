@@ -281,7 +281,7 @@ and is never one of these.
 ## Working on it
 
 ```bash
-npm test          # 123 tests, no key needed, nothing spent
+npm test          # 131 tests, no key needed, nothing spent
 npm run dev       # wrangler dev, reads .dev.vars
 ```
 
@@ -373,6 +373,8 @@ curl -s -X POST https://your-service.workers.dev/v1/metadata \
 | `[read https://www.facebook.com/people/<Name>/<id>/]` | Facebook canonicalised the vanity URL. That path is Facebook's own statement of the account's name, reached by following its redirect, and is used as the name of last resort. |
 | `redirected to a different account (asked X, landed Y)` | The profile URL went somewhere else. Nothing is taken from that page. |
 
+| `diagnostics.redirectChain` | Every hop, addresses only. What makes a short link that ends somewhere odd traceable rather than a matter of opinion. |
+| `diagnostics.landedElsewhere: true` | The redirect ended on one of the platform's own landing pages — `/hk/about`, `/explore`, a region picker — not on a post. Nothing is read from such a page and no creator is derived from its path. |
 | `diagnostics.loginRedirect: true` | The platform answered 200 at a `/login/` address. Detected from the address, which is the only signal such a page carries: it ships two meta tags, often no `<title>`, and 450KB of script. |
 
 ### What Facebook does not expose to an unauthenticated request
@@ -388,6 +390,18 @@ What survives regardless, because none of it depends on the profile page: the
 caption, the thumbnail, the handle, and the profile URL. A post with
 `creator: null` and `creatorHandle: "@1Nesh.D"` is a correctly extracted post
 whose author Facebook declined to name.
+
+A short link may also not resolve to a post. `vt.tiktok.com/<code>` is meant to
+redirect to a video; when the code has expired, or the platform declines the
+request, or it bounces on region, it lands on a marketing page instead and
+answers 200. `redirectChain` shows the hops and `landedElsewhere` says the
+destination was not a post. Nothing is read from it, and — importantly — no
+creator is derived from its path: `/hk/about` is a region and a static page,
+not the account `@hk`.
+
+TikTok and YouTube accounts are always `@`-prefixed; neither has a bare-vanity
+profile route. Only Instagram and Facebook name the account in a plain first
+path segment, and the rule that reads one is limited to those two.
 
 It can also decline the post itself. A share link may redirect to
 `/login/?next=…` and answer 200 — a sign-in page, not the post. Then nothing
